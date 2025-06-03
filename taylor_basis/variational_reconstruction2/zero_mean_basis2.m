@@ -124,8 +124,8 @@ classdef zero_mean_basis2
 
                 % inner loop: derivatives -  0:order(j-n1)
                 % for i = 1:j-n1
-                for i = 1:this.n_terms
-                % for i = 1:j
+                % for i = 1:this.n_terms
+                for i = 1:j
                     % differentiation order: [m,n,o]
                     order = this.terms(i).exponents;
 
@@ -133,7 +133,7 @@ classdef zero_mean_basis2
 
                     % delta_term = scale ^ sum( order );
 
-                    L = 1; %zero_mean_basis2.get_factorial_scaling_1(order,scale);
+                    L = zero_mean_basis2.get_factorial_scaling_1(order,scale);
                     % L = scale ^ sum( order );
                     deriv(i,j-n1) = L * derivative_term;
                 end
