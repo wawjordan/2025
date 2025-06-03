@@ -1,0 +1,133 @@
+function coefs = get_quadratic_reconstruction_in_cell_hard_coded(Ts,Qs,Cs)
+
+n_nbors = numel(Ts);
+
+order1 = [1,2,3,4,6,5];
+order2 = [1,2,3,4,6,5];
+
+dxi = Ts(1).h_ref(1);
+dyi = Ts(1).h_ref(2);
+
+A = zeros(3,3);
+RHS = zeros(3,1);
+
+for n1 = 2:n_nbors
+    B1 = Ts(1).eval(order1(1),Ts(n1).x_ref);
+    B2 = Ts(1).eval(order1(2),Ts(n1).x_ref);
+    B3 = Ts(1).eval(order1(3),Ts(n1).x_ref);
+    B4 = Ts(1).eval(order1(4),Ts(n1).x_ref);
+    B5 = Ts(1).eval(order1(5),Ts(n1).x_ref);
+    B6 = Ts(1).eval(order1(6),Ts(n1).x_ref);
+
+    dxj = Ts(n1).h_ref(1);
+    dyj = Ts(n1).h_ref(2);
+
+    n_quad = Qs(n1).n_quad;
+    vol_tmp    = ones( 1,n_quad);
+    volumej = Qs(n1).integrate(vol_tmp);
+    B4_int_tmp = zeros(1,n_quad);
+    B5_int_tmp = zeros(1,n_quad);
+    B6_int_tmp = zeros(1,n_quad);
+    for i = 1:n_quad
+        B4_int_tmp(i) = Ts(1).eval(order1(4),Qs(n1).quad_pts(:,i));
+        B5_int_tmp(i) = Ts(1).eval(order1(5),Qs(n1).quad_pts(:,i));
+        B6_int_tmp(i) = Ts(1).eval(order1(6),Qs(n1).quad_pts(:,i));
+    end
+    B4_int = Qs(n1).integrate(B4_int_tmp) / volumej;
+    B5_int = Qs(n1).integrate(B5_int_tmp) / volumej;
+    B6_int = Qs(n1).integrate(B6_int_tmp) / volumej;
+
+    % B4_int_alt = Ts(1).shift_moment(Ts(n1),order1(4));
+    % B5_int_alt = Ts(1).shift_moment(Ts(n1),order1(5));
+    % B6_int_alt = Ts(1).shift_moment(Ts(n1),order1(6));
+
+    A(1,1) = A(1,1) + B2*B2 + B4_int*B4_int;
+    A(1,2) = A(1,2) + B4_int*B5_int;
+    A(1,3) = A(1,3) + B2*B3 + B4_int*B6_int;
+    A(2,2) = A(2,2) + B3*B3 + B5_int*B5_int;
+    A(2,3) = A(2,3) + B2*B3 + B5_int*B6_int;
+    A(3,3) = A(3,3) + B2*B2 + B3*B3 + B6_int*B6_int;
+
+    A(2,1) = A(1,2);
+    A(3,1) = A(1,3);
+    A(3,2) = A(2,3);
+
+    Ui_coeffs = Cs(1).coefs(order1(1:3));
+    Uj_coeffs = Cs(n1).coefs(order1(1:3));
+
+    % R1 = Uj_coeffs(1) - ( Ui_coeffs(1) ...
+    %                     + Ui_coeffs(2) * dxi * B2 ...
+    %                     + Ui_coeffs(3) * dyi * B3 );
+    % R2 = dxi * ( Uj_coeffs(2) - Ui_coeffs(2) );
+    % R3 = dyi * ( Uj_coeffs(3) - Ui_coeffs(3) );
+
+    R1 = Uj_coeffs(1) - ( Ui_coeffs(1) ...
+                        + Ui_coeffs(2) * B2 ...
+                        + Ui_coeffs(3) * B3 );
+    % R2 = ( Uj_coeffs(2) - Ui_coeffs(2) );
+    % R3 = ( Uj_coeffs(3) - Ui_coeffs(3) );
+
+    R2 = ( dxi/dxj * Uj_coeffs(2) - Ui_coeffs(2) );
+    R3 = ( dyi/dyj * Uj_coeffs(3) - Ui_coeffs(3) );
+
+    R1_int_tmp = zeros(1,n_quad);
+    for i = 1:n_quad
+        B2_tmp = Ts(1).eval(order1(2),Qs(n1).quad_pts(:,i));
+        B3_tmp = Ts(1).eval(order1(3),Qs(n1).quad_pts(:,i));
+        % R1_int_tmp(i) = Ui_coeffs(1) + Ui_coeffs(2) * dxi * B2_tmp ...
+        %                              + Ui_coeffs(3) * dyi * B3_tmp;
+        R1_int_tmp(i) = Ui_coeffs(1) + Ui_coeffs(2) * B2_tmp ...
+                                     + Ui_coeffs(3) * B3_tmp;
+    end
+
+    R1_int = Uj_coeffs(1) - Qs(n1).integrate(R1_int_tmp) / volumej;
+
+    RHS(1) = RHS(1) + B4_int*R1_int + B2*R2;
+    RHS(2) = RHS(2) + B5_int*R1_int + B3*R3;
+    RHS(3) = RHS(3) + B6_int*R1_int + B3*R2 + B2*R3;
+end
+
+new_coeffs = A\RHS;
+
+% new_coeffs(1) = new_coeffs(1) / dxi^2;
+% new_coeffs(2) = new_coeffs(2) / dyi^2;
+% new_coeffs(3) = new_coeffs(3) / (dxi*dyi);
+
+coefs1 = [Ui_coeffs(:);new_coeffs(:)];
+
+coefs = coefs1(order2);
+
+coefs = coefs(:);
+
+
+end
+% B1 --> [0,0] --> T.exponents(:,1)
+% B2 --> [1,0] --> T.exponents(:,2)
+% B3 --> [0,1] --> T.exponents(:,3)
+% B4 --> [2,0] --> T.exponents(:,4)
+% B5 --> [0,2] --> T.exponents(:,6)
+% B6 --> [1,1] --> T.exponents(:,5)
+
+% grvlex to Luo: [1,2,3,4,6,5]
+% [0,0] --> [0,0]: 1 to 1
+% [1,0] --> [1,0]: 2 to 2
+% [0,1] --> [0,1]: 3 to 3
+% [2,0] --> [2,0]: 4 to 4
+% [0,2] --> [1,1]: 5 to 6
+% [1,1] --> [0,2]: 6 to 5
+
+% Luo to grvlex: [1,2,3,4,6,5]
+% [0,0] <-- [0,0]: 1 to 1
+% [1,0] <-- [1,0]: 2 to 2
+% [0,1] <-- [0,1]: 3 to 3
+% [2,0] <-- [2,0]: 4 to 4
+% [0,2] <-- [1,1]: 6 to 5
+% [1,1] <-- [0,2]: 5 to 6
+
+
+
+
+
+% R2 --> Uj - (Ui + dx*Uxi*B2 + dy*Uyi*B3)
+% R2 --> dx(Uxj - Uxi)
+% R3 --> dy(Uyj - Uyi)
