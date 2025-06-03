@@ -13,42 +13,41 @@ degree  = 1;
 n_vars  = 1;
 [test_fun,test_fun_grad,test_fun_hess] = generate_test_function();
 
-idx_low  = [-2,-2,0] + idx;
-idx_high = [ 2, 2,0] + idx;
+% idx_low  = [-2,-2,0] + idx;
+% idx_high = [ 2, 2,0] + idx;
+% SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
+idx_low  = [1, 1, 1];
+idx_high = [2, 2, 1];
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
-CELLS = set_up_cells(SUB_GRID,1,[1,1,1],[5,5,1],degree,n_vars);
+CELLS = set_up_cells(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,n_vars);
 CELLS = arrayfun(@(CELLS)CELLS.set_cell_avg({test_fun}),CELLS);
 
 n1 = 1;
-CELLS2 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],[5,5,1],degree,{test_fun},n1);
+CELLS2 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
 [CELLS2,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS2);
+LHS = full(LHS);
+LHS(abs(LHS)<1e-6)=0;
+
 
 T1 = CELLS(1).taylor;
-T2 = CELLS2(1).basis;
 Q1 = CELLS(1).quad;
+
+T2 = CELLS2(1).basis;
 Q2 = CELLS2(1).quad;
 
 coefs1 = CELLS2(1).coefs;
 coefs2 = get_exact_quadratic_reconstruction_in_cell(T1,Q1,test_fun,test_fun_grad,test_fun_hess);
-coefs3 = [CELLS2(1).avgs(1); full(LHS(:,1:5))\RHS];
-
-% diff_array  = CELLS2(1).basis.calc_basis_derivatives_vec_scale(1,CELLS2(1).basis.x_ref,CELLS2(2).basis.x_ref - CELLS2(1).basis.x_ref);
-% diff_array  = CELLS2(1).basis.calc_basis_derivatives_vec_scale(1,CELLS2(1).fquad(1).quad_pts(:,2),CELLS2(2).basis.x_ref - CELLS2(1).basis.x_ref);
-% diff_array2 = CELLS(1).taylor.build_reconstruction_matrix( CELLS(2).taylor );
-
-
-% CELLS2(1).coefs = coefs1;
-
-% CELLS2(1).coefs(2:3) = CELLS2(1).coefs(2:3) .* CELLS2(1).basis.h_ref;
-
 
 [X1,F1] = evaluate_function_on_interp_grid(test_fun,CELLS2(1).quad,21);
 [~,F_rec1] = evaluate_reconstruction(CELLS2(1),21);
 
 [X2,F2] = evaluate_function_on_interp_grid(test_fun,CELLS2(2).quad,21);
 [~,F_rec2] = evaluate_reconstruction(CELLS2(2),21);
+
+% CELLS2(1).coefs = coefs2(1:CELLS2(1).basis.n_terms);
+% [X2,F_rec2] = evaluate_reconstruction(CELLS2(1),21);
 
 hold on;
 surf(X1{1},X1{2},F1{1},'EdgeColor','k')

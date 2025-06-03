@@ -40,6 +40,27 @@ classdef zero_mean_basis2
             this.moments = this.moments / volume;
         end
 
+        function x_bar = transform(this,x)
+            % shift and scale the coodinate before evaluation
+            scale_factor = 1.0./this.h_ref;
+            x_bar = zero_mean_basis2.shift_and_scale_static( x(1:this.n_dim), this.x_ref, scale_factor );
+        end
+
+        function moment = compute_grid_moment(this,n,quad)
+            % allocate
+            tmp = zeros(1,quad.n_quad);
+
+            % evaluate at quadrature points
+            for q = 1:quad.n_quad
+                xtmp   = this.transform( quad.quad_pts(1:this.n_dim,q) );
+                % [tmp(q),coef] = this.terms(n).eval( xtmp );
+                % tmp(q) = tmp(q) / coef;
+                [tmp(q),~] = this.terms(n).eval( xtmp );
+            end
+            % integrate
+            moment = quad.integrate(tmp);
+        end
+
         function [B,fact_coef] = eval(this,n,point)
             if (n == 1) % cell avg -> piecewise constant
                 B = 1.0;
@@ -79,6 +100,76 @@ classdef zero_mean_basis2
             % dB = (dB/fact_coef1) * fact_coef;
         end
 
+        function D = calc_basis_derivative(this,term,deriv,point,scale)
+            order = this.terms(deriv).exponents;
+            [derivative_term,~] = this.deval( term, point, order );
+            L = zero_mean_basis2.get_factorial_scaling_1(order,scale);
+            D = L * derivative_term;
+        end
+
+        function deriv = calc_basis_derivatives(this,n1,point,scale)
+            % Inputs:
+            %  this      - zero_mean_basis2 object
+            %  n1        - number of coefficients already solved for
+            %  point     - point (vector) at which to evaluate the derivatives
+            %  scale     - distance (scalar) describing local length scale
+
+            % allocate the working array
+            deriv = zeros(this.n_terms,this.n_terms-n1);
+
+            % outer loop: basis functions -  n1+1:n_terms
+            for j = n1+1:this.n_terms
+
+                % inner loop: derivatives -  0:order(j-n1)
+                % for i = 1:j-n1
+                % for i = 1:this.n_terms
+                for i = 1:j
+                    % % differentiation order: [m,n,o]
+                    % order = this.terms(i).exponents;
+                    % 
+                    % [derivative_term,~] = this.deval( j, point, order );
+                    % 
+                    % % delta_term = scale ^ sum( order );
+                    % 
+                    % L = zero_mean_basis2.get_factorial_scaling_1(order,scale);
+                    % % L = scale ^ sum( order );
+                    % deriv(i,j-n1) = L * derivative_term;
+                    deriv(i,j-n1) = this.calc_basis_derivative(j,i,point,scale);
+                end
+            end
+        end
+
+        % function deriv = calc_basis_derivatives(this,n1,point,scale)
+        %     % Inputs:
+        %     %  this      - zero_mean_basis2 object
+        %     %  n1        - number of coefficients already solved for
+        %     %  point     - point (vector) at which to evaluate the derivatives
+        %     %  scale     - distance (scalar) describing local length scale
+        % 
+        %     % allocate the working array
+        %     deriv = zeros(this.n_terms,this.n_terms-n1);
+        % 
+        %     % outer loop: basis functions -  n1+1:n_terms
+        %     for j = n1+1:this.n_terms
+        % 
+        %         % inner loop: derivatives -  0:order(j-n1)
+        %         % for i = 1:j-n1
+        %         % for i = 1:this.n_terms
+        %         for i = 1:j
+        %             % differentiation order: [m,n,o]
+        %             order = this.terms(i).exponents;
+        % 
+        %             [derivative_term,~] = this.deval( j, point, order );
+        % 
+        %             % delta_term = scale ^ sum( order );
+        % 
+        %             L = zero_mean_basis2.get_factorial_scaling_1(order,scale);
+        %             % L = scale ^ sum( order );
+        %             deriv(i,j-n1) = L * derivative_term;
+        %         end
+        %     end
+        % end
+
         function deriv = calc_basis_derivatives_vec_scale(this,n1,point,scale_vec)
             % Inputs:
             %  this      - zero_mean_basis2 object
@@ -107,88 +198,6 @@ classdef zero_mean_basis2
                     deriv(i,j-n1) = L * derivative_term;
                 end
             end
-        end
-
-        function deriv = calc_basis_derivatives(this,n1,point,scale)
-            % Inputs:
-            %  this      - zero_mean_basis2 object
-            %  n1        - number of coefficients already solved for
-            %  point     - point (vector) at which to evaluate the derivatives
-            %  scale     - distance (scalar) describing local length scale
-
-            % allocate the working array
-            deriv = zeros(this.n_terms,this.n_terms-n1);
-
-            % outer loop: basis functions -  n1+1:n_terms
-            for j = n1+1:this.n_terms
-
-                % inner loop: derivatives -  0:order(j-n1)
-                % for i = 1:j-n1
-                % for i = 1:this.n_terms
-                for i = 1:j
-                    % differentiation order: [m,n,o]
-                    order = this.terms(i).exponents;
-
-                    [derivative_term,~] = this.deval( j, point, order );
-
-                    % delta_term = scale ^ sum( order );
-
-                    L = zero_mean_basis2.get_factorial_scaling_1(order,scale);
-                    % L = scale ^ sum( order );
-                    deriv(i,j-n1) = L * derivative_term;
-                end
-            end
-        end
-
-        % function deriv = calc_basis_derivative_matrix(this,n1,quad,scale_vec)
-        %     % allocate
-        %     deriv = zeros(this.n_terms-n1,this.n_terms-n1);
-        %     % outer loop: basis functions -  n1+1:n_terms
-        %     for j = n1+1:this.n_terms
-        %         % inner loop: derivatives -  1:n(p)
-        %         for i = 1:j
-        %             order = this.terms(i).exponents;
-        %             [coef,~] = this.terms(i).deval( scale_vec, order );
-        %             [tmp1,~] = this.deval( j, point, order );
-        %             deriv(i,j-n1) = tmp1 * coef;
-        %         end
-        %     end
-        % end
-
-        % function deriv = calc_basis_derivatives(this,n1,point,scale)
-        %     % allocate
-        %     deriv = zeros(this.n_terms-n1,this.n_terms-n1);
-        %     % outer loop: basis functions -  n1+1:n_terms
-        %     for j = n1+1:this.n_terms
-        %         % inner loop: derivatives -  1:n(p)
-        %         for i = 1:j
-        %             order = this.terms(i).exponents;
-        %             coef = scale ^ sum( order );
-        %             [tmp1,~] = this.deval( j, point, order );
-        %             deriv(i,j-n1) = tmp1 * coef;
-        %         end
-        %     end
-        % end
-
-        function x_bar = transform(this,x)
-            % shift and scale the coodinate before evaluation
-            scale_factor = 1.0./this.h_ref;
-            x_bar = zero_mean_basis2.shift_and_scale_static( x(1:this.n_dim), this.x_ref, scale_factor );
-        end
-
-        function moment = compute_grid_moment(this,n,quad)
-            % allocate
-            tmp = zeros(1,quad.n_quad);
-
-            % evaluate at quadrature points
-            for q = 1:quad.n_quad
-                xtmp   = this.transform( quad.quad_pts(1:this.n_dim,q) );
-                % [tmp(q),coef] = this.terms(n).eval( xtmp );
-                % tmp(q) = tmp(q) / coef;
-                [tmp(q),~] = this.terms(n).eval( xtmp );
-            end
-            % integrate
-            moment = quad.integrate(tmp);
         end
 
     end

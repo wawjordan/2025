@@ -142,7 +142,25 @@ classdef var_rec_t2
                 end
                 B(:,:,k) = B(:,:,k) / dij_mag;
             end
+
             
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            npts = 21;
+            [X,Fi,Fj,Qi] = var_rec_t2.evaluate_taylor_basis_and_derivatives(this,nbors,n1,npts);
+
+            % which neighbor?
+            i_nbor  = 1;
+            i_term  = 1;
+            i_deriv = 1;
+
+            %%% You might be onto something here ...
+            % I think you are indexing the wrong face, so you are evaluating at the wrong nodes
+            fig_h = figure();
+            var_rec_t2.macro_plot(fig_h,X,Fi,Fj,Qi,i_nbor,i_term,i_deriv);
+            var_rec_t2.macro_plot_quads(fig_h,Qi,1,'rd');
+            var_rec_t2.macro_plot_quads(fig_h,Qi,2,'gv');
+            % var_rec_t2.macro_plot_quads(fig_h,Qi,3,'b^');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         end
 
         function b = get_RHS(this,n1,nbors)
@@ -196,13 +214,17 @@ classdef var_rec_t2
                 row_start = (i-1)*n_terms_local + 1;
                 col_start = row_start;
                 Ai = CELLS(i).self_LHS;
-                [row_idx,col_idx,vals,nz_cnt] = var_rec_t2.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,0*Ai);
+                [row_idx,col_idx,vals,nz_cnt] = var_rec_t2.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,Ai);
                 n_nbors = CELLS(i).n_nbors;
                 for n = 1:n_nbors
-                    nbor_idx = CELLS(i).nbor_idx(1:n_dim,n);
-                    j = zero_mean_basis.local_to_global(nbor_idx,sz);
-                    col_start = (j-1)*n_terms_local + 1;
                     Bij = CELLS(i).nbor_LHS(:,:,n);
+
+                    nbor_idx = CELLS(i).nbor_idx(1:n_dim,n);
+
+                    j = zero_mean_basis.local_to_global(nbor_idx,sz);
+
+                    col_start = (j-1)*n_terms_local + 1;
+                    
                     [row_idx,col_idx,vals,nz_cnt] = var_rec_t2.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,-Bij);
                 end
             end
@@ -275,5 +297,95 @@ classdef var_rec_t2
                 CELLS(i).coefs(n1+1:n_terms,:) = coefs(row_start:row_end,:);
             end
         end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function [X,Fi,Fj,Qi] = evaluate_taylor_basis_and_derivatives(CELL,NBORS,n1,npts)
+
+            n_nbor  = CELL.n_nbors;
+            n_dim   = CELL.basis.n_dim;
+            n_deriv = CELL.basis.n_terms;
+            n_terms = CELL.basis.n_terms - n1;
+
+            % cell array for evaluation grids
+            X = cell(n_nbor+1,1);
+
+            X{1} = get_local_interp_grid(CELL.quad,n_dim,npts);
+            for k = 1:n_nbor
+                X{k+1} = get_local_interp_grid(NBORS(k).quad,n_dim,npts);
+            end
+
+            % cell arrays for evaluated basis functions + derivatives
+            Fi = cell(n_nbor,1);
+            Fj = cell(n_nbor,1);
+
+            Qi = cell(n_nbor,1);
+            Qj = cell(n_nbor,1);
+            % cell
+            for k = 1:n_nbor
+                % basis functions
+                Fi{k} = cell(n_terms,1);
+                Fj{k} = cell(n_terms,1);
+                for j = 1:n_terms
+                    % derivatives
+                    Fi{k}{j} = cell(n_deriv,1);
+                    Fj{k}{j} = cell(n_deriv,1);
+                end
+
+                % face quad_pts
+                Qi{k} = CELL.fquad(k).quad_pts(1:2,:).';
+            end
+
+            for i = 1:n_deriv
+                for j = 1:n_terms
+                    for k = 1:n_nbor
+                        dij = CELL.basis.x_ref - NBORS(k).basis.x_ref;
+                        dij_mag = sqrt( sum(dij.^2));
+                        Fi{k}{j}{i} = arrayfun( @(x1,y1)    CELL.basis.calc_basis_derivative(j,i,[x1;y1],dij_mag), X{1}{1}, X{1}{2} );
+                        Fj{k}{j}{i} = arrayfun( @(x1,y1)NBORS(k).basis.calc_basis_derivative(j,i,[x1;y1],dij_mag), X{k+1}{1}, X{k+1}{2} );
+                    end
+                end
+            end
+
+        end
+
+        function X = get_local_interp_grid(Q,n_dim,npts)
+            % get number of quadrature points (per dimension)
+            n_quad = repmat( round( Q.n_quad.^(1/n_dim) ), 1, n_dim );
+            quad_ref = quad_t.create_quad_ref_2D( n_quad(1) );
+
+
+            n_plot_pts = ones(3,1);
+            n_plot_pts(1:n_dim) = npts;
+
+            xtmp = reshape(Q.quad_pts(1,:),n_quad);
+            ytmp = reshape(Q.quad_pts(2,:),n_quad);
+            ztmp = reshape(Q.quad_pts(2,:),n_quad);
+
+            L = lagrange_interpolant(n_quad(1) + 1);
+            % extrapolate the parametric space from the innermost quadrature points
+            % Note: needs to be a consistent order of quadrature for the geometry representation
+            [x1,y1,z1] = L.map_grid_from_quad(xtmp,ytmp,ztmp,n_plot_pts(1),...
+                n_plot_pts(2),...
+                n_plot_pts(3), quad_ref );
+            X = {x1,y1,z1};
+        end
+
+        function macro_plot(fig_h,X,Fi,Fj,Qi,nbor,term,deriv)
+            set(0, 'currentfigure', fig_h);
+            hold on;
+            % plot where the quadrature points are
+            plot(Qi{nbor}(:,1),Qi{nbor}(:,2),'ko')
+            surf(X{1}{1},X{1}{2},Fi{nbor}{term}{deriv},'FaceColor','b','EdgeColor','k')
+            surf(X{1+nbor}{1},X{1+nbor}{2},Fj{nbor}{term}{deriv},'FaceColor','r','EdgeColor','k')
+            view(-14,12)
+        end
+
+        function macro_plot_quads(fig_h,Qi,nbor,varargin)
+            set(0, 'currentfigure', fig_h);
+            % plot where the quadrature points are
+            plot(Qi{nbor}(:,1),Qi{nbor}(:,2),varargin{:})
+        end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     end
 end
