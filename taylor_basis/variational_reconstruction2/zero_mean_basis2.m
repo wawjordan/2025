@@ -95,7 +95,11 @@ classdef zero_mean_basis2
             % end
 
             % grid_factor = 1 / prod( this.h_ref .^ this.terms(n).exponents );
-            % dB = dB * grid_factor;
+            grid_factor = 1 / prod( this.h_ref .^ order );
+
+            if (any(order)>0)
+                dB = dB * grid_factor;
+            end
 
             % get normalization factor for this basis
             % [~,fact_coef1] = this.eval(n,point);

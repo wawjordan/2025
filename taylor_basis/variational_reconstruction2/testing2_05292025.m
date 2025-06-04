@@ -1,24 +1,37 @@
 %% Testing the taylor_shape_functions type (04/30/2025)
 clc; clear; close all;
-
-agglom=false;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+parent_dir_str = '2025';
+path_parts = regexp(mfilename('fullpath'), filesep, 'split');
+path_idx = find(cellfun(@(s1)strcmp(s1,parent_dir_str),path_parts));
+parent_dir = fullfile(path_parts{1:path_idx});
+addpath(genpath(parent_dir));
+clear parent_dir_str path_idx path_parts
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clc;
+agglom=true;
 load_file=true;
-cart=true;
-GRID = load_gen_grid_for_testing(agglom,load_file,cart);
+cart=false;
+GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
 
 blk     = 1;
-idx     = [3,3,1];
 dim     = 2;
-degree  = 3;
+degree  = 4;
 n_vars  = 1;
 [test_fun,test_fun_grad,test_fun_hess] = generate_test_function();
 
-% idx_low  = [-2,-2,0] + idx;
-% idx_high = [ 2, 2,0] + idx;
-% SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
-
-idx_low  = [1, 1, 1];
-idx_high = [4, 4, 1];
+if cart
+    idx_low  = [1,1,1];
+    idx_high = [5,5,1];
+else
+    if agglom
+        idx_low  = [23,1,1];
+        idx_high = [42,5,1];
+    else
+        idx_low  = [47,1,1];
+        idx_high = [84,5,1];
+    end
+end
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 CELLS = set_up_cells(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,n_vars);
@@ -27,9 +40,11 @@ CELLS = arrayfun(@(CELLS)CELLS.set_cell_avg({test_fun}),CELLS);
 n1 = 1;
 CELLS2 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
 [CELLS2,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS2);
-LHS = full(LHS);
+% LHS = full(LHS);
 % LHS(abs(LHS)<1e-6)=0;
 
+plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
+view(12,14)
 
 T1 = CELLS(1).taylor;
 Q1 = CELLS(1).quad;
@@ -94,16 +109,16 @@ end
 % Local Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function GRID = load_gen_grid_for_testing(agglom,load_file,cart)
+function GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart)
 
-grid_file = 'C:\Users\Will\Desktop\kt.grd';
+grid_file = fullfile(parent_dir,'kt.grd');
 
 if cart
-    grid_t_file = 'C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_geometry\grid_derived_type\GRID_cart.mat';
+    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID_cart.mat');
 elseif agglom
-    grid_t_file = 'C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_geometry\grid_derived_type\GRID_agglom.mat';
+    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID_agglom.mat');
 else
-    grid_t_file = 'C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_geometry\grid_derived_type\GRID.mat';
+    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID.mat');
 end
 
 if isfile(grid_t_file)&&load_file
@@ -124,7 +139,7 @@ else
         GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=3,nskip=[2,2,1]);
     else
         GRID = read_grd_file_to_struct( grid_file );
-        GRID = grid_type(GRID,calc_quads=true,nquad=5);
+        GRID = grid_type(GRID,calc_quads=true,nquad=3);
     end
     save(grid_t_file,"GRID");
 end
@@ -135,8 +150,16 @@ function [test_fun,test_fun_grad,test_fun_hess] = generate_test_function()
 
 syms x y
 
-test_fun_sym(x,y) = 1.0 + y + x + y.^2 + x.*y + x.^2;
+% test_fun_sym(x,y) = 1.0 + y + x + y.^2 + x.*y + x.^2;
 % test_fun_sym(x,y) = -4.0 + 2.1*y + 0.02*x + 0.006*y.^2 -0.2*x.*y + x.^2;
+test_fun_sym(x,y) = (1/2) * ( 999*x.^4 - 888*y.^4 ) - 666*x.*y;
+% test_fun_sym(x,y) = (1/12) * ( 999*x.^4 - 888*y.^4 ) ...
+%                   + (1/6)  * ( 777*x.^3 .* y + 666*x.*y.^3 ) ...
+%                   + (1/4)  * ( 555*x.^2 .* y.^2 ) ...
+%                   + (1/6)  * ( 444*x.^3 + 333*y.^3 ) ...
+%                   + (1/2)  * ( 222*x.^2 .* y + 111*y.^2 ) ...
+%                   + (1/2)  * ( 99*x.^2  + 88 * y.^2 ) ...
+%                   + 77*x.*y + 66*x + 55*y;
 test_fun = matlabFunction(test_fun_sym);
 test_fun_grad = matlabFunction(gradient(test_fun_sym,[x,y]));
 test_fun_hess = matlabFunction(hessian(test_fun_sym,[x,y]));
@@ -213,4 +236,29 @@ L = lagrange_interpolant(n_quad(1) + 1);
                                                  n_plot_pts(2),...
                                                  n_plot_pts(3), quad_ref );
 X = {x1,y1,z1};
+end
+
+
+function plot_function_over_cells(test_fun,var,CELLS,npts,varargin)
+hold on;
+for i = 1:numel(CELLS)
+    [X,F] = evaluate_function_on_interp_grid(test_fun,CELLS(i).quad,npts);
+    surf(X{1},X{2},F{var},varargin{:})
+end
+end
+
+function plot_reconstruction_over_cells(var,CELLS,npts,varargin)
+hold on;
+for i = 1:numel(CELLS)
+    [X,F_rec] = evaluate_reconstruction(CELLS(i),npts);
+    surf(X{1},X{2},F_rec{var},varargin{:})
+end
+end
+function plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
+hold on;
+for i = 1:numel(CELLS)
+    [X,F_rec] = evaluate_reconstruction(CELLS(i),npts);
+    [~,F] = evaluate_function_on_interp_grid(test_fun,CELLS(i).quad,npts);
+    surf(X{1},X{2},F_rec{var}-F{var},varargin{:})
+end
 end

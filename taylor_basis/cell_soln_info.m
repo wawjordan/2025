@@ -37,7 +37,7 @@ classdef cell_soln_info
         end
         function this = set_cell_avg(this,funs)
             n_dim = this.taylor.n_dim;
-            for i = 1:size(this.avgs)
+            for i = 1:numel(this.avgs)
                 this.avgs(i) = cell_soln_info.get_cell_avg(this.quad,funs{i},n_dim);
             end
         end
