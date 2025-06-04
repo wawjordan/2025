@@ -4,6 +4,7 @@ classdef var_rec_t2
         n_nbors  (1,1) {mustBeInteger} = 1
         idx      (:,1) {mustBeInteger}
         nbor_idx (:,:) {mustBeInteger}
+        nbor_face_id (:,1) {mustBeInteger}
         basis    (1,1) zero_mean_basis2
         quad     (1,1) quad_t
         fquad    (:,1) quad_t
@@ -18,12 +19,13 @@ classdef var_rec_t2
     end
 
     methods
-        function this = var_rec_t2(nbor_idxs,T,Q,FQ,FN,n_vars)
+        function this = var_rec_t2(nbor_idxs,nbor_face_id,T,Q,FQ,FN,n_vars)
             if nargin<1
                 return
             end
             this.idx      = nbor_idxs(:,1);
             this.nbor_idx = nbor_idxs(:,2:end);
+            this.nbor_face_id = nbor_face_id;
             this.n_nbors  = size(nbor_idxs,2) - 1;
             this.basis    = T;
             this.quad     = Q;
@@ -82,7 +84,7 @@ classdef var_rec_t2
             n_terms_local = this.basis.n_terms-n1;
             max_n_quad = 0;
             for k = 1:n_nbor
-                max_n_quad = max(max_n_quad,this.fquad(k).n_quad );
+                max_n_quad = max(max_n_quad,this.fquad( this.nbor_face_id(k) ).n_quad );
             end
             d_basis = zeros(max_n_quad,n_terms_local+n1,n_terms_local);
             A = zeros(n_terms_local,n_terms_local);
@@ -91,10 +93,10 @@ classdef var_rec_t2
                 dij = this.basis.x_ref - nbors(k).basis.x_ref;
                 % dij = abs(dij);
                 dij_mag = sqrt( sum(dij.^2));
-                n_quad = this.fquad(k).n_quad;
+                n_quad = this.fquad( this.nbor_face_id(k) ).n_quad;
 
                 for q = 1:n_quad
-                    point = this.fquad(k).quad_pts(:,q);
+                    point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
                     d_basis(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dij_mag);
                     % d_basis(q,:,:) = this.basis.calc_basis_derivatives_vec_scale(n1,point,dij);
                 end
@@ -102,7 +104,7 @@ classdef var_rec_t2
                 for l = 1:n_terms_local
                     for m = 1:n_terms_local
                         sum_tmp = sum(d_basis(1:n_quad,:,l) .* d_basis(1:n_quad,:,m),2);
-                        A1(m,l) = this.fquad(k).integrate( sum_tmp.' );
+                        A1(m,l) = this.fquad( this.nbor_face_id(k) ).integrate( sum_tmp.' );
                     end
                 end
                 A = A + A1/dij_mag;
@@ -114,7 +116,7 @@ classdef var_rec_t2
             n_terms_local = this.basis.n_terms - n1;
             max_n_quad = 0;
             for k = 1:n_nbor
-                max_n_quad = max(max_n_quad,this.fquad(k).n_quad );
+                max_n_quad = max(max_n_quad,this.fquad( this.nbor_face_id(k) ).n_quad );
             end
             d_basis_i = zeros(max_n_quad,n_terms_local+n1,n_terms_local);
             d_basis_j = zeros(max_n_quad,n_terms_local+n1,n_terms_local);
@@ -125,9 +127,9 @@ classdef var_rec_t2
                 dij = this.basis.x_ref - nbors(k).basis.x_ref;
                 % dij = abs(dij);
                 dij_mag = sqrt( sum(dij.^2));
-                n_quad = this.fquad(k).n_quad;
+                n_quad = this.fquad( this.nbor_face_id(k) ).n_quad;
                 for q = 1:n_quad
-                    point = this.fquad(k).quad_pts(:,q);
+                    point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
                     % d_basis_1(q,:,:) = this.basis.calc_basis_derivatives_vec_scale(n1,point,dij);
                     % d_basis_2(q,:,:) = nbors(k).basis.calc_basis_derivatives_vec_scale(n1,point,dij);
                     d_basis_i(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dij_mag);
@@ -137,7 +139,7 @@ classdef var_rec_t2
                     for l = 1:n_terms_local
                         % sum of product of derivatives
                         sum_tmp = sum( d_basis_i(1:n_quad,:,l) .* d_basis_j(1:n_quad,:,r), 2 );
-                        B(l,r,k) = this.fquad(k).integrate( sum_tmp.' );
+                        B(l,r,k) = this.fquad( this.nbor_face_id(k) ).integrate( sum_tmp.' );
                     end
                 end
                 B(:,:,k) = B(:,:,k) / dij_mag;
@@ -145,21 +147,31 @@ classdef var_rec_t2
 
             
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            npts = 21;
-            [X,Fi,Fj,Qi] = var_rec_t2.evaluate_taylor_basis_and_derivatives(this,nbors,n1,npts);
-
-            % which neighbor?
-            i_nbor  = 1;
-            i_term  = 1;
-            i_deriv = 1;
-
-            %%% You might be onto something here ...
-            % I think you are indexing the wrong face, so you are evaluating at the wrong nodes
-            fig_h = figure();
-            var_rec_t2.macro_plot(fig_h,X,Fi,Fj,Qi,i_nbor,i_term,i_deriv);
-            var_rec_t2.macro_plot_quads(fig_h,Qi,1,'rd');
-            var_rec_t2.macro_plot_quads(fig_h,Qi,2,'gv');
-            % var_rec_t2.macro_plot_quads(fig_h,Qi,3,'b^');
+            % if all( this.idx == [3;3;1] )
+            %     npts = 21;
+            %     [X,Fi,Fj,Qi] = var_rec_t2.evaluate_taylor_basis_and_derivatives(this,nbors,n1,npts);
+            % 
+            % 
+            % 
+            %     % which neighbor?
+            %     i_term  = 5;
+            %     i_deriv = 1;
+            % 
+            %     %%% You might be onto something here ...
+            %     % I think you are indexing the wrong face, so you are evaluating at the wrong nodes
+            %     fig_h = figure();
+            %     i_nbor  = 1;
+            %     var_rec_t2.macro_plot_self(fig_h,X,Fi,i_nbor,i_term,i_deriv,'FaceColor','r')
+            %     i_nbor  = 1;
+            %     var_rec_t2.macro_plot(fig_h,X,Fj,Qi,i_nbor,i_term,i_deriv,{'FaceColor','b'},{'gv'});
+            %     i_nbor  = 2;
+            %     var_rec_t2.macro_plot(fig_h,X,Fj,Qi,i_nbor,i_term,i_deriv,{'FaceColor','b'},{'gv'});
+            %     i_nbor  = 3;
+            %     var_rec_t2.macro_plot(fig_h,X,Fj,Qi,i_nbor,i_term,i_deriv,{'FaceColor','b'},{'gv'});
+            %     i_nbor  = 4;
+            %     var_rec_t2.macro_plot(fig_h,X,Fj,Qi,i_nbor,i_term,i_deriv,{'FaceColor','b'},{'gv'});
+            %     i_nbor;
+            % end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         end
 
@@ -167,7 +179,7 @@ classdef var_rec_t2
             n_nbor  = this.n_nbors;
             n_terms_local = this.basis.n_terms - n1;
             % assume same number of quad pts on all faces
-            n_quad  = this.fquad(1).n_quad;
+            n_quad  = this.fquad( this.nbor_face_id(1) ).n_quad;
 
             b = zeros(n_terms_local,this.n_vars);
 
@@ -180,10 +192,10 @@ classdef var_rec_t2
                 for l = 1:n_terms_local
                     int_tmp = zeros(1,n_quad);
                     for q = 1:n_quad
-                        point = this.fquad(k).quad_pts(:,q);
+                        point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
                         int_tmp(q) = this.basis.eval( l+n1, point );
                     end
-                    b(l,:) = b(l,:) + avg_diff(:) * (1/dij_mag) * (L^2) * this.fquad(k).integrate(int_tmp);
+                    b(l,:) = b(l,:) + avg_diff(:) * (1/dij_mag) * (L^2) * this.fquad( this.nbor_face_id(k) ).integrate(int_tmp);
                 end
             end
         end
@@ -319,7 +331,6 @@ classdef var_rec_t2
             Fj = cell(n_nbor,1);
 
             Qi = cell(n_nbor,1);
-            Qj = cell(n_nbor,1);
             % cell
             for k = 1:n_nbor
                 % basis functions
@@ -332,7 +343,7 @@ classdef var_rec_t2
                 end
 
                 % face quad_pts
-                Qi{k} = CELL.fquad(k).quad_pts(1:2,:).';
+                Qi{k} = CELL.fquad( CELL.nbor_face_id(k) ).quad_pts(1:2,:).';
             end
 
             for i = 1:n_deriv
@@ -370,15 +381,31 @@ classdef var_rec_t2
             X = {x1,y1,z1};
         end
 
-        function macro_plot(fig_h,X,Fi,Fj,Qi,nbor,term,deriv)
+        function macro_plot_self(fig_h,X,Fi,nbor,term,deriv,varargin)
             set(0, 'currentfigure', fig_h);
             hold on;
-            % plot where the quadrature points are
-            plot(Qi{nbor}(:,1),Qi{nbor}(:,2),'ko')
-            surf(X{1}{1},X{1}{2},Fi{nbor}{term}{deriv},'FaceColor','b','EdgeColor','k')
-            surf(X{1+nbor}{1},X{1+nbor}{2},Fj{nbor}{term}{deriv},'FaceColor','r','EdgeColor','k')
+            surf(X{1}{1},X{1}{2},Fi{nbor}{term}{deriv},varargin{:})
             view(-14,12)
         end
+
+        function macro_plot(fig_h,X,Fj,Qi,nbor,term,deriv,varargin1,varargin2)
+            set(0, 'currentfigure', fig_h);
+            hold on;
+            surf(X{1+nbor}{1},X{1+nbor}{2},Fj{nbor}{term}{deriv},varargin1{:})
+            % plot where the quadrature points are
+            plot(Qi{nbor}(:,1),Qi{nbor}(:,2),varargin2{:})
+            view(-14,12)
+        end
+
+        % function macro_plot(fig_h,X,Fi,Fj,Qi,nbor,term,deriv)
+        %     set(0, 'currentfigure', fig_h);
+        %     hold on;
+        %     % plot where the quadrature points are
+        %     plot(Qi{nbor}(:,1),Qi{nbor}(:,2),'ko')
+        %     surf(X{1}{1},X{1}{2},Fi{nbor}{term}{deriv},'FaceColor','b','EdgeColor','k')
+        %     surf(X{1+nbor}{1},X{1+nbor}{2},Fj{nbor}{term}{deriv},'FaceColor','r','EdgeColor','k')
+        %     view(-14,12)
+        % end
 
         function macro_plot_quads(fig_h,Qi,nbor,varargin)
             set(0, 'currentfigure', fig_h);

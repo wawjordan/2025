@@ -7,9 +7,9 @@ cart=true;
 GRID = load_gen_grid_for_testing(agglom,load_file,cart);
 
 blk     = 1;
-idx     = [5,5,1];
+idx     = [3,3,1];
 dim     = 2;
-degree  = 1;
+degree  = 2;
 n_vars  = 1;
 [test_fun,test_fun_grad,test_fun_hess] = generate_test_function();
 
@@ -18,7 +18,7 @@ n_vars  = 1;
 % SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 idx_low  = [1, 1, 1];
-idx_high = [2, 2, 1];
+idx_high = [3, 3, 1];
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 CELLS = set_up_cells(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,n_vars);
@@ -28,7 +28,7 @@ n1 = 1;
 CELLS2 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
 [CELLS2,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS2);
 LHS = full(LHS);
-LHS(abs(LHS)<1e-6)=0;
+% LHS(abs(LHS)<1e-6)=0;
 
 
 T1 = CELLS(1).taylor;
@@ -46,15 +46,15 @@ coefs2 = get_exact_quadratic_reconstruction_in_cell(T1,Q1,test_fun,test_fun_grad
 [X2,F2] = evaluate_function_on_interp_grid(test_fun,CELLS2(2).quad,21);
 [~,F_rec2] = evaluate_reconstruction(CELLS2(2),21);
 
-% CELLS2(1).coefs = coefs2(1:CELLS2(1).basis.n_terms);
-% [X2,F_rec2] = evaluate_reconstruction(CELLS2(1),21);
+CELLS2(1).coefs = coefs2(1:CELLS2(1).basis.n_terms);
+[X2,F_rec2] = evaluate_reconstruction(CELLS2(1),21);
 
 hold on;
 surf(X1{1},X1{2},F1{1},'EdgeColor','k')
-surf(X2{1},X2{2},F2{1},'EdgeColor','k')
+view(-14,12)
+% surf(X2{1},X2{2},F2{1},'EdgeColor','k')
 surf(X1{1},X1{2},F_rec1{1},'FaceColor','b','EdgeColor','k')
-surf(X2{1},X2{2},F_rec2{1},'FaceColor','r','EdgeColor','k')
-view(-14,12)    
+surf(X2{1},X2{2},F_rec2{1},'FaceColor','r','EdgeColor','k')    
 point = CELLS(1).fquad(1).quad_pts(:,1);
 
 % l = 5;

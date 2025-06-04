@@ -8,13 +8,15 @@ end
 
 function CELL = set_up_cell(GRID,blk,idx,degree,n_vars)
 [n_dim,nbor_idx] = get_dim_and_nbor_info(GRID,blk,[idx{:}]);
+
+n_nbor = size(nbor_idx,2) - 1;
 tmp_idx = num2cell( nbor_idx(:,1) );
 Q = GRID.gblock(blk).grid_vars.quad( tmp_idx{:} );
-[FQ,FN] = get_face_info(GRID,blk,idx,n_dim);
+[FQ,FN,nbor_face_id] = get_face_info(GRID,blk,idx,n_dim);
 nodes = get_nodes(GRID,blk,nbor_idx(:,1),n_dim);
 h_ref = get_max_cell_extents(nodes,n_dim);
 T = zero_mean_basis2(n_dim,degree,h_ref,Q);
-CELL = var_rec_t2(nbor_idx,T,Q,FQ,FN,n_vars);
+CELL = var_rec_t2(nbor_idx,nbor_face_id(1:n_nbor),T,Q,FQ,FN,n_vars);
 end
 
 function [n_dim,id] = get_dim_and_nbor_info(GRID,blk,idx)
@@ -62,22 +64,37 @@ for n = 1:n_nodes
 end
 end
 
-function [face_quads,normals] = get_face_info(GRID,blk,idx,n_dim)
+function [face_quads,normals,face_nbor_idx] = get_face_info(GRID,blk,idx,n_dim)
 quad_var={'xi_face_quad','eta_face_quad','zeta_face_quad'};
 norm_var={'xi_n','eta_n','zeta_n'};
 max_dim = 3;
 if (n_dim > max_dim)
     error('GRID type not set up for more than 3 dimensions')
 end
+
+
 n_faces = 2*n_dim;
 face_quads = cell(n_faces,1);
 normals    = cell(n_faces,1);
+
+face_nbor_idx = zeros(n_faces,1);
+
+cnt = 0;
 for i = 1:n_faces
     face_idx =  fix((i-1)/2)+1; % [1,1,2,2,3,3]
     offset   =  mod(i+1,2);     % [0,1]
     factor   =  2*offset-1;     % [-1, 1]
     tmp_idx  =  [idx{:}];
     tmp_idx(face_idx) = tmp_idx(face_idx)+offset;
+
+    nbor_idx = [idx{:}];
+    nbor_idx(face_idx) = nbor_idx(face_idx)+factor;
+
+    if ( in_bounds(nbor_idx(1:n_dim),ones(1,n_dim),GRID.gblock(blk).Ncells(1:n_dim)) )
+        cnt = cnt + 1;
+        face_nbor_idx(cnt) = i;
+    end
+
     face_quads{i} = GRID.gblock(blk).grid_vars.(quad_var{face_idx}) ...
                                                ( tmp_idx(1),...
                                                  tmp_idx(2),...
@@ -106,4 +123,9 @@ for i = nDims:-1:1
     iSub(i) = fix( (iGtmp-iTmp)/p ) + 1;
     iGtmp = iTmp;
 end
+end
+
+function val = in_bounds(idx,bnd_min,bnd_max)
+val = ( all(idx(:)>=bnd_min(:))&&all(idx(:)<=bnd_max(:)) || ...
+        all(idx(:)<=bnd_min(:))&&all(idx(:)>=bnd_max(:)) );
 end
