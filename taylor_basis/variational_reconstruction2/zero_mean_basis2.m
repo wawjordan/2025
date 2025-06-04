@@ -84,23 +84,10 @@ classdef zero_mean_basis2
             
             [dB,dcoef,~] = this.terms(n).deval( this.transform(point), order );
             dB = dB * dcoef;
-            % fact_coef = kperm(this.terms(n).exponents,order);
-            % 
-            % fact_coef2 = prod(factorial(this.terms(n).exponents)) / prod( factorial( max(this.terms(n).exponents - order,0) ) );
-            % dB = dB * fact_coef2;
-
-%%%%%%%%%%%%% figure out this discrepency
-            % if fact_coef2~=fact_coef
-            %     fact_coef2
-            % end
-
-            % grid_factor = 1 / prod( this.h_ref .^ this.terms(n).exponents );
-            grid_factor = 1 / prod( this.h_ref .^ order );
-
             if (any(order)>0)
+                grid_factor = 1 / prod( this.h_ref .^ order );
                 dB = dB * grid_factor;
             end
-
             % get normalization factor for this basis
             % [~,fact_coef1] = this.eval(n,point);
             % dB = (dB/fact_coef1) * fact_coef;

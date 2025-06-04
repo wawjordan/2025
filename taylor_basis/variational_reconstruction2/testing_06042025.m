@@ -1,4 +1,4 @@
-%% Testing the taylor_shape_functions type (04/30/2025)
+%% Testing the zero_mean_basis2 type (06/04/2025)
 clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 parent_dir_str = '2025';
@@ -36,76 +36,13 @@ else
 end
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
-CELLS = set_up_cells(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,n_vars);
-CELLS = arrayfun(@(CELLS)CELLS.set_cell_avg({test_fun}),CELLS);
-
 n1 = 1;
 CELLS2 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
 [CELLS2,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS2);
-% LHS = full(LHS);
-% LHS(abs(LHS)<1e-6)=0;
 plot_reconstruction_over_cells(1,CELLS2(1),21,'FaceColor','r')
 plot_function_over_cells(test_fun,1,CELLS2(1),21,'EdgeColor','none')
 % plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
 view(12,14)
-
-T1 = CELLS(1).taylor;
-Q1 = CELLS(1).quad;
-
-T2 = CELLS2(1).basis;
-Q2 = CELLS2(1).quad;
-
-coefs1 = CELLS2(1).coefs;
-coefs2 = get_exact_quadratic_reconstruction_in_cell(T1,Q1,test_fun,test_fun_grad,test_fun_hess);
-
-[X1,F1] = evaluate_function_on_interp_grid(test_fun,CELLS2(1).quad,21);
-[~,F_rec1] = evaluate_reconstruction(CELLS2(1),21);
-
-[X2,F2] = evaluate_function_on_interp_grid(test_fun,CELLS2(2).quad,21);
-[~,F_rec2] = evaluate_reconstruction(CELLS2(2),21);
-
-% CELLS2(1).coefs = coefs2(1:CELLS2(1).basis.n_terms);
-% [X2,F_rec2] = evaluate_reconstruction(CELLS2(1),21);
-
-hold on;
-surf(X1{1},X1{2},F1{1},'EdgeColor','k')
-view(-14,12)
-surf(X2{1},X2{2},F2{1},'EdgeColor','k')
-surf(X1{1},X1{2},F_rec1{1},'FaceColor','b','EdgeColor','k')
-surf(X2{1},X2{2},F_rec2{1},'FaceColor','r','EdgeColor','k')    
-point = CELLS(1).fquad(1).quad_pts(:,1);
-
-% l = 5;
-% [tmp1,delta1] = T1.eval_derivative( 5, point, T1.exponents(:,2) );
-% [tmp2,delta2] = T2.deval( 5, point, T2.terms(2).exponents );
-
-
-
-figure()
-C = colororder(gcf);
-for n = 1:T1.n_terms
-    [X1,F1,~] = evaluate_taylor_basis_1(T1,n,Q1,21);
-    [X2,F2,~] = evaluate_taylor_basis_2(T2,n,Q2,21);
-    hold on;
-    surf(X1{1},X1{2},F1,'FaceColor','b','EdgeColor','k')
-    surf(X2{1},X2{2},F2,'FaceColor','r','EdgeColor','k')
-    % surf(X1{1},X1{2},F1,'FaceColor',C(mod(n-1,size(C,1))+1,:),'EdgeColor','k')
-    % surf(X2{1},X2{2},F2,'FaceColor',C(mod(n,size(C,1))+1,:),'EdgeColor','k')
-    view(-14,12)
-    drawnow;
-    clf;
-end
-
-
-% figure()
-% hold on
-% plot(GRID.gblock.x(:,:,1),GRID.gblock.y(:,:,1),'k'); plot(GRID.gblock.x(:,:,1).',GRID.gblock.y(:,:,1).','k'); axis equal
-% plot(SUB_GRID.gblock.x(:,:,1),SUB_GRID.gblock.y(:,:,1),'k'); plot(SUB_GRID.gblock.x(:,:,1).',SUB_GRID.gblock.y(:,:,1).','r'); axis equal
-% 
-% idx_tmp = [3,1,1];
-% xp = [CELLS(idx_tmp(1),idx_tmp(2)).fquad.quad_pts];
-% vp = [CELLS(idx_tmp(1),idx_tmp(2)).fvec.v];
-% quiver(xp(1,:),xp(2,:),vp(1,:),vp(2,:))
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -195,28 +132,6 @@ n_var = abs(n_var);
 X = get_local_interp_grid(Q,n_dim,npts);
 F = cell(n_var,1);
 [F{1:n_var}] = fun(X{1:n_dim});
-end
-
-function [X,F,delta] = evaluate_taylor_basis_1(T,N,Q,npts)
-
-% get dimension
-n_dim = T.n_dim;
-
-X = get_local_interp_grid(Q,n_dim,npts);
-
-[F,delta] = arrayfun(@(x1,y1)T.eval(N,[x1;y1]),X{1},X{2});
-
-end
-
-function [X,F,delta] = evaluate_taylor_basis_2(T,N,Q,npts)
-
-% get dimension
-n_dim = T.n_dim;
-
-X = get_local_interp_grid(Q,n_dim,npts);
-
-[F,delta] = arrayfun(@(x1,y1)T.eval(N,[x1;y1]),X{1},X{2});
-
 end
 
 function X = get_local_interp_grid(Q,n_dim,npts)
