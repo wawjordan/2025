@@ -16,8 +16,8 @@ classdef monomial_t
             [val,coef] = monomial_t.static_eval(numel(this.exponents),this.exponents,x);
         end
 
-        function [dval,coef] = deval(this,x,order)
-            [dval,coef] = monomial_t.static_eval_derivative( ...
+        function [dval,dcoef,coef] = deval(this,x,order)
+            [dval,dcoef,coef] = monomial_t.static_eval_derivative( ...
                                                        numel(this.exponents),...
                                                              this.exponents, ...
                                                              x, order );
@@ -25,7 +25,7 @@ classdef monomial_t
 
     end
     methods (Static)
-
+% fact_coef2 = prod(factorial(this.terms(n).exponents)) / prod( factorial( max(this.terms(n).exponents - order,0) ) );
         function [val,coef] = static_eval(n_dim,exponents,x)
             val = 1.0;
             coef = 1;
@@ -37,15 +37,41 @@ classdef monomial_t
             end
         end
 
-        function [dval,coef] = static_eval_derivative(n_dim,exponents,x,order)
+        function [dval,dcoef,coef] = static_eval_derivative(n_dim,exponents,x,order)
             diff_order = exponents(:) - order(:);
             if any( diff_order < 0 )
-                coef = 1;
-                dval = 0.0;
+                dval  = 0.0;
+                dcoef = 1;
+                coef  = 1;
                 return;
+            else
+                dval  = 1.0;
+                dcoef = 1;
+                coef  = 1;
+                for d = 1:n_dim
+                    % if k(d)>n(d)
+                    %     continue
+                    % end
+                    for i = exponents(d):-1:diff_order(d)+1
+                        dcoef = dcoef * i;
+                    end
+                    for i = diff_order(d):-1:1
+                        coef = coef * i;
+                        dval = dval*x(d);
+                    end
+                end
             end
-            [dval,coef] = monomial_t.static_eval(n_dim,diff_order,x);
         end
+
+        % function [dval,coef] = static_eval_derivative(n_dim,exponents,x,order)
+        %     diff_order = exponents(:) - order(:);
+        %     if any( diff_order < 0 )
+        %         coef = 1;
+        %         dval = 0.0;
+        %         return;
+        %     end
+        %     [dval,coef] = monomial_t.static_eval(n_dim,diff_order,x);
+        % end
     end
 
 end

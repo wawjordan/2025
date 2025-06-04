@@ -72,22 +72,22 @@ classdef zero_mean_basis2
             end
         end
 
-        function [dB,fact_coef] = deval(this,n,point,order)
+        function dB = deval(this,n,point,order)
             if (all(order== 0))
-                [dB,fact_coef] = this.eval(n,point);
+                dB = this.eval(n,point);
                 return
             end
             if (n == 1) % cell avg -> piecewise constant
                 dB = 0.0;
-                fact_coef = 1; % 0! * d^(0)f
                 return
             end
             
-            [dB,fact_coef] = this.terms(n).deval( this.transform(point), order );
-            % dB = dB * fact_coef;
-
-            fact_coef2 = prod(factorial(this.terms(n).exponents)) / prod( factorial( max(this.terms(n).exponents - order,0) ) );
-            dB = dB * fact_coef2;
+            [dB,dcoef,~] = this.terms(n).deval( this.transform(point), order );
+            dB = dB * dcoef;
+            % fact_coef = kperm(this.terms(n).exponents,order);
+            % 
+            % fact_coef2 = prod(factorial(this.terms(n).exponents)) / prod( factorial( max(this.terms(n).exponents - order,0) ) );
+            % dB = dB * fact_coef2;
 
 %%%%%%%%%%%%% figure out this discrepency
             % if fact_coef2~=fact_coef
@@ -104,7 +104,7 @@ classdef zero_mean_basis2
 
         function D = calc_basis_derivative(this,term,deriv,point,scale)
             order = this.terms(deriv).exponents;
-            [derivative_term,~] = this.deval( term, point, order );
+            derivative_term = this.deval( term, point, order );
             L = zero_mean_basis2.get_factorial_scaling_1(order,scale);
             D = L * derivative_term;
         end
