@@ -10,12 +10,14 @@ classdef var_rec_t2
         fquad    (:,1) quad_t
         fvec     (:,1) face_vec_t
         n_vars    (1,1) {mustBeInteger}
-        avgs     (:,1) {mustBeNumeric}
-        coefs    (:,:) {mustBeNumeric}
-        self_LHS (:,:) {mustBeNumeric}
-        self_LHS_inv (:,:) {mustBeNumeric}
+        avgs     (:,1)   {mustBeNumeric}
+        coefs    (:,:)   {mustBeNumeric}
+        self_LHS (:,:)   {mustBeNumeric}
         nbor_LHS (:,:,:) {mustBeNumeric}
-        RHS      (:,:) {mustBeNumeric}
+        RHS      (:,:)   {mustBeNumeric}
+        self_LHS_inv (:,:)   {mustBeNumeric}
+        AinvB        (:,:,:) {mustBeNumeric}
+        Ainvb        (:,:)   {mustBeNumeric}
     end
 
     methods
@@ -38,6 +40,7 @@ classdef var_rec_t2
             this.self_LHS_inv = zeros(this.basis.n_terms,this.basis.n_terms);
             this.nbor_LHS = zeros(this.basis.n_terms,this.basis.n_terms,this.n_nbors);
             this.RHS      = zeros(this.basis.n_terms,this.n_vars);
+            this.AinvB    = zeros(this.basis.n_terms,this.basis.n_terms,this.n_nbors);
         end
 
         function val = eval_reconstruction(this,x,n_terms)
@@ -70,13 +73,23 @@ classdef var_rec_t2
                 end
                 this.avgs(v) = this.quad.integrate(tmp_val)/volume;
             end
+            this.coefs(1,:) = this.avgs;
         end
 
         function this = setup_rec(this,n1,nbors)
+            
             this.self_LHS = this.get_self_LHS(n1,nbors);
-            % this.self_LHS_inv = pinv(this.self_LHS);
+            this.self_LHS_inv = pinv(this.self_LHS);
             this.nbor_LHS = this.get_nbor_LHS(n1,nbors);
             this.RHS      = this.get_RHS(n1,nbors);
+
+            n_nbor  = this.n_nbors;
+            n_terms_local = this.basis.n_terms-n1;
+
+            this.AinvB = zeros(n_terms_local,n_terms_local,n_nbor);
+            for n = 1:n_nbor
+                this.AinvB(:,:,n) = this.self_LHS_inv * this.nbor_LHS(:,:,n);
+            end
         end
 
         function A = get_self_LHS(this,n1,nbors)
@@ -290,6 +303,71 @@ classdef var_rec_t2
             end
         end
 
+        function CELLS = perform_iterative_reconstruction_jacobi(n1,CELLS,n_iter)
+            n_dim   = CELLS(1).basis.n_dim;
+            dim_sz  = num2cell(1:n_dim);
+            sz      = size(CELLS,dim_sz{:});
+            n_vars        = CELLS(1).n_vars;
+            n_cells       = numel(CELLS);
+
+            
+            for iter = 1:n_iter
+                CELLS_old = CELLS;
+                for i = 1:n_cells
+                    n_terms = CELLS_old(i).basis.n_terms;
+                    update = zeros(n_terms-n1,n_vars);
+                    n_nbors = CELLS_old(i).n_nbors;
+                    for n = 1:n_nbors
+                        nbor_idx = CELLS_old(i).nbor_idx(1:n_dim,n);
+                        j = zero_mean_basis.local_to_global(nbor_idx,sz);
+                        uj = CELLS_old(j).coefs(n1+1:n_terms,:);
+                        invA  = CELLS_old(i).self_LHS_inv;
+                        AinvB = CELLS_old(i).AinvB(:,:,n);
+                        bi    = CELLS_old(i).RHS;
+                        for v = 1:n_vars
+                            update(:,v) = update(:,v) - AinvB * uj(:,v);
+                        end
+                    end
+                    invA  = CELLS_old(i).self_LHS_inv;
+                    bi    = CELLS_old(i).RHS;
+                    for v = 1:n_vars
+                        update(:,v) = update(:,v) + invA * bi(:,v);
+                    end
+                    CELLS(i).coefs(n1+1:n_terms,:) = update;
+                end
+            end
+        end
+
+        function CELLS = perform_iterative_reconstruction_SOR(n1,CELLS,omega,n_iter)
+            n_dim   = CELLS(1).basis.n_dim;
+            dim_sz  = num2cell(1:n_dim);
+            sz      = size(CELLS,dim_sz{:});
+            n_vars        = CELLS(1).n_vars;
+            n_cells       = numel(CELLS);
+            for iter = 1:n_iter
+                for i = 1:n_cells
+                    n_terms = CELLS(i).basis.n_terms;
+                    update = zeros(n_terms-n1,n_vars);
+                    n_nbors = CELLS(i).n_nbors;
+                    for n = 1:n_nbors
+                        nbor_idx = CELLS(i).nbor_idx(1:n_dim,n);
+                        j = zero_mean_basis.local_to_global(nbor_idx,sz);
+                        uj = CELLS(j).coefs(n1+1:n_terms,:);
+                        AinvB = CELLS(i).AinvB(:,:,n);
+                        for v = 1:n_vars
+                            update(:,v) = update(:,v) + AinvB * uj(:,v);
+                        end
+                    end
+                    invA  = CELLS(i).self_LHS_inv;
+                    bi    = CELLS(i).RHS;
+                    for v = 1:n_vars
+                        update(:,v) = update(:,v) + invA * bi(:,v);
+                    end
+                    CELLS(i).coefs(n1+1:n_terms,:) = (1-omega)*CELLS(i).coefs(n1+1:n_terms,:) + omega * update;
+                end
+            end
+        end
+
         function [CELLS,LHS,RHS,coefs] = perform_reconstruction(n1,CELLS)
             n_terms_local = CELLS(1).basis.n_terms - n1;
             n_vars        = CELLS(1).n_vars;
@@ -305,7 +383,7 @@ classdef var_rec_t2
                 row_start = (i-1)*n_terms_local + 1;
                 row_end   =   i  *n_terms_local;
                 n_terms   = CELLS(i).basis.n_terms;
-                CELLS(i).coefs(1,:) = CELLS(i).avgs;
+                % CELLS(i).coefs(1,:) = CELLS(i).avgs;
                 CELLS(i).coefs(n1+1:n_terms,:) = coefs(row_start:row_end,:);
             end
         end
