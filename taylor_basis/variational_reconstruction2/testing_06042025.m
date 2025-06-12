@@ -16,7 +16,7 @@ GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
 
 blk     = 1;
 dim     = 2;
-degree  = 2;
+degree  = 3;
 n_vars  = 1;
 % [test_fun,test_fun_grad,test_fun_hess] = generate_test_function();
 
@@ -30,10 +30,10 @@ if cart
     idx_high = [5,5,1];
 else
     if agglom
-        idx_low  = [30,1,1];
-        idx_high = [35,5,1];
-        % idx_low  = [23,1,1];
-        % idx_high = [42,5,1];
+        % idx_low  = [30,1,1];
+        % idx_high = [35,5,1];
+        idx_low  = [23,1,1];
+        idx_high = [42,5,1];
     else
         idx_low  = [47,1,1];
         idx_high = [84,5,1];
