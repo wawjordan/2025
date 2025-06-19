@@ -1,4 +1,4 @@
-%% Testing the zero_mean_basis2 type (06/04/2025)
+%% Testing the var_rec_t3 type (06/18/2025)
 clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 parent_dir_str = '2025';
@@ -16,11 +16,11 @@ GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
 
 blk     = 1;
 dim     = 2;
-degree  = 1;
+degree  = 4;
 n_vars  = 1;
 % [test_fun,test_fun_grad,test_fun_hess] = generate_test_function();
 
-[test_fun,deriv] = generate_random_poly_fun(dim,degree);
+[test_fun,deriv] = generate_random_poly_fun(dim,degree+1);
 test_fun_grad = @(x1,x2) [deriv{1}{1}(x1,x2);deriv{1}{2}(x1,x2)];
 test_fun_hess = @(x1,x2) [deriv{2}{1}(x1,x2),deriv{2}{2}(x1,x2);...
                           deriv{2}{2}(x1,x2),deriv{2}{3}(x1,x2)];
@@ -42,16 +42,16 @@ end
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 n1 = 1;
-CELLS2 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
+CELLS2 = set_up_cell_var_recs3(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
 CELLS3 = CELLS2;
-[CELLS2,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS2);
+[CELLS2,LHS,RHS,coefs] = var_rec_t3.perform_reconstruction(n1,CELLS2);
 
 omega = 1.3;
-CELLS3 = var_rec_t2.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,200);
+CELLS3 = var_rec_t3.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,200);
 
-% plot_function_over_cells(test_fun,1,CELLS2(1),21,'EdgeColor','none')
-% plot_reconstruction_over_cells(1,CELLS2(1),21,'FaceColor','r')
-% plot_reconstruction_over_cells(1,CELLS3(1),21,'FaceColor','b')
+% plot_function_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
+% plot_reconstruction_over_cells(1,CELLS2,21,'FaceColor','r')
+% plot_reconstruction_over_cells(1,CELLS3,21,'FaceColor','b')
 figure(1)
 plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
 view(12,14)

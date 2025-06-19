@@ -1,8 +1,16 @@
 %% testing script for "1D" grid (06/09/2025)
 clc; clear; close all;
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+parent_dir_str = '2025';
+path_parts = regexp(mfilename('fullpath'), filesep, 'split');
+path_idx = find(cellfun(@(s1)strcmp(s1,parent_dir_str),path_parts));
+parent_dir = fullfile(path_parts{1:path_idx});
+addpath(genpath(parent_dir));
+clear parent_dir_str path_idx path_parts
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % x = 0:10;
-x = linspace(-1,1,11);
+% x = linspace(-1,1,11);
+x = rand_grd(-1,1,11,0.99);
 GRID = generate_1D_grid_struct(x);
 GRID = grid_type(GRID,calc_quads=true,nquad=3);
 
@@ -16,25 +24,37 @@ degree = 3;
 
 % [test_fun,deriv] = generate_random_poly_fun(1,degree+1);
 test_fun = @(x) sinc(2*x);
-CELLS2 = set_up_cell_var_recs2(GRID,1,[1,1,1],GRID.gblock(blk).Ncells,degree,{test_fun},n1);
+% test_fun = @(x) sin(2*x);
+CELLS1 = set_up_cell_var_recs2(GRID,1,[1,1,1],GRID.gblock(blk).Ncells,degree,{test_fun},n1);
+CELLS2 = set_up_cell_var_recs3(GRID,1,[1,1,1],GRID.gblock(blk).Ncells,degree,{test_fun},n1);
 CELLS3 = CELLS2;
 omega = 1.3;
 
-for i = 1:20
-CELLS3 = var_rec_t2.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,1);
-clf;
-plot_function_over_cells(test_fun,1,CELLS3,21,'k')
-plot_reconstruction_over_cells(1,CELLS2,21,'k--')
-plot_reconstruction_over_cells(1,CELLS3,21)
-drawnow
-pause(0.01)
+for i = 1:100
+% CELLS3 = var_rec_t2.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,1);
+CELLS3 = var_rec_t3.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,1);
+CELLS1 = var_rec_t2.perform_iterative_reconstruction_SOR(n1,CELLS1,omega,1);
+% clf;
+% plot_function_over_cells(test_fun,1,CELLS3,21,'k')
+% plot_reconstruction_over_cells(1,CELLS2,21,'k--')
+% 
+% plot_reconstruction_over_cells(1,CELLS1,21)
+% plot_reconstruction_over_cells(1,CELLS3,21,'--')
+% drawnow
+% pause(0.1)
 end
 
+plot_function_over_cells(test_fun,1,CELLS3,21,'k')
+plot_reconstruction_over_cells(1,CELLS2,21,'k--')
+
+plot_reconstruction_over_cells(1,CELLS1,21)
+plot_reconstruction_over_cells(1,CELLS3,21,'--')
 
 
-[CELLS2,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS2);
-
-plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21)
+% [CELLS1,LHS,RHS,coefs] = var_rec_t2.perform_reconstruction(n1,CELLS1);
+figure
+plot_reconstruction_error_over_cells(test_fun,1,CELLS1,21,'k')
+plot_reconstruction_error_over_cells(test_fun,1,CELLS3,21,'r')
 % plot_reconstruction_over_cells(1,CELLS2,21)
 
 function [X,F] = evaluate_reconstruction(CELL_VAR_REC,npts,n_terms)
@@ -107,4 +127,19 @@ for i = 1:numel(CELLS)
     [~,F] = evaluate_function_on_interp_grid(test_fun,CELLS(i).quad,npts);
     plot(X{1},F_rec{var}-F{var},varargin{:})
 end
+end
+function x = rand_grd(x0,xn,n,C)
+% x0 - start value
+% xn - stop  value
+%  n - number of points
+%  C - irregularity constant
+
+% kappa = 1 + C*rand(n-1,1);
+kappa = 1 + C*(1-2*rand(n-1,1));
+h = (xn - x0)/sum(kappa);
+
+x = zeros(n,1);
+x(1) = x0;
+x(2:n) = x0 + cumsum(kappa*h);
+
 end
