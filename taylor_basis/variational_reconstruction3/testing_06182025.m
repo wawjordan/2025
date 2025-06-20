@@ -16,7 +16,7 @@ GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
 
 blk     = 1;
 dim     = 2;
-degree  = 4;
+degree  = 3;
 n_vars  = 1;
 % [test_fun,test_fun_grad,test_fun_hess] = generate_test_function();
 
@@ -42,43 +42,42 @@ end
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 n1 = 1;
-CELLS2 = set_up_cell_var_recs3(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
-CELLS3 = CELLS2;
-[CELLS2,LHS,RHS,coefs] = var_rec_t3.perform_reconstruction(n1,CELLS2);
+CELLS1 = set_up_cell_var_recs3(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
+CELLS2 = CELLS1;
+[CELLS1,LHS1,RHS1,coefs1] = var_rec_t3.perform_reconstruction(n1,CELLS1);
 
 omega = 1.3;
-CELLS3 = var_rec_t3.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,200);
+CELLS2 = var_rec_t3.perform_iterative_reconstruction_SOR(n1,CELLS2,omega,200);
 
-% plot_function_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
-% plot_reconstruction_over_cells(1,CELLS2,21,'FaceColor','r')
-% plot_reconstruction_over_cells(1,CELLS3,21,'FaceColor','b')
+CELLS3 = set_up_cell_var_recs2(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,{test_fun},n1);
+[CELLS3,LHS3,RHS3,coefs3] = var_rec_t2.perform_reconstruction(n1,CELLS3);
+
+% reconstruction compare + function
+% r: w/o BC
+% b: w/  BC
 figure(1)
-plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
-view(12,14)
+plot_function_over_cells(test_fun,1,CELLS1,21,'EdgeColor','none')
+plot_reconstruction_over_cells(1,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_over_cells(1,CELLS3,21,'FaceColor','b','EdgeColor','none')
+colorbar
 
+% no BC
 figure(2)
 plot_reconstruction_error_over_cells(test_fun,1,CELLS3,21,'EdgeColor','none')
-view(12,14)
-% for i = 1:10
-%     CELLS3 = var_rec_t2.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,10);
-%     % CELLS3 = var_rec_t2.perform_iterative_reconstruction_jacobi(n1,CELLS3,1000);
-%     clf;
-%     % plot_function_over_cells(test_fun,1,CELLS2(1),21,'EdgeColor','none')
-%     % plot_reconstruction_over_cells(1,CELLS3(1),21,'FaceColor','b')
-%     plot_reconstruction_error_over_cells(test_fun,1,CELLS3,21,'EdgeColor','k')
-%     colorbar
-%     view(12,14)
-%     drawnow
-%     omega;
-% end
-
-    
-
-
-figure()
-plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21,'EdgeColor','k')
 colorbar
-view(12,14)
+view(2)
+
+% with BC
+figure(3)
+plot_reconstruction_error_over_cells(test_fun,1,CELLS1,21,'EdgeColor','none')
+colorbar
+view(2)
+
+% with BC (iterative)    
+figure(4)
+plot_reconstruction_error_over_cells(test_fun,1,CELLS2,21,'EdgeColor','none')
+colorbar
+view(2)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Local Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
