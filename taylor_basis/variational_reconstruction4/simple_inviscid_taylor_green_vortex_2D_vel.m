@@ -1,0 +1,15 @@
+function [rho,u,v,p] = simple_inviscid_taylor_green_vortex_2D_vel(x,y,L,xo,yo)
+mapx = @(x) (x-xo)/(pi*L);
+mapy = @(y) (y-yo)/(pi*L);
+u =  sin(mapx(x)) .* cos(mapy(y));
+v = -cos(mapx(x)) .* sin(mapy(y));
+% w = 0 *x.*y;
+rho = 0 *x.*y + 1;
+p = (rho/4).*( cos(2*mapx(x)) + cos(2*mapy(y)) );
+
+% varargout{1} = rho;
+% varargout{2} = u;
+% varargout{3} = v;
+% varargout{4} = p;
+end
+
