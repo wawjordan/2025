@@ -85,7 +85,8 @@ properties
     methods (Static)
         function Cijp = get_proj_rej_matrix_term(i,j,p,vec)
             ij = (i == j);
-            Cijp = ij + (-1)^p*(ij-2*vec(i)*vec(j));
+            % Cijp = ij + (-1)^p*(ij-2*vec(i)*vec(j));
+            Cijp = ( (-1)^p + 1 ) * (ij + vec(i)*vec(j));
         end
     end
 end
