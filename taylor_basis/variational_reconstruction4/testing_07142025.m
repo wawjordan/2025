@@ -31,7 +31,7 @@ end
 
 if cart
     idx_low  = [1,1,1];
-    idx_high = [5,5,1];
+    idx_high = [10,10,1];
 else
     if agglom
         % idx_low  = [30,1,1];
@@ -68,9 +68,12 @@ CELLS2 = CELLS;
 %% reconstruction compare + function
 % r: w/o BC
 % b: w/  BC
-var = 2;
+
 figure(1)
+var = 2;
 plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% var = 3;
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','k')
 plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
 plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar

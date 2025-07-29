@@ -27,6 +27,8 @@ M2 = diag(v2) * M1;
 %                              cross( v(1,:), v(2,:) ).' ] )
 % thus inv(v) == v.'
 
+[ cross(t,s), cross(s,n), cross(n,t) ]
+
 vec = @(x) x(:);
 
 A1 = M2\M1;
@@ -36,7 +38,11 @@ e1 = zeros(d,1); e1(1) = 0;
 % A2 = v.'*(eye(d) - 2*diag(e1))*v - eye(d);
 A2 = @(p) v.'*diag( ones(d,1) - (1 +(-1)^p) * unit_vec(d,1) )*v - eye(d);
 
-simplify( A2(2)-A2(1) == -2*n*(n.') )
+A2_alt = @(p) -(-1)^p * n*(n.') + s*(s.') + t*(t.') - eye(d);
+
+A2_alt2 = @(p) v.'*v -(1 +(-1)^p)*n*(n.') - eye(d);
+% simplify( A2(2)-A2(1) == -2*n*(n.') )
+simplify( A2(2) == A2_alt(2) )
 
 % for i=1:3
 %     I = circshift(eye(d),i-1,1);

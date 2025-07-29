@@ -55,11 +55,15 @@ properties
                 for p = var_rec.basis.degree:-1:0
                 % for p = 0
                     % get local projection matrix
-                    Cp = zeros(this.n_mtm,this.n_mtm);
-                    for j = 1:this.n_mtm
-                        for i = 1:this.n_mtm
-                            Cp(i,j) = var_rec_slip_wall_t.get_proj_rej_matrix_term(i,j,p,normal);
-                        end
+                    % Cp = zeros(this.n_mtm,this.n_mtm);
+                    % for j = 1:this.n_mtm
+                    %     for i = 1:this.n_mtm
+                    %         Cp(i,j) = var_rec_slip_wall_t.get_proj_rej_matrix_term(i,j,p,normal);
+                    %     end
+                    % end
+                    Cp = -2*normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
+                    if (mod(p,2)~=0)
+                        Cp = Cp * 0;
                     end
 
                     % get basis function products

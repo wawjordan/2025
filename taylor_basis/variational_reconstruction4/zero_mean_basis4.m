@@ -94,7 +94,15 @@ classdef zero_mean_basis4
         end
 
         function D = calc_basis_normal_derivative(this,term,d_order,normal,point,scale)
+            % Inputs:
+            %  this      - zero_mean_basis4 object
+            %  term      - monomial term index
+            %  d_order   - total derivative order
+            %  normal    - normal vector
+            %  point     - point (vector) at which to evaluate the derivatives
+            %  scale     - distance (scalar) describing local length scale
             D = 0;
+            % linear indices of terms with total order equal to d_order
             start_term = this.get_n_terms(this.n_dim, d_order-1)+1;
             end_term   = this.get_n_terms(this.n_dim,d_order);
             for i = start_term:end_term
@@ -102,14 +110,18 @@ classdef zero_mean_basis4
                 derivative_term = this.deval( term, point, order );
                 L = zero_mean_basis4.get_factorial_scaling_1(order,scale);
                 Di = L * derivative_term;
+                % multinomial coefficient m_choose_alpha( d_order, order )
                 mcoeff = factorial(d_order)/prod( factorial(order) );
-                D = D + mcoeff * sum(normal(1:this.n_dim).^order(1:this.n_dim)) * Di;
+                % normal vec coefficient (n.^alpha)
+                ncoeff = sum(normal(1:this.n_dim).^order(1:this.n_dim));
+                % accumulate in the sum
+                D = D + mcoeff * ncoeff * Di;
             end
         end
 
         function deriv = calc_basis_normal_derivatives(this,n1,normal,point,scale)
             % Inputs:
-            %  this      - zero_mean_basis2 object
+            %  this      - zero_mean_basis4 object
             %  n1        - number of coefficients already solved for
             %  point     - point (vector) at which to evaluate the derivatives
             %  scale     - distance (scalar) describing local length scale
