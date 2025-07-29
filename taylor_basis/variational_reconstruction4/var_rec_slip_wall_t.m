@@ -40,11 +40,15 @@ properties
             dbf_mag = sqrt( sum(dbf.^2) );
 
             % array containing various derivatives of the basis functions
-            d_basis = zeros(n_quad,var_rec.basis.degree+1,n_terms_local);
+            % d_basis = zeros(n_quad,var_rec.basis.degree+1,n_terms_local);
+            d_basis = zeros(n_quad,n_terms_local+1,n_terms_local);
             for q = 1:n_quad
                 point  = bc_fquad.quad_pts(:,q);
                 normal = bc_fvec.v(:,q);
-                d_basis(q,:,:) = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
+                % d_basis(q,:,:) = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
+                d_basis1 = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
+                d_basis2 = var_rec.basis.calc_basis_derivatives(n1,point,dbf_mag);
+                d_basis(q,:,:) = d_basis2;
             end
 
             E = zeros( this.n_mtm*n_terms_local, this.n_mtm*n_terms_local );
@@ -52,8 +56,8 @@ properties
             for q = 1:n_quad
                 normal = bc_fvec.v(:,q);
                 % for p = 0:var_rec.degree
-                for p = var_rec.basis.degree:-1:0
-                % for p = 0
+                % for p = var_rec.basis.degree:-1:0
+                for p = 0
                     % get local projection matrix
                     % Cp = zeros(this.n_mtm,this.n_mtm);
                     % for j = 1:this.n_mtm
@@ -75,7 +79,7 @@ properties
                     end
 
                     % perform Kronecker product and integrate
-                    E = E - bc_fquad.quad_wts(q)*kron(Cp,A);
+                    E = E + bc_fquad.quad_wts(q)*kron(Cp,A);
                 end
 
                 % now for the RHS

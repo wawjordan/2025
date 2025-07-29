@@ -69,7 +69,7 @@ CELLS2 = CELLS;
 % r: w/o BC
 % b: w/  BC
 
-figure(1)
+f = figure(1); set_monitor_for_figure(f,2);
 var = 2;
 plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
 % var = 3;
