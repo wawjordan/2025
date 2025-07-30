@@ -1,4 +1,4 @@
-%% Testing the var_rec_t4 type (07/14/2025)
+%% Testing the var_rec_t4 type (07/30/2025)
 clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 parent_dir_str = '2025';
@@ -9,10 +9,9 @@ addpath(genpath(parent_dir));
 clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
-agglom=true;
+agglom=false;
 load_file=true;
-cart=true;
-GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
+GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 
 blk     = 1;
 dim     = 2;
@@ -24,58 +23,28 @@ test_funs = cell(n_vars,1);
 % for i = 1:n_vars
 %     [test_funs{i},~] = generate_random_poly_fun(dim,degree+1);
 % end
-
-for i = 1:n_vars
-    % test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,1,0,0);
-    test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,2,1,1);
-end
-
-if cart
-    idx_low  = [1,1,1];
-    idx_high = [10,10,1];
-else
-    if agglom
-        % idx_low  = [30,1,1];
-        % idx_high = [35,5,1];
-        idx_low  = [23,1,1];
-        idx_high = [42,5,1];
-    else
-        idx_low  = [47,1,1];
-        idx_high = [84,5,1];
-    end
-end
-SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
-
-
-%% plotting the function
-
-% var_names = {'rho','u','v','p'};
-% f = figure(2); set_monitor_for_figure(f,2);
-% t = tiledlayout(2,2);
-% X = SUB_GRID.gblock.x(:,:,1);
-% Y = SUB_GRID.gblock.y(:,:,1);
-% xc = squeeze(SUB_GRID.gblock.grid_vars.cell_c(1,:,:,1));
-% yc = squeeze(SUB_GRID.gblock.grid_vars.cell_c(2,:,:,1));
-% x = linspace( min(SUB_GRID.gblock.x,[],'all'),...
-%               max(SUB_GRID.gblock.x,[],'all'), 33);
-% y = linspace( min(SUB_GRID.gblock.y,[],'all'),...
-%               max(SUB_GRID.gblock.y,[],'all'), 33);
-% [X,Y] = ndgrid(x,y);
-% 
 % for i = 1:n_vars
-%     nexttile;
-%     % val = padarray(test_funs{i}(xc,yc),[1,1],0,"post");
-%     % surf(X,Y,val,'EdgeColor','none')
-%     val = test_funs{i}(X,Y);
-%     surf(X,Y,val,'EdgeColor','none')
-%     view(2)
-%     colorbar
-%     title(var_names{i})
-%     axis equal;
+%     test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,1,0,0);
 % end
 
+gamma  = 1.4;
+inputs = [2.0, 1.0, 0.8611583247416177E+05, 0.5];
+% inputs = [2.0, 1.0, 0.8611583247416177E+05, 2.0;
+ref_inputs = [1.0, 1.0, 347.2206293753677000 ];
+test_funs{1}  = @(x,y) dens_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{2} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
 
+if agglom
+    idx_low  = [1,1,1];
+    idx_high = [5,5,1];
+else
+    idx_low  = [1,1,1];
+    idx_high = [10,10,1];
+end
+SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 n1 = 1;
 
@@ -101,61 +70,60 @@ CELLS2 = CELLS;
 % r: w/o BC
 % b: w/  BC
 
-f1 = figure(1); set_monitor_for_figure(f1,2);
+f = figure(1); set_monitor_for_figure(f,2);
 var = 2;
 plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% var = 3;
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','k')
 plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
 plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
-
-f2 = figure(2); set_monitor_for_figure(f2,2);
-var = 3;
-plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
-colorbar
-
-hold on;
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Local Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart)
+function GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file)
 
-grid_file = fullfile(parent_dir,'kt.grd');
-
-if cart
-    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID_cart.mat');
-elseif agglom
-    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID_agglom.mat');
+if agglom
+    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID_svf_agglom.mat');
 else
-    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID.mat');
+    grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type','GRID_svf.mat');
 end
 
 if isfile(grid_t_file)&&load_file
     load(grid_t_file,"GRID");
 else
-    if cart
-        GRID = struct();
-        GRID.twod    = true;
-        GRID.nblocks = 1;
-        GRID.gblock  = struct();
-        GRID.gblock.imax    = 11;
-        GRID.gblock.jmax    = 11;
-        [GRID.gblock.x,GRID.gblock.y] = ndgrid( linspace(-1,1,GRID.gblock.imax), ...
-                                                linspace(-1,1,GRID.gblock.jmax) );
-        GRID = grid_type(GRID,calc_quads=true,nquad=3);
-    elseif agglom
-        GRID = read_grd_file_to_struct( grid_file );
+    GRID = svf_grid(11,11);
+    if agglom
         GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=3,nskip=[2,2,1]);
     else
-        GRID = read_grd_file_to_struct( grid_file );
         GRID = grid_type(GRID,calc_quads=true,nquad=3);
     end
     save(grid_t_file,"GRID");
 end
+
+end
+
+function GRID = svf_grid(N_t,N_r)
+
+GRID.dim  = 2;
+N_z = 1;
+GRID.imax = N_t;
+GRID.jmax = N_r;
+GRID.kmax = N_z;
+t_range = [pi/2, 0];
+r_range = [2, 3];
+z_range = [0, 0];
+
+t = linspace(t_range(1),t_range(2),N_t);
+r = linspace(r_range(1),r_range(2),N_r);
+z = linspace(z_range(1),z_range(2),N_z);
+
+[T,R,GRID.z] = ndgrid(t,r,z);
+
+GRID.x = R.*cos(T);
+GRID.y = R.*sin(T);
 
 end
 
@@ -227,8 +195,8 @@ function plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
 hold on;
 for i = 1:numel(CELLS)
     [X,F_rec] = evaluate_reconstruction(CELLS(i),npts);
-    [~,F] = evaluate_function_on_interp_grid(test_fun{var},CELLS(i).quad,npts);
-    surf(X{1},X{2},F_rec{var}-F{1},varargin{:})
+    [~,F] = evaluate_function_on_interp_grid(test_fun,CELLS(i).quad,npts);
+    surf(X{1},X{2},F_rec{var}-F{var},varargin{:})
 end
 end
 

@@ -58,17 +58,14 @@ properties
                 % for p = 0:var_rec.degree
                 % for p = var_rec.basis.degree:-1:0
                 for p = 0
-                    % get local projection matrix
-                    % Cp = zeros(this.n_mtm,this.n_mtm);
-                    % for j = 1:this.n_mtm
-                    %     for i = 1:this.n_mtm
-                    %         Cp(i,j) = var_rec_slip_wall_t.get_proj_rej_matrix_term(i,j,p,normal);
-                    %     end
+                    % get local projection/rejection matrix
+                    % Cp = -2*normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
+                    Pij = normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
+                    Rij = eye(this.n_mtm) - Pij;
+                    Cp = -2*Pij;
+                    % if (mod(p,2)~=0)
+                    %     Cp = -2*normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
                     % end
-                    Cp = -2*normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
-                    if (mod(p,2)~=0)
-                        Cp = Cp * 0;
-                    end
 
                     % get basis function products
                     A = zeros(n_terms_local,n_terms_local);
@@ -79,12 +76,14 @@ properties
                     end
 
                     % perform Kronecker product and integrate
-                    E = E + bc_fquad.quad_wts(q)*kron(Cp,A);
+                    % E = E + bc_fquad.quad_wts(q)*kron(Cp,A);
+                    E = E + bc_fquad.quad_wts(q)*kron(A,Cp);
                 end
 
-                % now for the RHS
+                % now for the RHS (only C[p=0])
                 phi_tmp = squeeze(d_basis(q,p+1,:));
-                D = D + bc_fquad.quad_wts(q)*kron(Cp,phi_tmp);
+                % D = D - bc_fquad.quad_wts(q)*kron(Cp,phi_tmp);
+                D = D - bc_fquad.quad_wts(q)*kron(phi_tmp,Cp);
                 
             end
             % E = E + kron(eye(this.n_mtm),var_rec.self_LHS);

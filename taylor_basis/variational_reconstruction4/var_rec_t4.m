@@ -385,6 +385,7 @@ classdef var_rec_t4
                 end
                 if (~isempty(var_idx))
                     for n = 1:numel(CELLS(i).bc_face_id)
+if ( CELLS(i).bc_face_id == 2)
                         bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
                         bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
                         vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
@@ -401,6 +402,7 @@ classdef var_rec_t4
                                 [row_idx,col_idx,vals,nz_cnt] = var_rec_t4.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,sub_matrix);
                             end
                         end
+end
                     end
                 end
                 
@@ -453,6 +455,7 @@ classdef var_rec_t4
 
                 if (~isempty(var_idx))
                     for n = 1:numel(CELLS(i).bc_face_id)
+if ( CELLS(i).bc_face_id == 2)
                         bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
                         bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
                         vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
@@ -467,6 +470,7 @@ classdef var_rec_t4
                             sub_row_end   = sub_row_start - 1 + n_terms_local;
                             b(row_start:row_end) = b(row_start:row_end) + tmp_RHS(sub_row_start:sub_row_end);
                         end
+end
                     end
                 end
             end
