@@ -1,10 +1,20 @@
 %% testing MMS source terms (07/29/2025)
 clc; clear; close all;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+parent_dir_str = '2025';
+path_parts = regexp(mfilename('fullpath'), filesep, 'split');
+path_idx = find(cellfun(@(s1)strcmp(s1,parent_dir_str),path_parts));
+parent_dir = fullfile(path_parts{1:path_idx});
+addpath(genpath(parent_dir));
+clear parent_dir_str path_idx path_parts
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 load("unsteady_coeffs.mat")
 
-% a([8,14,17,20,21,22],:) = 0;
-% a(:,4) = 0;
-a(:,4) = a(:,2) + a(:,3);
+a([8,14,17,20,21,22],:) = 0;
+a(:,4) = 0;
+% a(:,4) = a(:,2) + a(:,3);
 
 % x,y,z,t,in5,l,c,mu,gamma,PrL
 
@@ -14,19 +24,25 @@ gamma = 1.4;
 c   = 370;
 l   = 1.0;
 
-Nx = 129;
-Ny = 129;
+Nx = 33;
+Ny = 33;
 Nz = 1;
 
 % xs = linspace(0,1,Nx);
 % ys = linspace(0,1,Nx);
 % zs = linspace(0,1,Nz);
 % [X,Y,Z] = ndgrid(xs,ys,zs);
+
+% ang = pi/8;
+% th1 = linspace(-ang,ang,Nx) + pi/2;
+% th2 = linspace(-ang,ang,Ny) + pi/2;
+% r   = linspace(0.5,1.1,Nz);
+% [TH1,TH2,R] = ndgrid(th1,th2,r);
+th1 = pi/2;
 ang = pi/8;
-th1 = linspace(-ang,ang,Nx) + pi/2;
-th2 = linspace(-ang,ang,Ny) + pi/2;
-r   = linspace(0.5,1.1,Nz);
-[TH1,TH2,R] = ndgrid(th1,th2,r);
+th2 = linspace(-ang,ang,Nx) + pi/2;
+r   = linspace(1,2,Ny);
+[TH2,R,TH1] = ndgrid(th2,r,th1);
 
 X = R.*sin(TH1).*cos(TH2);
 Y = R.*sin(TH1).*sin(TH2);
@@ -69,7 +85,7 @@ vn = @(x,y,z,t) v_dot_n(x,y,z,t,a,l,c,mu,gamma,PrL);
 
 % contourf(X,Y,uvel(X,Y,Z,0),18)
 % surf(X,Y,Z,uvel(X,Y,Z,0),'EdgeColor','none')
-surf(squeeze(X),squeeze(Y),squeeze(Z),squeeze(vn(X,Y,Z,0)),'EdgeColor','none')
+surf(squeeze(X),squeeze(Y),squeeze(Z),squeeze(vmag(X,Y,Z,0)),'EdgeColor','none')
 colorbar
 hold on
 quiver3(X,Y,Z,uvel(X,Y,Z,0),vvel(X,Y,Z,0),wvel(X,Y,Z,0),2,"filled",'k')
