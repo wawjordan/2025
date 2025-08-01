@@ -16,7 +16,7 @@ GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
 
 blk     = 1;
 dim     = 2;
-degree  = 3;
+degree  = 2;
 n_vars  = 4;
 
 % [test_fun,deriv] = generate_random_poly_fun(dim,degree+1);
@@ -91,11 +91,14 @@ n1 = 1;
 % [CELLS2_bc,~,~,coefs2_bc] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2_bc,false);
 
 
-CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
-CELLS1 = CELLS;
-CELLS2 = CELLS;
-[CELLS1,~,~,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
-[CELLS2,~,~,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
+
+CELLS1  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,true);
+CELLS2  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+% CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+% CELLS1 = CELLS;
+% CELLS2 = CELLS;
+[CELLS1,LHS1,RHS1,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
+[CELLS2,LHS2,RHS2,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
 
 %% reconstruction compare + function
 % r: w/o BC
@@ -103,16 +106,22 @@ CELLS2 = CELLS;
 
 f1 = figure(1); set_monitor_for_figure(f1,2);
 var = 2;
-plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+
+% plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
+plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
 
 f2 = figure(2); set_monitor_for_figure(f2,2);
 var = 3;
-plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
 
 hold on;
