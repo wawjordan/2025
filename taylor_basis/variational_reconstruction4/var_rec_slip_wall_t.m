@@ -53,38 +53,35 @@ properties
 
             E = zeros( this.n_mtm*n_terms_local, this.n_mtm*n_terms_local );
             D = zeros( this.n_mtm*n_terms_local, this.n_mtm);
+            % A0 = zeros(n_terms_local,n_terms_local);
             for q = 1:n_quad
                 normal = bc_fvec.v(:,q);
                 % for p = 0:var_rec.degree
                 % for p = var_rec.basis.degree:-1:0
                 for p = 0
                     % get local projection/rejection matrix
-                    % Cp = -2*normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
                     Pij = normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
-                    Rij = eye(this.n_mtm) - Pij;
-                    Cp = -2*Pij;
-                    % if (mod(p,2)~=0)
-                    %     Cp = -2*normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
-                    % end
+                    % Rij = eye(this.n_mtm) - Pij;
+                    Cp = Pij;
 
                     % get basis function products
                     A = zeros(n_terms_local,n_terms_local);
                     for l = 1:n_terms_local
                         for m = 1:n_terms_local
-                            A(l,m) = d_basis(q,p+1,l)*d_basis(q,p+1,m);
+                            A(m,l) = d_basis(q,p+1,l)*d_basis(q,p+1,m);
                         end
                     end
+                    % A0 = A0 + bc_fquad.quad_wts(q)*A;
 
                     % perform Kronecker product and integrate
-                    % E = E + bc_fquad.quad_wts(q)*kron(Cp,A);
-                    E = E + bc_fquad.quad_wts(q)*kron(A,Cp);
+                    E = E + bc_fquad.quad_wts(q)*kron(Cp,A);
+                    % E = E + bc_fquad.quad_wts(q)*kron(Cp,A) / dbf_mag;
                 end
 
                 % now for the RHS (only C[p=0])
                 phi_tmp = squeeze(d_basis(q,p+1,:));
-                % D = D - bc_fquad.quad_wts(q)*kron(Cp,phi_tmp);
-                D = D - bc_fquad.quad_wts(q)*kron(phi_tmp,Cp);
-                
+                D = D - bc_fquad.quad_wts(q)*kron(Cp,phi_tmp);
+                % D = D - bc_fquad.quad_wts(q)*kron(Cp,phi_tmp) / dbf_mag;
             end
             % E = E + kron(eye(this.n_mtm),var_rec.self_LHS);
         end
