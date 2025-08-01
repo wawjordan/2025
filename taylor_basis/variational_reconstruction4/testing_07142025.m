@@ -10,13 +10,16 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 agglom=true;
-load_file=true;
+load_file=false;
 cart=true;
-GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
+% GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
+
+theta = 33;
+GRID = load_gen_rot_grid_for_testing(parent_dir,load_file,theta);
 
 blk     = 1;
 dim     = 2;
-degree  = 2;
+degree  = 4;
 n_vars  = 4;
 
 % [test_fun,deriv] = generate_random_poly_fun(dim,degree+1);
@@ -26,8 +29,8 @@ test_funs = cell(n_vars,1);
 % end
 
 for i = 1:n_vars
-    % test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,1,0,0);
-    test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,2,1,1);
+    % test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,2,0,0);
+    test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel_rot,x,y,2,0,0,deg2rad(theta));
 end
 
 if cart
@@ -54,13 +57,6 @@ SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 % t = tiledlayout(2,2);
 % X = SUB_GRID.gblock.x(:,:,1);
 % Y = SUB_GRID.gblock.y(:,:,1);
-% xc = squeeze(SUB_GRID.gblock.grid_vars.cell_c(1,:,:,1));
-% yc = squeeze(SUB_GRID.gblock.grid_vars.cell_c(2,:,:,1));
-% x = linspace( min(SUB_GRID.gblock.x,[],'all'),...
-%               max(SUB_GRID.gblock.x,[],'all'), 33);
-% y = linspace( min(SUB_GRID.gblock.y,[],'all'),...
-%               max(SUB_GRID.gblock.y,[],'all'), 33);
-% [X,Y] = ndgrid(x,y);
 % 
 % for i = 1:n_vars
 %     nexttile;
@@ -106,22 +102,26 @@ CELLS2 = CELLS;
 
 f1 = figure(1); set_monitor_for_figure(f1,2);
 var = 2;
-% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+axis equal
+plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 
 % plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
-plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'EdgeColor','none')
 colorbar
 
 f2 = figure(2); set_monitor_for_figure(f2,2);
 var = 3;
-% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+axis equal
+plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
 
 hold on;
@@ -130,6 +130,31 @@ hold on;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Local Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function GRID = load_gen_rot_grid_for_testing(parent_dir,load_file,theta)
+
+grid_file_name = matlab.lang.makeValidName(sprintf('GRID_rot_%06.2f',theta));
+
+grid_t_file = fullfile(parent_dir,'grid_geometry','grid_derived_type',grid_file_name);
+
+if isfile(grid_t_file)&&load_file
+    load(grid_t_file,"GRID");
+else
+    GRID = struct();
+    GRID.twod    = true;
+    GRID.nblocks = 1;
+    GRID.gblock  = struct();
+    GRID.gblock.imax    = 11;
+    GRID.gblock.jmax    = 11;
+    [x1,y1] = ndgrid( linspace(-1,1,GRID.gblock.imax), ...
+                      linspace(-1,1,GRID.gblock.jmax) );
+    GRID.gblock.x =  x1.*cosd(theta) + y1.*sind(theta);
+    GRID.gblock.y = -x1.*sind(theta) + y1.*cosd(theta);
+    GRID = grid_type(GRID,calc_quads=true,nquad=3);
+    save(grid_t_file,"GRID");
+end
+
+end
+
 
 function GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart)
 
