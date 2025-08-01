@@ -113,7 +113,7 @@ classdef zero_mean_basis4
                 % multinomial coefficient m_choose_alpha( d_order, order )
                 mcoeff = factorial(d_order)/prod( factorial(order) );
                 % normal vec coefficient (n.^alpha)
-                ncoeff = sum(normal(1:this.n_dim).^order(1:this.n_dim));
+                ncoeff = prod(normal(1:this.n_dim).^order(1:this.n_dim));
                 % accumulate in the sum
                 D = D + mcoeff * ncoeff * Di;
             end
