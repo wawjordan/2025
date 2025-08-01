@@ -92,11 +92,11 @@ n1 = 1;
 
 
 
-CELLS1  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,true);
-CELLS2  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
-% CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
-% CELLS1 = CELLS;
-% CELLS2 = CELLS;
+% CELLS1  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,true);
+% CELLS2  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+CELLS1 = CELLS;
+CELLS2 = CELLS;
 [CELLS1,LHS1,RHS1,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
 [CELLS2,LHS2,RHS2,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
 
