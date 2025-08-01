@@ -110,8 +110,10 @@ classdef var_rec_t4
             this.self_LHS = this.get_self_LHS(n1,nbors);
             if (~isempty(bc_funs))
                 for n = 1:numel(this.bc_face_id)
+if ( this.bc_face_id(n) == 2)
                     A = this.dirichlet_boundary_LHS_contribution(n1, this.fquad( this.bc_face_id(n) ) );
                     this.self_LHS = this.self_LHS + A;
+end
                 end
             end
             this.self_LHS_inv = pinv(this.self_LHS);
@@ -119,8 +121,11 @@ classdef var_rec_t4
             this.RHS      = this.get_RHS(n1,nbors);
             if (~isempty(bc_funs))
                 for n = 1:numel(this.bc_face_id)
-                    b = this.dirichlet_boundary_RHS_contribution(n1, this.fquad( this.bc_face_id(n) ), bc_funs);
+if ( this.bc_face_id(n) == 2)
+                    % b = this.dirichlet_boundary_RHS_contribution(n1, this.fquad( this.bc_face_id(n) ), bc_funs);
+                    b = this.dirichlet_boundary_RHS_contribution_new(n1, this.fquad( this.bc_face_id(n) ), bc_funs, [2]);
                     this.RHS = this.RHS + b;
+end
                 end
             end
 
@@ -296,6 +301,74 @@ classdef var_rec_t4
                 % b(l,:) = b(l,:) + (1/dbf_mag) * (L^2) * bc_fquad.integrate(int_tmp);
                 b(l,:) = b(l,:) + ( bc_fquad.integrate(int_tmp) ).';
             end
+
+            d_basis = zeros(n_quad,n_terms_local+n1,n_terms_local);
+            
+            area = bc_fquad.integrate(ones(1,n_quad));
+            face_x_ref = bc_fquad.integrate(bc_fquad.quad_pts(1:this.basis.n_dim,:))/area;
+            dbf = this.basis.x_ref - face_x_ref;
+            dbf_mag = sqrt( sum(dbf.^2));
+
+            for q = 1:n_quad
+                point = bc_fquad.quad_pts(:,q);
+                d_basis(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dbf_mag);
+            end
+
+            b2_1 = zeros(n_terms_local,1);
+            b2_2 = zeros(n_terms_local,this.n_vars);
+            for q = 1:n_quad
+                p = 0;
+                phi_tmp = squeeze(d_basis(q,p+1,:));
+                b2_1 = b2_1 + bc_fquad.quad_wts(q)*phi_tmp;
+
+                point = bc_fquad.quad_pts(:,q);
+                tmp_x = num2cell(point(1:this.basis.n_dim));
+                bc_eval = zeros(this.n_vars,1);
+                for v = 1:this.n_vars
+                    bc_eval(v) = bc_fun{v}(tmp_x{:});
+                end
+                for l = 1:n_terms_local
+                    b2_2(l,:) = b2_2(l,:) + bc_fquad.quad_wts(q)*phi_tmp(l)*bc_eval.';
+                end
+            end
+
+            b2 = zeros(n_terms_local,this.n_vars);
+            for l = 1:n_terms_local
+                b2(l,:) = b2_2(l,:) - b2_1(l,:).* (this.avgs(:).');
+            end
+
+            % look at b2_1 for coefficient comparison with D matrix
+        end
+
+        function b = dirichlet_boundary_RHS_contribution_new(this,n1,bc_fquad,bc_fun,bc_idx)
+            n_terms_local = this.basis.n_terms - n1;
+            n_quad  = bc_fquad.n_quad;
+            % area = bc_fquad.integrate(ones(1,n_quad));
+            % face_x_ref = bc_fquad.integrate(bc_fquad.quad_pts(1:this.basis.n_dim,:))/area;
+            % dbf = this.basis.x_ref - face_x_ref;
+            % dbf_mag = sqrt( sum(dbf.^2));
+            % L = zero_mean_basis2.get_factorial_scaling_1(zeros(this.basis.n_dim,1),dbf_mag);
+            n_vars_ = numel(bc_idx);
+
+            b = zeros(n_terms_local,this.n_vars);
+            for l = 1:n_terms_local
+                int_tmp = zeros(this.n_vars,n_quad);
+                for q = 1:n_quad
+                    point = bc_fquad.quad_pts(:,q);
+                    tmp_x = num2cell(point(1:this.basis.n_dim));
+                    bc_eval = zeros(this.n_vars,1);
+                    for v = 1:this.n_vars
+                        bc_eval(v) = bc_fun{v}(tmp_x{:});
+                    end
+                    bc_diff = bc_eval(:) - this.avgs(:);
+                    % int_tmp(:,q) = bc_diff*this.basis.eval( l+n1, point );
+                    for v = 1:n_vars_
+                        int_tmp(bc_idx(v),q) = bc_diff(bc_idx(v))*this.basis.eval( l+n1, point );
+                    end
+                end
+                % b(l,:) = b(l,:) + (1/dbf_mag) * (L^2) * bc_fquad.integrate(int_tmp);
+                b(l,:) = b(l,:) + ( bc_fquad.integrate(int_tmp) ).';
+            end
         end
 
     end
@@ -385,18 +458,16 @@ classdef var_rec_t4
                 end
                 if (~isempty(var_idx))
                     for n = 1:numel(CELLS(i).bc_face_id)
-if ( CELLS(i).bc_face_id == 2)
+if ( CELLS(i).bc_face_id(n) == 2)
                         bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
                         bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
                         vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
-
                         % for each sub-matrix
                         for j = 1:numel(var_idx)
-                            % row_start = (i-1)*n_terms_local + 1;
                             row_start = (i-1)*n_vars*n_terms_local + (var_idx(j)-1)*n_terms_local + 1;
                             sub_row_start = (j-1)*n_terms_local + 1;
                             for k = 1:numel(var_idx)
-                                col_start = row_start + (var_idx(k)-1)*n_terms_local;
+                                col_start = (i-1)*n_vars*n_terms_local + (var_idx(k)-1)*n_terms_local + 1;
                                 sub_col_start   = (k-1)*n_terms_local + 1;
                                 sub_matrix = vrswt.E(sub_row_start:sub_row_start+n_terms_local-1,sub_col_start:sub_col_start+n_terms_local-1);
                                 [row_idx,col_idx,vals,nz_cnt] = var_rec_t4.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,sub_matrix);
@@ -455,7 +526,7 @@ end
 
                 if (~isempty(var_idx))
                     for n = 1:numel(CELLS(i).bc_face_id)
-if ( CELLS(i).bc_face_id == 2)
+if ( CELLS(i).bc_face_id(n) == 2)
                         bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
                         bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
                         vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
