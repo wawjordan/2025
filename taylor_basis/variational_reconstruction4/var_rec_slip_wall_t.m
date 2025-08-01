@@ -40,15 +40,15 @@ properties
             dbf_mag = sqrt( sum(dbf.^2) );
 
             % array containing various derivatives of the basis functions
-            % d_basis = zeros(n_quad,var_rec.basis.degree+1,n_terms_local);
-            d_basis = zeros(n_quad,n_terms_local+1,n_terms_local);
+            d_basis = zeros(n_quad,var_rec.basis.degree+1,n_terms_local);
+            % d_basis = zeros(n_quad,n_terms_local+1,n_terms_local);
             for q = 1:n_quad
                 point  = bc_fquad.quad_pts(:,q);
                 normal = bc_fvec.v(:,q);
-                % d_basis(q,:,:) = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
-                d_basis1 = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
-                d_basis2 = var_rec.basis.calc_basis_derivatives(n1,point,dbf_mag);
-                d_basis(q,:,:) = d_basis2;
+                d_basis(q,:,:) = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
+                % d_basis1 = var_rec.basis.calc_basis_normal_derivatives(n1,normal,point,dbf_mag);
+                % d_basis2 = var_rec.basis.calc_basis_derivatives(n1,point,dbf_mag);
+                % d_basis(q,:,:) = d_basis2;
             end
 
             E = zeros( this.n_mtm*n_terms_local, this.n_mtm*n_terms_local );
@@ -56,13 +56,16 @@ properties
             % A0 = zeros(n_terms_local,n_terms_local);
             for q = 1:n_quad
                 normal = bc_fvec.v(:,q);
-                % for p = 0:var_rec.degree
+                % get local projection/rejection matrix
+                Pij = normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
+                Rij = eye(this.n_mtm) - Pij;
                 % for p = var_rec.basis.degree:-1:0
                 for p = 0
-                    % get local projection/rejection matrix
-                    Pij = normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
-                    % Rij = eye(this.n_mtm) - Pij;
-                    Cp = Pij;
+                    if (mod(p,2)~=0)
+                        Cp = 2*Rij;
+                    else
+                        Cp = 2*Pij;
+                    end
 
                     % get basis function products
                     A = zeros(n_terms_local,n_terms_local);
