@@ -58,14 +58,14 @@ properties
                 normal = bc_fvec.v(:,q);
                 % get local projection/rejection matrix
                 Pij = normal(1:this.n_mtm) * (normal(1:this.n_mtm).');
-                Rij = eye(this.n_mtm) - Pij;
+                % Rij = eye(this.n_mtm) - Pij;
                 % for p = var_rec.basis.degree:-1:0
                 for p = 0
-                    if (mod(p,2)~=0)
-                        Cp = 2*Rij;
-                    else
+                    % if (mod(p,2)~=0)
+                    %     Cp = 2*Rij;
+                    % else
                         Cp = 2*Pij;
-                    end
+                    % end
 
                     % get basis function products
                     A = zeros(n_terms_local,n_terms_local);
