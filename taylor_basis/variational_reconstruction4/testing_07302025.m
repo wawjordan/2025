@@ -9,13 +9,13 @@ addpath(genpath(parent_dir));
 clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
-agglom=false;
+agglom=true;
 load_file=true;
 GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 
 blk     = 1;
 dim     = 2;
-degree  = 3;
+degree  = 4;
 n_vars  = 4;
 
 % [test_fun,deriv] = generate_random_poly_fun(dim,degree+1);
@@ -37,13 +37,13 @@ test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
 
-if agglom
-    idx_low  = [1,1,1];
-    idx_high = [5,5,1];
-else
+% if agglom
+%     idx_low  = [1,1,1];
+%     idx_high = [5,5,1];
+% else
     idx_low  = [1,1,1];
     idx_high = [10,10,1];
-end
+% end
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 
 n1 = 1;
@@ -60,24 +60,36 @@ n1 = 1;
 % [CELLS2_bc,~,~,coefs2_bc] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2_bc,false);
 
 
-CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
-CELLS1 = CELLS;
-CELLS2 = CELLS;
-[CELLS1,~,~,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
-[CELLS2,~,~,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
 
+
+
+% CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+% CELLS1 = CELLS;
+% CELLS2 = CELLS;
+% [CELLS1,~,~,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
+% [CELLS2,~,~,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
+
+
+CELLS1  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,true);
+[CELLS1,~,~,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
+
+CELLS2  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+[CELLS2,~,~,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
 %% reconstruction compare + function
 % r: w/o BC
 % b: w/  BC
 
 f = figure(1); set_monitor_for_figure(f,2);
 var = 2;
-plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-% var = 3;
-% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','k')
-plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
+axis square
+
+hold on;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Local Functions
@@ -94,7 +106,7 @@ end
 if isfile(grid_t_file)&&load_file
     load(grid_t_file,"GRID");
 else
-    GRID = svf_grid(11,11);
+    GRID = svf_grid(21,21);
     if agglom
         GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=3,nskip=[2,2,1]);
     else
@@ -191,12 +203,20 @@ for i = 1:numel(CELLS)
     surf(X{1},X{2},F_rec{var},varargin{:})
 end
 end
+% function plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
+% hold on;
+% for i = 1:numel(CELLS)
+%     [X,F_rec] = evaluate_reconstruction(CELLS(i),npts);
+%     [~,F] = evaluate_function_on_interp_grid(test_fun,CELLS(i).quad,npts);
+%     surf(X{1},X{2},F_rec{var}-F{var},varargin{:})
+% end
+% end
 function plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
 hold on;
 for i = 1:numel(CELLS)
     [X,F_rec] = evaluate_reconstruction(CELLS(i),npts);
-    [~,F] = evaluate_function_on_interp_grid(test_fun,CELLS(i).quad,npts);
-    surf(X{1},X{2},F_rec{var}-F{var},varargin{:})
+    [~,F] = evaluate_function_on_interp_grid(test_fun{var},CELLS(i).quad,npts);
+    surf(X{1},X{2},F_rec{var}-F{1},varargin{:})
 end
 end
 
