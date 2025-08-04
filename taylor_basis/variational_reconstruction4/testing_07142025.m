@@ -10,7 +10,7 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 agglom=true;
-load_file=false;
+load_file=true;
 cart=true;
 % GRID = load_gen_grid_for_testing(parent_dir,agglom,load_file,cart);
 
@@ -33,6 +33,11 @@ for i = 1:n_vars
     test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel_rot,x,y,2,0,0,deg2rad(theta));
 end
 
+vn_funs = cell(4,1);
+for i = 1:4
+    n = [cosd(theta+(i-1)*90),sind(theta+(i-1)*90)];
+    vn_funs{i} = @(x,y) n(1)*test_funs{2}(x,y) + n(2)*test_funs{3}(x,y);
+end
 if cart
     idx_low  = [1,1,1];
     idx_high = [10,10,1];
@@ -48,27 +53,6 @@ else
     end
 end
 SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
-
-
-%% plotting the function
-
-% var_names = {'rho','u','v','p'};
-% f = figure(2); set_monitor_for_figure(f,2);
-% t = tiledlayout(2,2);
-% X = SUB_GRID.gblock.x(:,:,1);
-% Y = SUB_GRID.gblock.y(:,:,1);
-% 
-% for i = 1:n_vars
-%     nexttile;
-%     % val = padarray(test_funs{i}(xc,yc),[1,1],0,"post");
-%     % surf(X,Y,val,'EdgeColor','none')
-%     val = test_funs{i}(X,Y);
-%     surf(X,Y,val,'EdgeColor','none')
-%     view(2)
-%     colorbar
-%     title(var_names{i})
-%     axis equal;
-% end
 
 
 
@@ -92,6 +76,44 @@ n1 = 1;
 % CELLS2  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
 CELLS  = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
 CELLS1 = CELLS;
+
+
+
+% %% plotting the function
+% 
+% var_names = {'rho','u','v','p'};
+% f = figure(1); set_monitor_for_figure(f,2);
+% t = tiledlayout(2,2);
+% % X = SUB_GRID.gblock.x(:,:,1);
+% % Y = SUB_GRID.gblock.y(:,:,1);
+% 
+% for i = 1:n_vars
+%     nexttile;
+%     % val = padarray(test_funs{i}(xc,yc),[1,1],0,"post");
+%     % surf(X,Y,val,'EdgeColor','none')
+%     % val = test_funs{i}(X,Y);
+%     % surf(X,Y,val,'EdgeColor','none')
+%     plot_function_over_cells(test_funs{i},1,CELLS1,21,'EdgeColor','none')
+%     view(2)
+%     colorbar
+%     title(var_names{i})
+%     axis equal;
+% end
+% 
+% %% plotting v dot n
+% f = figure(2); set_monitor_for_figure(f,2);
+% t = tiledlayout(2,2);
+% for i = 1:4
+%     nexttile;
+%     plot_function_over_cells(vn_funs{i},1,CELLS1,21,'EdgeColor','none')
+%     view(2)
+%     colorbar
+%     % title(var_names{i})
+%     axis equal;
+% end
+
+
+
 CELLS2 = CELLS;
 [CELLS1,LHS1,RHS1,coefs1] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS1,[]);
 [CELLS2,LHS2,RHS2,coefs2] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[2,3]);
@@ -102,27 +124,24 @@ CELLS2 = CELLS;
 
 f1 = figure(1); set_monitor_for_figure(f1,2);
 var = 2;
-plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-axis equal
-plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 
-% plot_reconstruction_error_over_cells(test_fun,var,CELLS,npts,varargin)
-% plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
-
-% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
+axis equal
 
 f2 = figure(2); set_monitor_for_figure(f2,2);
 var = 3;
-plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
-axis equal
-plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
-% plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
-% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+% plot_function_over_cells(test_funs{var},1,CELLS1,21,'EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+% plot_reconstruction_over_cells(var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS1,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
 colorbar
+axis equal
 
 hold on;
 
@@ -147,8 +166,8 @@ else
     GRID.gblock.jmax    = 11;
     [x1,y1] = ndgrid( linspace(-1,1,GRID.gblock.imax), ...
                       linspace(-1,1,GRID.gblock.jmax) );
-    GRID.gblock.x =  x1.*cosd(theta) + y1.*sind(theta);
-    GRID.gblock.y = -x1.*sind(theta) + y1.*cosd(theta);
+    GRID.gblock.x = x1.*cosd(theta) - y1.*sind(theta);
+    GRID.gblock.y = x1.*sind(theta) + y1.*cosd(theta);
     GRID = grid_type(GRID,calc_quads=true,nquad=3);
     save(grid_t_file,"GRID");
 end
