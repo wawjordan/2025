@@ -110,10 +110,10 @@ classdef var_rec_t4
             this.self_LHS = this.get_self_LHS(n1,nbors);
             if (~isempty(bc_funs))
                 for n = 1:numel(this.bc_face_id)
-if ( this.bc_face_id(n) == 4)
+% if ( this.bc_face_id(n) == 4)
                     A = this.dirichlet_boundary_LHS_contribution(n1, this.fquad( this.bc_face_id(n) ) );
                     this.self_LHS = this.self_LHS + A;
-end
+% end
                 end
             end
             this.self_LHS_inv = pinv(this.self_LHS);
@@ -121,11 +121,12 @@ end
             this.RHS      = this.get_RHS(n1,nbors);
             if (~isempty(bc_funs))
                 for n = 1:numel(this.bc_face_id)
-if ( this.bc_face_id(n) == 4)
+% if ( this.bc_face_id(n) == 4)
                     % b = this.dirichlet_boundary_RHS_contribution(n1, this.fquad( this.bc_face_id(n) ), bc_funs);
-                    b = this.dirichlet_boundary_RHS_contribution_new(n1, this.fquad( this.bc_face_id(n) ), bc_funs, [2,3]);
+                    % b = this.dirichlet_boundary_RHS_contribution_new(n1, this.fquad( this.bc_face_id(n) ), bc_funs, [2,3]);
+                    b = this.dirichlet_boundary_RHS_contribution_new(n1, this.fquad( this.bc_face_id(n) ), bc_funs, 1:4 );
                     this.RHS = this.RHS + b;
-end
+% end
                 end
             end
 
