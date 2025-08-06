@@ -23,6 +23,7 @@ classdef var_rec_t5
         d            (:,:)   {mustBeNumeric}
         Ainvc        (:,:)   {mustBeNumeric}
         Ainvd        (:,:)   {mustBeNumeric}
+        get_nbor_dist
     end
 
     methods
@@ -33,7 +34,8 @@ classdef var_rec_t5
                                     volume_quad, ...
                                     face_quads, ...
                                     face_normals, ...
-                                    n_vars )
+                                    n_vars, ...
+                                    dist_opt )
             if nargin<1
                 return
             end
@@ -54,6 +56,14 @@ classdef var_rec_t5
             this.nbor_LHS = zeros(this.basis.n_terms,this.basis.n_terms,this.n_nbors);
             this.RHS      = zeros(this.basis.n_terms,this.n_vars);
             this.AinvB    = zeros(this.basis.n_terms,this.basis.n_terms,this.n_nbors);
+            switch dist_opt
+                case 'scalar_dist'
+                    this.get_nbor_dist = @this.get_nbor_distance_scalar;
+                case 'vector_dist'
+                    this.get_nbor_dist = @this.get_nbor_distance_vec1;
+                otherwise
+                    error("Options are 'scalar_dist' or 'vector_dist'");
+            end
         end
 
         function varargout = eval_reconstruction(this,x,n_terms)
@@ -89,8 +99,10 @@ classdef var_rec_t5
             this.coefs(1,:) = this.avgs;
         end
 
-        function this = setup_rec(this,n1,nbors)
+        function this = setup_rec(this,n1,nbors,bc_funs)
             this.self_LHS = this.get_self_LHS(n1,nbors);
+            if (~isempty(bc_funs))
+            end
             this.self_LHS_inv = pinv(this.self_LHS);
             this.nbor_LHS = this.get_nbor_LHS(n1,nbors);
             this.RHS      = this.get_RHS(n1,nbors);
@@ -100,6 +112,16 @@ classdef var_rec_t5
             for n = 1:n_nbor
                 this.AinvB(:,:,n) = this.self_LHS_inv * this.nbor_LHS(:,:,n);
             end
+        end
+
+        function d = get_nbor_distance_scalar(this,nbor)
+            dij = this.basis.x_ref - nbor.basis.x_ref;
+            d   = sqrt( sum(dij.^2));
+        end
+
+        function d = get_nbor_distance_vec1(this,nbor)
+            % d = (this.basis.h_ref + nbor.basis.h_ref)/2;
+            d = abs(this.basis.x_ref - nbor.basis.x_ref);
         end
 
         function A = get_self_LHS(this,n1,nbors)
@@ -113,13 +135,13 @@ classdef var_rec_t5
             A = zeros(n_terms_local,n_terms_local);
             
             for k = 1:n_nbor
-                dij = this.basis.x_ref - nbors(k).basis.x_ref;
-                dij_mag = sqrt( sum(dij.^2));
+                dij_mag = this.get_nbor_distance_scalar(nbors(k));
+                dij = this.get_nbor_dist(nbors(k));
                 n_quad = this.fquad( this.nbor_face_id(k) ).n_quad;
 
                 for q = 1:n_quad
                     point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
-                    d_basis(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dij_mag);
+                    d_basis(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dij);
                 end
                 A1 = zeros(n_terms_local,n_terms_local);
                 for l = 1:n_terms_local
@@ -145,13 +167,13 @@ classdef var_rec_t5
             B = zeros(n_terms_local,n_terms_local,n_nbor);
 
             for k = 1:n_nbor
-                dij = this.basis.x_ref - nbors(k).basis.x_ref;
-                dij_mag = sqrt( sum(dij.^2));
+                dij     = this.get_nbor_dist(nbors(k));
+                dij_mag = this.get_nbor_distance_scalar(nbors(k));
                 n_quad = this.fquad( this.nbor_face_id(k) ).n_quad;
                 for q = 1:n_quad
                     point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
-                    d_basis_i(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dij_mag);
-                    d_basis_j(q,:,:) = nbors(k).basis.calc_basis_derivatives(n1,point,dij_mag);
+                    d_basis_i(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dij);
+                    d_basis_j(q,:,:) = nbors(k).basis.calc_basis_derivatives(n1,point,dij);
                 end
                 for r = 1:n_terms_local
                     for l = 1:n_terms_local
@@ -164,29 +186,6 @@ classdef var_rec_t5
             end
         end
 
-        function b = get_RHS_matrix(this,n1,nbors)
-            n_nbor  = this.n_nbors;
-            n_terms_local = this.basis.n_terms - n1;
-            n_quad  = this.fquad( this.nbor_face_id(1) ).n_quad;
-
-            b = zeros(n_terms_local,this.n_vars);
-
-            for k = 1:n_nbor
-                dij = this.basis.x_ref - nbors(k).basis.x_ref;
-                dij_mag = sqrt( sum(dij.^2));
-                L = zero_mean_basis5.get_factorial_scaling_scalar(zeros(this.basis.n_dim,1),dij_mag);
-                avg_diff = nbors(k).avgs(:) - this.avgs(:);
-                for l = 1:n_terms_local
-                    int_tmp = zeros(1,n_quad);
-                    for q = 1:n_quad
-                        point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
-                        int_tmp(q) = this.basis.eval( l+n1, point );
-                    end
-                    b(l,:) = b(l,:) + avg_diff(:).' * (1/dij_mag) * (L^2) * this.fquad( this.nbor_face_id(k) ).integrate(int_tmp);
-                end
-            end
-        end
-
         function b = get_RHS(this,n1,nbors)
             n_nbor  = this.n_nbors;
             n_terms_local = this.basis.n_terms - n1;
@@ -195,9 +194,9 @@ classdef var_rec_t5
             b = zeros(n_terms_local,this.n_vars);
 
             for k = 1:n_nbor
-                dij = this.basis.x_ref - nbors(k).basis.x_ref;
-                dij_mag = sqrt( sum(dij.^2));
-                L = zero_mean_basis5.get_factorial_scaling_scalar(zeros(this.basis.n_dim,1),dij_mag);
+                dij = this.get_nbor_dist(nbors(k));
+                dij_mag = this.get_nbor_distance_scalar(nbors(k));
+                L = zero_mean_basis5.get_length_scale(zeros(this.basis.n_dim,1),dij);
                 avg_diff = nbors(k).avgs(:) - this.avgs(:);
                 for l = 1:n_terms_local
                     int_tmp = zeros(1,n_quad);
@@ -297,22 +296,22 @@ classdef var_rec_t5
                     [row_idx,col_idx,vals,nz_cnt] = var_rec_t5.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,-Bij);
                 end
                 if (~isempty(var_idx))
-                    for n = 1:numel(CELLS(i).bc_face_id)
-                        bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
-                        bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
-                        vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
-                        % for each sub-matrix
-                        for j = 1:numel(var_idx)
-                            row_start = (i-1)*n_vars*n_terms_local + (var_idx(j)-1)*n_terms_local + 1;
-                            sub_row_start = (j-1)*n_terms_local + 1;
-                            for k = 1:numel(var_idx)
-                                col_start = (i-1)*n_vars*n_terms_local + (var_idx(k)-1)*n_terms_local + 1;
-                                sub_col_start   = (k-1)*n_terms_local + 1;
-                                sub_matrix = vrswt.E(sub_row_start:sub_row_start+n_terms_local-1,sub_col_start:sub_col_start+n_terms_local-1);
-                                [row_idx,col_idx,vals,nz_cnt] = var_rec_t5.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,sub_matrix);
-                            end
-                        end
-                    end
+                    % for n = 1:numel(CELLS(i).bc_face_id)
+                    %     bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
+                    %     bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
+                    %     vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
+                    %     % for each sub-matrix
+                    %     for j = 1:numel(var_idx)
+                    %         row_start = (i-1)*n_vars*n_terms_local + (var_idx(j)-1)*n_terms_local + 1;
+                    %         sub_row_start = (j-1)*n_terms_local + 1;
+                    %         for k = 1:numel(var_idx)
+                    %             col_start = (i-1)*n_vars*n_terms_local + (var_idx(k)-1)*n_terms_local + 1;
+                    %             sub_col_start   = (k-1)*n_terms_local + 1;
+                    %             sub_matrix = vrswt.E(sub_row_start:sub_row_start+n_terms_local-1,sub_col_start:sub_col_start+n_terms_local-1);
+                    %             [row_idx,col_idx,vals,nz_cnt] = var_rec_t5.add_array(row_idx,col_idx,vals,nz_cnt,row_start,col_start,sub_matrix);
+                    %         end
+                    %     end
+                    % end
                 end
                 
             end
@@ -355,24 +354,24 @@ classdef var_rec_t5
                 b(row_start:row_end) = CELLS(i).RHS(:);
 
                 if (~isempty(var_idx))
-                    for n = 1:numel(CELLS(i).bc_face_id)
-                        bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
-                        bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
-                        vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
-
-                        % get the RHS addition
-                        avgs = CELLS(i).avgs(var_idx);
-                        tmp_RHS = vrswt.D * avgs(:);
-                        for j = 1:numel(var_idx)
-                            row_start = (i-1)*n_vars*n_terms_local ...
-                                        + (var_idx(j)-1)*n_terms_local + 1;
-                            row_end   = row_start - 1 + n_terms_local;
-                            sub_row_start = (j-1)*n_terms_local + 1;
-                            sub_row_end   = sub_row_start - 1 + n_terms_local;
-                            b(row_start:row_end) = b(row_start:row_end) ...
-                                           + tmp_RHS(sub_row_start:sub_row_end);
-                        end
-                    end
+                    % for n = 1:numel(CELLS(i).bc_face_id)
+                    %     bc_fquad = CELLS(i).fquad( CELLS(i).bc_face_id(n) );
+                    %     bc_fvec  = CELLS(i).fvec(  CELLS(i).bc_face_id(n) );
+                    %     vrswt = var_rec_slip_wall_t(n1,CELLS(i),bc_fquad,bc_fvec,var_idx);
+                    % 
+                    %     % get the RHS addition
+                    %     avgs = CELLS(i).avgs(var_idx);
+                    %     tmp_RHS = vrswt.D * avgs(:);
+                    %     for j = 1:numel(var_idx)
+                    %         row_start = (i-1)*n_vars*n_terms_local ...
+                    %                     + (var_idx(j)-1)*n_terms_local + 1;
+                    %         row_end   = row_start - 1 + n_terms_local;
+                    %         sub_row_start = (j-1)*n_terms_local + 1;
+                    %         sub_row_end   = sub_row_start - 1 + n_terms_local;
+                    %         b(row_start:row_end) = b(row_start:row_end) ...
+                    %                        + tmp_RHS(sub_row_start:sub_row_end);
+                    %     end
+                    % end
                 end
             end
         end
@@ -510,14 +509,15 @@ classdef var_rec_t5
             end
         end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        function CELLS = set_up_cell_var_recs(GRID,blk,idx_low,idx_high,degree,funs,n1,use_bcs)
+        function CELLS = set_up_cell_var_recs(GRID,blk,idx_low,idx_high,degree,funs,n1,use_bcs,dist_opt)
             nvars = numel(funs);
             IDX = generate_index_array(idx_low,idx_high);
             CELLS = arrayfun( @(idx)var_rec_t5.set_up_cell(   GRID, ...
                                                                blk, ...
                                                                idx, ...
                                                             degree, ...
-                                                             nvars ),   IDX );
+                                                             nvars, ...
+                                                          dist_opt),   IDX );
             CELLS = arrayfun(@(CELL)CELL.set_cell_avg(funs),CELLS);
             if (use_bcs)
                 CELLS = var_rec_t5.setup_all(n1,CELLS,funs);
@@ -526,7 +526,7 @@ classdef var_rec_t5
             end
         end
 
-        function CELL = set_up_cell(GRID,blk,idx,degree,n_vars)
+        function CELL = set_up_cell(GRID,blk,idx,degree,n_vars,dist_opt)
             [n_dim,nbor_idx] = var_rec_t5.get_dim_and_nbor_info( GRID, ...
                                                                  blk,  ...
                                                                  [idx{:}] );
@@ -542,7 +542,7 @@ classdef var_rec_t5
             h_ref = var_rec_t5.get_max_cell_extents(nodes,n_dim);
             basis_funs = zero_mean_basis5(n_dim,degree,h_ref,volume_quad);
             CELL = var_rec_t5( nbor_idx, nbor_face_id(1:n_nbor), bc_face_id, ...
-                               basis_funs, volume_quad, face_quads, face_normals, n_vars );
+                               basis_funs, volume_quad, face_quads, face_normals, n_vars, dist_opt );
         end
 
         function [n_dim,id] = get_dim_and_nbor_info(GRID,blk,idx)
@@ -562,7 +562,7 @@ classdef var_rec_t5
 
             bnd_min = ones(n_dim,1);
             bnd_max = tmp_array(1:n_dim)-1;
-            [nbor_idxs,cnt] = var_rec_t5.get_cell_face_nbor_idx( ...
+            [nbor_idxs,cnt] = get_cell_face_nbor_idx( ...
                                                                idx(1:n_dim), ...
                                                                     bnd_min, ...
                                                                     bnd_max, ...
@@ -616,7 +616,7 @@ classdef var_rec_t5
                 tmp_idx(face_idx) = tmp_idx(face_idx)+offset;
                 nbor_idx = [idx{:}];
                 nbor_idx(face_idx) = nbor_idx(face_idx)+factor;
-                if ( zero_mean_basis5.in_bounds(           ...
+                if ( var_rec_t5.in_bounds(           ...
                                         nbor_idx(1:n_dim), ...
                                             ones(1,n_dim), ...
                          GRID.gblock(blk).Ncells(1:n_dim) ) )

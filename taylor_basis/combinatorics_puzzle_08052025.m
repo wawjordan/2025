@@ -1,8 +1,8 @@
 %% combinatorics puzzle (08/05/2025)
 clc; clear; close all;
 
-dim    = 1;
-degree = 3;
+dim    = 3;
+degree = 5;
 n_terms = get_n_terms_( dim, degree );
 order = get_exponents_sorted_( dim, degree );
 
@@ -11,17 +11,21 @@ num_fmt = '%5d/%-5d';
 
 fmt_fun = @(n,fmt) [repmat([fmt,' '],1,n-1), fmt, '\n'];
 
-fmt = fmt_fun(4,num_fmt);
+fmt = fmt_fun(5,num_fmt);
 
 for i = 1:n_terms
     den = get_factorial_scaling_1( order(:,i) );
     num1 = get_factorial_scaling_2( order(:,i) );
     [num2,num3] = multichoose( sum(order(:,i)), order(:,i) );
-    tmp = 1/prod( factorial(order(:,i)));
-    [N,D] = rat([num1/den,num2/den,num3/den,tmp]);
+
+    den2 = prod( factorial(order(:,i)));
+    den3 = get_factorial_scaling_3( order(:,i) );
+    tmp1 = 1/den2;
+    tmp2 = 1/den3;
+    [N,D] = rat([num1/den,num2/den,num3/den,tmp1,tmp2]);
     tmp_vec = [N;D];
-    fprintf(fmt,tmp_vec(:));
-    % fprintf(fmt,[den1,den2]);
+    % fprintf(fmt,tmp_vec(:));
+    fprintf('%d %d\n',[den2,den3]);
 end
 
 
@@ -29,6 +33,16 @@ end
 
 function den = get_factorial_scaling_1(order)
 den = factorial( sum(order) );
+end
+
+function den = get_factorial_scaling_3(order)
+n_dim = numel(order);
+den = 1;
+for d = 1:n_dim
+    for n = order(d):-1:1
+        den = den * n;
+    end
+end
 end
 
 function num = get_factorial_scaling_2(order)

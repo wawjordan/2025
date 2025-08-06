@@ -23,18 +23,18 @@ test_funs = cell(n_vars,1);
 % for i = 1:n_vars
 %     [test_funs{i},~] = generate_random_poly_fun(dim,degree);
 % end
-for i = 1:n_vars
-    test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,2,0,0);
-end
+% for i = 1:n_vars
+%     test_funs{i} = @(x,y)argEval(i,@simple_inviscid_taylor_green_vortex_2D_vel,x,y,2,0,0);
+% end
 
-% gamma  = 1.4;
-% % inputs = [2.0, 1.0, 0.8611583247416177E+05, 0.5];
-% inputs = [2.0, 1.0, 0.8611583247416177E+05, 2.0];
-% ref_inputs = [1.0, 1.0, 347.2206293753677000 ];
-% test_funs{1}  = @(x,y) dens_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
-% test_funs{2} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
-% test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
-% test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+gamma  = 1.4;
+% inputs = [2.0, 1.0, 0.8611583247416177E+05, 0.5];
+inputs = [2.0, 1.0, 0.8611583247416177E+05, 2.0];
+ref_inputs = [1.0, 1.0, 347.2206293753677000 ];
+test_funs{1}  = @(x,y) dens_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{2} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
 
 % if agglom
@@ -52,20 +52,30 @@ n1 = 1;
 CELLS1 = set_up_cell_kexact_old_recs(SUB_GRID,blk,idx_low,idx_high,degree,test_funs,false);
 
 % variational reconstruction
-CELLS2 = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,true);
-CELLS3 = CELLS2;
+CELLS2 = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
+% CELLS3 = CELLS2;
+[CELLS2,LHS2,~,~] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[]);
 
-[CELLS2,~,~,~] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[]);
+
+CELLS3 = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false,'vector_dist');
+CELLS4 = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false,'scalar_dist');
+[CELLS3a,LHS3,~,~] = var_rec_t5.perform_reconstruction_fully_coupled(n1,CELLS3,[]);
+[CELLS4a,LHS4,~,~] = var_rec_t5.perform_reconstruction_fully_coupled(n1,CELLS4,[]);
 
 omega = 1.3;
-n_iter = 5;
-CELLS3 = var_rec_t4.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,n_iter);
+n_iter = 50;
+CELLS3 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,n_iter);
+CELLS4 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLS4,omega,n_iter);
 
-CELLS4 = CELLS3;
-CELLS4 = var_rec_t4.perform_iterative_reconstruction_SOR(n1,CELLS4,omega,n_iter);
-
-CELLS5 = CELLS4;
-CELLS5 = var_rec_t4.perform_iterative_reconstruction_SOR(n1,CELLS5,omega,n_iter);
+% omega = 1.3;
+% n_iter = 5;
+% CELLS3 = var_rec_t4.perform_iterative_reconstruction_SOR(n1,CELLS3,omega,n_iter);
+% 
+% CELLS4 = CELLS3;
+% CELLS4 = var_rec_t4.perform_iterative_reconstruction_SOR(n1,CELLS4,omega,n_iter);
+% 
+% CELLS5 = CELLS4;
+% CELLS5 = var_rec_t4.perform_iterative_reconstruction_SOR(n1,CELLS5,omega,n_iter);
 
 
 
@@ -82,12 +92,12 @@ var = 2;
 % plot_reconstruction_over_cells_old(var,CELLS1,CELLS2,21,'FaceColor','b','EdgeColor','none')
 
 
-plot_reconstruction_error_over_cells_old(test_funs,var,CELLS2,CELLS1,21,'FaceColor','b','EdgeColor','none')
+% plot_reconstruction_error_over_cells_old(test_funs,var,CELLS2,CELLS1,21,'FaceColor','b','EdgeColor','none')
 
 plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','r','EdgeColor','none')
 plot_reconstruction_error_over_cells(test_funs,var,CELLS3,21,'FaceColor','c','EdgeColor','none')
 plot_reconstruction_error_over_cells(test_funs,var,CELLS4,21,'FaceColor','g','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS5,21,'FaceColor','m','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS5,21,'FaceColor','m','EdgeColor','none')
 colorbar
 axis square
 

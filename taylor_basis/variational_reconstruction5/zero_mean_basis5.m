@@ -88,55 +88,8 @@ classdef zero_mean_basis5
         function D = calc_basis_derivative(this,term,deriv,point,scale)
             order = this.terms(deriv).exponents;
             derivative_term = this.deval( term, point, order );
-            L = zero_mean_basis5.get_factorial_scaling_scalar(order,scale);
+            L = zero_mean_basis5.get_length_scale(order,scale);
             D = L * derivative_term;
-        end
-
-        function D = calc_basis_normal_derivative(this,term,d_order,normal,point,scale)
-            % Inputs:
-            %  this      - zero_mean_basis4 object
-            %  term      - monomial term index
-            %  d_order   - total derivative order
-            %  normal    - normal vector
-            %  point     - point (vector) at which to evaluate the derivatives
-            %  scale     - distance (scalar) describing local length scale
-            D = 0;
-            % linear indices of terms with total order equal to d_order
-            start_term = this.get_n_terms(this.n_dim, d_order-1)+1;
-            end_term   = this.get_n_terms(this.n_dim,d_order);
-            for i = start_term:end_term
-                order = this.terms(i).exponents;
-                derivative_term = this.deval( term, point, order );
-                L = zero_mean_basis5.get_factorial_scaling_scalar(order,scale);
-                Di = L * derivative_term;
-                % multinomial coefficient m_choose_alpha( d_order, order )
-                mcoeff = factorial(d_order)/prod( factorial(order) );
-                % normal vec coefficient (n.^alpha)
-                ncoeff = prod(normal(1:this.n_dim).^order(1:this.n_dim));
-                % accumulate in the sum
-                D = D + mcoeff * ncoeff * Di;
-            end
-        end
-
-        function deriv = calc_basis_normal_derivatives(this,n1,normal,point,scale)
-            % Inputs:
-            %  this      - zero_mean_basis4 object
-            %  n1        - number of coefficients already solved for
-            %  point     - point (vector) at which to evaluate the derivatives
-            %  scale     - distance (scalar) describing local length scale
-
-            % allocate the working array
-            % deriv = zeros(this.n_terms,this.n_terms-n1);
-            deriv = zeros(this.degree+1,this.n_terms-n1);
-
-            % outer loop: basis functions -  n1+1:n_terms
-            for j = n1+1:this.n_terms
-
-                % inner loop: derivatives -  0:total_degree
-                for i = 0:this.degree
-                    deriv(i+1,j-n1) = this.calc_basis_normal_derivative(j,i,normal,point,scale);
-                end
-            end
         end
 
         function deriv = calc_basis_derivatives(this,n1,point,scale)
@@ -144,7 +97,7 @@ classdef zero_mean_basis5
             %  this      - zero_mean_basis4 object
             %  n1        - number of coefficients already solved for
             %  point     - point (vector) at which to evaluate the derivatives
-            %  scale     - distance (scalar) describing local length scale
+            %  scale     - local length scale
 
             % allocate the working array
             deriv = zeros(this.n_terms,this.n_terms-n1);
@@ -159,53 +112,49 @@ classdef zero_mean_basis5
             end
         end
 
-        function deriv = calc_basis_derivatives_vec_scale(this,n1,point,scale_vec)
-            % Inputs:
-            %  this      - zero_mean_basis2 object
-            %  n1        - number of coefficients already solved for
-            %  point     - point (vector) at which to evaluate the derivatives
-            %  scale_vec - distance (vector) describing local length scale
-
-            % allocate the working array
-            deriv = zeros(this.n_terms-n1,this.n_terms-n1);
-
-            % outer loop: basis functions -  n1+1:n_terms
-            for j = n1+1:this.n_terms
-
-                % inner loop: derivatives -  0:order(j-n1)
-                for i = 1:j-n1
-
-                    % differentiation order: [m,n,o]
-                    order = this.terms(i).exponents;
-
-                    [derivative_term,~] = this.deval( j, point, order );
-                    
-                    L = zero_mean_basis5.get_factorial_scaling_vector(order,scale_vec);
-                    deriv(i,j-n1) = L * derivative_term;
-                end
-            end
-        end
-
     end
 
     methods (Static)
-        function L = get_factorial_scaling_scalar(order,scale)
+        function L = get_length_scale(order,scale)
+            if isscalar(scale)
+                L = zero_mean_basis5.get_length_scale_scalar(order,scale);
+            else
+                L = zero_mean_basis5.get_length_scale_vector(order,scale);
+            end
+        end
+
+        function L = get_length_scale_scalar(order,scale)
             delta_term     = scale ^ sum( order );
             factorial_term = 1 / factorial( sum(order) );
             L = delta_term * factorial_term;
         end
 
-        function L = get_factorial_scaling_vector(order,scale_vec)
+        % function L = get_length_scale_vector(order,scale_vec)
+        %     n_dim = numel(order);
+        % 
+        %     delta_term = 1;
+        %     factorial_term = 1;
+        %     for d = 1:n_dim
+        %         delta_term = delta_term * scale_vec(d)^order(d);
+        %         factorial_term = factorial_term * nchoosek( sum( order(d:n_dim) ), order(d) );
+        %     end
+        %     den = factorial( sum(order) );
+        %     L = delta_term * factorial_term / den;
+        % end
+
+        function L = get_length_scale_vector(order,scale_vec)
             n_dim = numel(order);
 
             delta_term = 1;
-            factorial_term = 1;
+            den = 1;
             for d = 1:n_dim
-                delta_term = delta_term * scale_vec(d)^order(d);
-                factorial_term = factorial_term * nchoosek( sum( order(d:n_dim) ), order(d) );
+                % delta_term = delta_term * scale_vec(d)^order(d);
+                for n = order(d):-1:1
+                    delta_term = delta_term * scale_vec(d);
+                    den = den * n;
+                end
             end
-            den = factorial( sum(order) );
-            L = delta_term * factorial_term / den;
+            L = delta_term / den;
         end
 
         function x_bar = shift_and_scale_static(x,shift,scale)
