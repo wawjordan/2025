@@ -94,7 +94,7 @@ classdef zero_mean_basis5
 
         function deriv = calc_basis_derivatives(this,n1,point,scale)
             % Inputs:
-            %  this      - zero_mean_basis4 object
+            %  this      - zero_mean_basis5 object
             %  n1        - number of coefficients already solved for
             %  point     - point (vector) at which to evaluate the derivatives
             %  scale     - local length scale
@@ -108,6 +108,25 @@ classdef zero_mean_basis5
                 % inner loop: derivatives -  0:order(j-n1)
                 for i = 1:j
                     deriv(i,j-n1) = this.calc_basis_derivative(j,i,point,scale);
+                end
+            end
+        end
+
+        function deriv = calc_basis_derivatives_start(this,n1,point,scale)
+            % Inputs:
+            %  this      - zero_mean_basis5 object
+            %  n1        - number of coefficients already solved for
+            %  point     - point (vector) at which to evaluate the derivatives
+            %  scale     - local length scale
+
+            % allocate the working array
+            deriv = zeros(this.n_terms,n1);
+
+            % outer loop: basis functions -  1:n1
+            for j = 1:n1
+                % inner loop: derivatives -  0:order(j-n1)
+                for i = 1:j
+                    deriv(i,j) = this.calc_basis_derivative(j,i,point,scale);
                 end
             end
         end
