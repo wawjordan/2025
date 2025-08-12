@@ -45,26 +45,76 @@ SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 degrees = 1:degree;
 ns      = arrayfun(@(degree)nchoosek(dim+degree,degree),degrees-1);
 
+CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(end),test_funs,1,false,'vector_dist');
+CELLS = var_rec_t5.perform_reconstruction_fully_coupled(1,CELLS,[]);
+
 S = struct();
+S2 = struct();
+
 for i = 1:numel(degrees)
-    S(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(i),false,'scalar_dist');
+    S(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(1),false,'vector_dist');
+    S2(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(1),false,'vector_dist');
 end
 
 S(1).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(1),S(1).CELLS,[]);
+
+omega = 1.3;
+n_iter = 5;
+
+S2(1).CELLS = var_rec_t5.perform_iterative_reconstruction_SOR(ns(1),S2(1).CELLS,omega,n_iter);
+
 for i = 2:degree
-    for j = 1:SUB_GRID.gblock.Ncells
-        S(i).CELLS(j).coefs(1:ns(i),:) = S(i-1).CELLS(j).coefs(1:ns(i),:);
+    n_iter = n_iter + 1;
+    for j = 1:prod(SUB_GRID.gblock.Ncells)
+        % S(i).CELLS(j).coefs(1:ns(i),:) = S(i-1).CELLS(j).coefs(1:ns(i),:);
+        S(i).CELLS(j).coefs(1:ns(i),:) = CELLS(j).coefs(1:ns(i),:);
+        S2(i).CELLS(j).coefs(1:ns(i),:) = S2(i-1).CELLS(j).coefs(1:ns(i),:);
     end
-    S(i).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(i),S(i).CELLS,[]);
+    % S(i).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(i),S(i).CELLS,[]);
+    S(i).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(1),S(i).CELLS,[]);
+    S2(i).CELLS = var_rec_t5.perform_iterative_reconstruction_SOR(ns(1),S2(i).CELLS,omega,n_iter);
 end
 
-CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(end),test_funs,1,false,'scalar_dist');
-CELLS = var_rec_t5.perform_reconstruction_fully_coupled(1,CELLS,[]);
+
+%% reconstruction error
+names = {'p1','p2','p3'};
+var = 1;
+f1 = figure(1); set_monitor_for_figure(f1,2);
+t = tiledlayout(1,3);
+for i = 1:numel(degrees)
+    nexttile;
+    plot_reconstruction_error_over_cells(test_funs,var,S(i).CELLS,21,'FaceColor','r','EdgeColor','none')
+    plot_reconstruction_error_over_cells(test_funs,var,S2(i).CELLS,21,'FaceColor','b','EdgeColor','none')
+    plot_reconstruction_error_over_cells(test_funs,var,CELLS,21,'EdgeColor','none')
+    colorbar
+    % axis equal;
+    title(names{i})
+end
+
+
+%% reconstruction error
+% r: w/o BC
+% b: w/  BC
+
+f2 = figure(2); set_monitor_for_figure(f2,2);
+var = 1;
+
+plot_reconstruction_error_over_cells(test_funs,var,S(1).CELLS,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,S(2).CELLS,21,'FaceColor','g','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,S(3).CELLS,21,'FaceColor','b','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS,21,'FaceColor','c','EdgeColor','none')
+colorbar
+axis square
+
+hold on;
+
+
+
 %% reconstruction compare + function
 % r: w/o BC
 % b: w/  BC
 
-f = figure(1); set_monitor_for_figure(f,2);
+f1 = figure(1); set_monitor_for_figure(f1,2);
 var = 1;
 plot_function_over_cells(test_funs{var},1,S(end).CELLS,21,'EdgeColor','none')
 plot_reconstruction_over_cells(var,S(1).CELLS,21,'FaceColor','r','EdgeColor','none')
@@ -78,6 +128,9 @@ colorbar
 axis square
 
 hold on;
+
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Local Functions

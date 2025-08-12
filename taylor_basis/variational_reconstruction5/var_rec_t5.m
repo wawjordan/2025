@@ -164,7 +164,7 @@ classdef var_rec_t5
             d_basis1 = zeros(max_n_quad,n_terms_local+n1,n_terms_local);
             d_basis2 = zeros(max_n_quad,n_terms_local+n1,n1);
             D = zeros(n_terms_local,n1);
-            
+
             for k = 1:n_nbor
                 dij_mag = this.get_nbor_distance_scalar(nbors(k));
                 dij = this.get_nbor_dist(nbors(k));
@@ -180,6 +180,38 @@ classdef var_rec_t5
                 for m = 1:n1
                     for l = 1:n_terms_local
                         sum_tmp = sum(d_basis1(1:n_quad,:,l) .* d_basis2(1:n_quad,:,m),2);
+                        D1(l,m) = this.fquad( this.nbor_face_id(k) ).integrate( sum_tmp.' );
+                    end
+                end
+                D = D + D1/dij_mag;
+            end
+        end
+        function D = get_self_RHS_matrix_alt(this,n1,nbors)
+            n_nbor  = this.n_nbors;
+            n_terms_local = this.basis.n_terms-n1;
+            max_n_quad = 0;
+            for k = 1:n_nbor
+                max_n_quad = max(max_n_quad,this.fquad( this.nbor_face_id(k) ).n_quad );
+            end
+            d_basis1 = zeros(max_n_quad,n_terms_local+n1,n_terms_local+n1);
+            d_basis2 = zeros(max_n_quad,n_terms_local+n1,n_terms_local+n1);
+            D = zeros(n_terms_local,n1);
+            
+            for k = 1:n_nbor
+                dij_mag = this.get_nbor_distance_scalar(nbors(k));
+                dij = this.get_nbor_dist(nbors(k));
+                n_quad = this.fquad( this.nbor_face_id(k) ).n_quad;
+
+                for q = 1:n_quad
+                    point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
+                    d_basis1(q,:,:) = this.basis.calc_basis_derivatives(0,point,dij);
+                    d_basis2(q,:,:) = this.basis.calc_basis_derivatives(0,point,dij);
+                end
+                D1 = zeros(n_terms_local,n1);
+
+                for m = 1:n1
+                    for l = 1:n_terms_local
+                        sum_tmp = sum(d_basis1(1:n_quad,:,l+n1) .* d_basis2(1:n_quad,:,m),2);
                         D1(l,m) = this.fquad( this.nbor_face_id(k) ).integrate( sum_tmp.' );
                     end
                 end
@@ -212,6 +244,38 @@ classdef var_rec_t5
                     for l = 1:n_terms_local
                         % sum of product of derivatives
                         sum_tmp = sum( d_basis1_i(1:n_quad,:,l) .* d_basis2_j(1:n_quad,:,r), 2 );
+                        C(l,r,k) = this.fquad( this.nbor_face_id(k) ).integrate( sum_tmp.' );
+                    end
+                end
+                C(:,:,k) = C(:,:,k) / dij_mag;
+            end
+        end
+
+        function C = get_nbor_RHS_matrix_alt(this,n1,nbors)
+            n_nbor  = this.n_nbors;
+            n_terms_local = this.basis.n_terms-n1;
+            max_n_quad = 0;
+            for k = 1:n_nbor
+                max_n_quad = max(max_n_quad,this.fquad( this.nbor_face_id(k) ).n_quad );
+            end
+            d_basis1_i = zeros(max_n_quad,n_terms_local+n1,n_terms_local+n1);
+            d_basis2_j = zeros(max_n_quad,n_terms_local+n1,n_terms_local+n1);
+
+            C = zeros(n_terms_local,n1,n_nbor);
+
+            for k = 1:n_nbor
+                dij     = this.get_nbor_dist(nbors(k));
+                dij_mag = this.get_nbor_distance_scalar(nbors(k));
+                n_quad = this.fquad( this.nbor_face_id(k) ).n_quad;
+                for q = 1:n_quad
+                    point = this.fquad( this.nbor_face_id(k) ).quad_pts(:,q);
+                    d_basis1_i(q,:,:) = this.basis.calc_basis_derivatives(0,point,dij);
+                    d_basis2_j(q,:,:) = nbors(k).basis.calc_basis_derivatives(0,point,dij);
+                end
+                for r = 1:n1
+                    for l = 1:n_terms_local
+                        % sum of product of derivatives
+                        sum_tmp = sum( d_basis1_i(1:n_quad,:,l+n1) .* d_basis2_j(1:n_quad,:,r), 2 );
                         C(l,r,k) = this.fquad( this.nbor_face_id(k) ).integrate( sum_tmp.' );
                     end
                 end
@@ -284,16 +348,15 @@ classdef var_rec_t5
             D = this.get_self_RHS_matrix(n1,nbors);
             C = this.get_nbor_RHS_matrix(n1,nbors);
 
+            D2 = this.get_self_RHS_matrix_alt(n1,nbors);
+            C2 = this.get_nbor_RHS_matrix_alt(n1,nbors);
+
             for v = 1:this.n_vars
                 for k = 1:n_nbor
-                    b(:,v) = b(:,v) + C(:,:,k)*nbors(k).coefs(1:n1);
+                    b(:,v) = b(:,v) + C(:,:,k)*nbors(k).coefs(1:n1,v);
                 end
-                b(:,v) = b(:,v) - D*this.coefs(1:n1);
+                b(:,v) = b(:,v) - D*this.coefs(1:n1,v);
             end
-
-            b_compare = this.get_RHS_old(n1,nbors);
-
-            % b = this.get_RHS_old(n1,nbors);
         end
 
 
@@ -432,7 +495,6 @@ classdef var_rec_t5
 
         function b = construct_full_RHS_fully_coupled(n1,CELLS,var_idx)
 
-            CELLS = var_rec_t5.set_all_RHS(n1,CELLS);
             n_cells = numel(CELLS);
             n_terms_local = CELLS(1).basis.n_terms - n1;
             n_vars  = CELLS(1).n_vars;
@@ -587,6 +649,9 @@ classdef var_rec_t5
             n_terms_local = CELLS(1).basis.n_terms - n1;
             n_vars        = CELLS(1).n_vars;
             n_cells       = numel(CELLS);
+
+            % update RHS coefficients if needed
+            CELLS = var_rec_t5.set_all_RHS(n1,CELLS);
 
             RHS = var_rec_t5.construct_full_RHS_fully_coupled(           n1, ...
                                                                       CELLS, ...
