@@ -18,8 +18,10 @@ idx = [2,2,1];
 % [nbor_idxs,cnt] = get_cell_face_nbor_idx(idx,bnd_min,bnd_max,max_dim);
 % nbor_idxs(:,1:cnt)
 
-linear_idx = local_to_global_bnd(idx,bnd_min,bnd_max);
-[n_int,n_bnd,dir,face_idx] = get_cell_face_idx(linear_idx,bnd_min,bnd_max,max_dim);
+% linear_idx = local_to_global_bnd(idx,bnd_min,bnd_max);
+% [n_int,n_bnd,dir,face_idx] = get_cell_face_idx(linear_idx,bnd_min,bnd_max,max_dim);
+
+[n_int,n_bnd,dir,face_idx] = get_cell_face_idx(idx,bnd_min,bnd_max,max_dim);
 
 for i = 1:n_int
     tmp = S( dir(i) ).F{abs(face_idx(i))};
@@ -31,23 +33,34 @@ for i = n_int+1:n_int+n_bnd
     fprintf('%d : %d %d %d\n',i,tmp);
 end
 
-function [n_int,n_bnd,dir,face_idx] = get_cell_face_idx(linear_idx,bnd_min,bnd_max,dim)
-% get the subscripted cell index
-cell_idx = global_to_local_bnd(linear_idx,bnd_min(1:dim),bnd_max(1:dim));
-
+function [n_int,n_bnd,dir,face_idx] = get_cell_face_idx(cell_idx,bnd_min,bnd_max,dim)
 face_id = 1:2*dim;
-
 [dir,linear_face_idx] = arrayfun(@(face_id)set_linear_face_idx( cell_idx, face_id, bnd_min(1:dim), bnd_max(1:dim) ),face_id);
-
 interior = dir>0;
-
 sort_idx = [face_id(interior),face_id(~interior)];
-
 face_idx = linear_face_idx(sort_idx);
 dir      = abs( dir(sort_idx) );
 n_int = sum(interior);
 n_bnd = 2*dim - n_int;
 end
+
+% function [n_int,n_bnd,dir,face_idx] = get_cell_face_idx(linear_idx,bnd_min,bnd_max,dim)
+% % get the subscripted cell index
+% cell_idx = global_to_local_bnd(linear_idx,bnd_min(1:dim),bnd_max(1:dim));
+% 
+% face_id = 1:2*dim;
+% 
+% [dir,linear_face_idx] = arrayfun(@(face_id)set_linear_face_idx( cell_idx, face_id, bnd_min(1:dim), bnd_max(1:dim) ),face_id);
+% 
+% interior = dir>0;
+% 
+% sort_idx = [face_id(interior),face_id(~interior)];
+% 
+% face_idx = linear_face_idx(sort_idx);
+% dir      = abs( dir(sort_idx) );
+% n_int = sum(interior);
+% n_bnd = 2*dim - n_int;
+% end
 
 function [dir,offset,factor] = face_info(face_id)
 dir    =  fix((face_id-1)/2)+1; % [1,1,2,2,3,3,...]

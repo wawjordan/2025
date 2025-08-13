@@ -13,6 +13,9 @@ classdef var_rec_t6
         coefs        (:,:)   {mustBeNumeric}     % polynomial coeffs
         self_LHS_inv (:,:)   {mustBeNumeric}     % pseudo-inverse of self LHS
         AinvB        (:,:,:) {mustBeNumeric}     % product with self_LHS_inv
+        AinvC        (:,:,:) {mustBeNumeric}     % product with self_LHS_inv
+        AinvD        (:,:)   {mustBeNumeric}     % product with self_LHS_inv
+        RHS          (:,:)   {mustBeNumeric}     % RHS
         get_nbor_dist
     end
 
@@ -38,6 +41,9 @@ classdef var_rec_t6
 
             this.self_LHS_inv = [];
             this.AinvB        = [];
+            this.AinvC        = [];
+            this.AinvD        = [];
+            this.RHS          = [];
             switch dist_opt
                 case 'scalar_dist'
                     this.get_nbor_dist = @this.get_nbor_distance_scalar;
@@ -81,18 +87,24 @@ classdef var_rec_t6
         end
 
         % function this = setup_rec(this,n1,nbors,bc_funs)
-        function this = setup_rec(this,n1,nbors)
+        function this = setup_rec(this,n1,nbors,f_quad)
             this.ord0 = n1;
-            self_LHS = this.get_self_LHS(nbors);
+            self_LHS = this.get_self_LHS(nbors,f_quad);
             % if (~isempty(bc_funs))
             % end
             this.self_LHS_inv = pinv(self_LHS);
             n_terms_local = this.basis.n_terms - this.ord0;
             this.AinvB = zeros( n_terms_local, n_terms_local, this.n_int );
-            nbor_LHS = this.get_nbor_LHS(nbors);
+            nbor_LHS = this.get_nbor_LHS(nbors,f_quad);
+            nbor_RHS = this.get_nbor_RHS_matrix(nbors,f_quad);
+            self_RHS = this.get_self_RHS_matrix(nbors,f_quad);
             for n = 1:this.n_int
                 this.AinvB(:,:,n) = this.self_LHS_inv * nbor_LHS(:,:,n);
+                this.AinvC(:,:,n) = this.self_LHS_inv * nbor_RHS(:,:,n);
             end
+            this.AinvD = this.self_LHS_inv * self_RHS;
+
+            this.RHS = zeros( n_terms_local, this.n_vars );
         end
 
         function d = get_nbor_distance_scalar(this,nbor)
@@ -172,7 +184,7 @@ classdef var_rec_t6
 
         function C = get_nbor_RHS_matrix(this,nbors,f_quad)
             max_n_quad = 0;
-            for k = 1:n_nbor
+            for k = 1:this.n_int
                 max_n_quad = max(max_n_quad,f_quad( this.f_idx_int(k) ).n_quad );
             end
             n_terms_local = this.basis.n_terms-this.ord0;
@@ -263,12 +275,22 @@ classdef var_rec_t6
             C = this.get_nbor_RHS_matrix(nbors,f_quad);
             for v = 1:this.n_vars
                 for k = 1:this.n_int
-                    b(:,v) = b(:,v) + C(:,:,k)*nbors(k).coefs(1:n1,v);
+                    b(:,v) = b(:,v) + C(:,:,k)*nbors(k).coefs(1:this.ord0,v);
                 end
-                b(:,v) = b(:,v) - D*this.coefs(1:n1,v);
+                b(:,v) = b(:,v) - D*this.coefs(1:this.ord0,v);
             end
         end
 
+        function b = get_RHS_update(this,nbors)
+            n_terms_local = this.basis.n_terms - this.ord0;
+            b = zeros( n_terms_local, this.n_vars );
+            for v = 1:this.n_vars
+                for k = 1:this.n_int
+                    b(:,v) = b(:,v) + this.AinvC(:,:,k)*nbors(k).coefs(1:this.ord0,v);
+                end
+                b(:,v) = b(:,v) - this.AinvD*this.coefs(1:this.ord0,v);
+            end
+        end
 
     end
 end
