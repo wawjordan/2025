@@ -11,7 +11,6 @@ classdef var_rec_t5
         fquad        (:,1)   quad_t              % face quadrature
         fvec         (:,1)   face_vec_t          % face normal vecs
         n_vars       (1,1)   {mustBeInteger}     % number of eqns
-        avgs         (:,1)   {mustBeNumeric}     % cell avgs
         coefs        (:,:)   {mustBeNumeric}     % polynomial coeffs
         self_LHS     (:,:)   {mustBeNumeric}     % LHS for self
         nbor_LHS     (:,:,:) {mustBeNumeric}     % LHS for each nbor
@@ -46,7 +45,6 @@ classdef var_rec_t5
             this.fquad    = [face_quads{:}];
             this.fvec     = [face_normals{:}];
             this.n_vars   = n_vars;
-            this.avgs     = zeros(n_vars,1);
             this.coefs    = zeros(this.basis.n_terms,n_vars);
             this.self_LHS = zeros(this.basis.n_terms,this.basis.n_terms);
             this.self_LHS_inv = zeros(this.basis.n_terms,this.basis.n_terms);
@@ -91,24 +89,44 @@ classdef var_rec_t5
                    tmp_x      = num2cell(this.quad.quad_pts(1:n_dim,n));
                    tmp_val(n) = fun{v}(tmp_x{:});
                 end
-                this.avgs(v) = this.quad.integrate(tmp_val)/volume;
+                this.coefs(1,v) = this.quad.integrate(tmp_val)/volume;
             end
-            this.coefs(1,:) = this.avgs;
         end
 
         function this = setup_rec(this,n1,nbors,bc_funs)
             this.self_LHS = this.get_self_LHS(n1,nbors);
             if (~isempty(bc_funs))
+
+            end
+            if (~isempty(bc_funs))
+                for n = 1:numel(this.bc_face_id)
+% if ( this.bc_face_id(n) == 4)
+                    A = this.dirichlet_boundary_LHS_contribution(n1, this.fquad( this.bc_face_id(n) ) );
+                    this.self_LHS = this.self_LHS + A;
+% end
+                end
             end
             this.self_LHS_inv = pinv(this.self_LHS);
+
+            n_terms_local = this.basis.n_terms-n1;
+
             this.nbor_LHS = this.get_nbor_LHS(n1,nbors);
             this.RHS      = this.get_RHS(n1,nbors);
-            n_nbor  = this.n_nbors;
-            n_terms_local = this.basis.n_terms-n1;
-            this.AinvB = zeros(n_terms_local,n_terms_local,n_nbor);
-            for n = 1:n_nbor
-                this.AinvB(:,:,n) = this.self_LHS_inv * this.nbor_LHS(:,:,n);
+            if (~isempty(bc_funs))
+                for n = 1:numel(this.bc_face_id)
+                    b = this.dirichlet_boundary_RHS_contribution(n1, this.fquad( this.bc_face_id(n) ), bc_funs, 1:4 );
+                    this.RHS = this.RHS + b;
+                end
             end
+            nbor_RHS = this.get_nbor_RHS_matrix(n1,nbors);
+            self_RHS = this.get_self_RHS_matrix(n1,nbors);
+            this.AinvB = zeros(n_terms_local,n_terms_local,this.n_nbors);
+            for n = 1:this.n_nbors
+                this.AinvB(:,:,n) = this.self_LHS_inv * this.nbor_LHS(:,:,n);
+                this.AinvC(:,:,n) = this.self_LHS_inv * nbor_RHS(:,:,n);
+            end
+            this.AinvD = this.self_LHS_inv * self_RHS;
+            % this.RHS = zeros( n_terms_local, this.n_vars );
         end
 
         function d = get_nbor_distance_scalar(this,nbor)
@@ -323,7 +341,7 @@ classdef var_rec_t5
                 dij = this.get_nbor_dist(nbors(k));
                 dij_mag = this.get_nbor_distance_scalar(nbors(k));
                 L = zero_mean_basis5.get_length_scale(zeros(this.basis.n_dim,1),dij);
-                avg_diff = nbors(k).avgs(:) - this.avgs(:);
+                avg_diff = nbors(k).coefs(1,:) - this.coefs(1,:);
                 for l = 1:n_terms_local
                     int_tmp = zeros(1,n_quad);
                     for q = 1:n_quad
@@ -333,6 +351,65 @@ classdef var_rec_t5
                     b(l,:) = b(l,:) + avg_diff(:).' * (1/dij_mag) * (L^2) * this.fquad( this.nbor_face_id(k) ).integrate(int_tmp);
                 end
             end
+        end
+
+        function b = dirichlet_boundary_RHS_contribution(this,n1,bc_fquad,bc_fun,bc_idx)
+            n_terms_local = this.basis.n_terms - n1;
+            n_quad  = bc_fquad.n_quad;
+            % area = bc_fquad.integrate(ones(1,n_quad));
+            % face_x_ref = bc_fquad.integrate(bc_fquad.quad_pts(1:this.basis.n_dim,:))/area;
+            % dbf = this.basis.x_ref - face_x_ref;
+            % dbf_mag = sqrt( sum(dbf.^2));
+            % L = zero_mean_basis2.get_factorial_scaling_1(zeros(this.basis.n_dim,1),dbf_mag);
+            n_vars_ = numel(bc_idx);
+
+            b = zeros(n_terms_local,this.n_vars);
+            for l = 1:n_terms_local
+                int_tmp = zeros(this.n_vars,n_quad);
+                for q = 1:n_quad
+                    point = bc_fquad.quad_pts(:,q);
+                    tmp_x = num2cell(point(1:this.basis.n_dim));
+                    bc_eval = zeros(this.n_vars,1);
+                    for v = 1:this.n_vars
+                        bc_eval(v) = bc_fun{v}(tmp_x{:});
+                    end
+                    bc_diff = bc_eval(:) - this.coefs(1,:).';
+                    % int_tmp(:,q) = bc_diff*this.basis.eval( l+n1, point );
+                    for v = 1:n_vars_
+                        int_tmp(bc_idx(v),q) = bc_diff(bc_idx(v))*this.basis.eval( l+n1, point );
+                        w = 10000;
+                        int_tmp(bc_idx(v),q) = w*int_tmp(bc_idx(v),q);
+                    end
+                end
+                % b(l,:) = b(l,:) + (1/dbf_mag) * (L^2) * bc_fquad.integrate(int_tmp);
+                b(l,:) = b(l,:) + ( bc_fquad.integrate(int_tmp) ).';
+            end
+        end
+
+        function A = dirichlet_boundary_LHS_contribution(this,n1,bc_fquad)
+            n_terms_local = this.basis.n_terms-n1;
+            n_quad = bc_fquad.n_quad;
+            d_basis = zeros(n_quad,n_terms_local+n1,n_terms_local);
+            
+            area = bc_fquad.integrate(ones(1,n_quad));
+            face_x_ref = bc_fquad.integrate(bc_fquad.quad_pts(1:this.basis.n_dim,:))/area;
+            dbf = this.basis.x_ref - face_x_ref;
+            dbf_mag = sqrt( sum(dbf.^2));
+
+            for q = 1:n_quad
+                point = bc_fquad.quad_pts(:,q);
+                d_basis(q,:,:) = this.basis.calc_basis_derivatives(n1,point,dbf_mag);
+            end
+            A = zeros(n_terms_local,n_terms_local);
+            for l = 1:n_terms_local
+                for m = 1:n_terms_local
+                    % just the basis functions, not their derivatives
+                    sum_tmp = sum(d_basis(1:n_quad,1:1,l) .* d_basis(1:n_quad,1:1,m),2);
+                    A(m,l) = bc_fquad.integrate( sum_tmp.' );
+                end
+            end
+            w = 10000;
+            A = w*A;
         end
 
 
@@ -345,15 +422,29 @@ classdef var_rec_t5
             D = this.get_self_RHS_matrix(n1,nbors);
             C = this.get_nbor_RHS_matrix(n1,nbors);
 
-            D2 = this.get_self_RHS_matrix_alt(n1,nbors);
-            C2 = this.get_nbor_RHS_matrix_alt(n1,nbors);
-
             for v = 1:this.n_vars
                 for k = 1:n_nbor
                     b(:,v) = b(:,v) + C(:,:,k)*nbors(k).coefs(1:n1,v);
                 end
                 b(:,v) = b(:,v) - D*this.coefs(1:n1,v);
             end
+        end
+
+        function b = get_RHS_update(this,n1,nbors)
+            n_terms_local = this.basis.n_terms - n1;
+            b = zeros( n_terms_local, this.n_vars );
+            for v = 1:this.n_vars
+                for k = 1:this.n_nbors
+                    b(:,v) = b(:,v) + this.AinvC(:,:,k)*nbors(k).coefs(1:n1,v);
+                end
+                b(:,v) = b(:,v) - this.AinvD*this.coefs(1:n1,v);
+            end
+            % if (~isempty(bc_funs))
+            %     for n = 1:numel(this.bc_face_id)
+            %         RHS = this.dirichlet_boundary_RHS_contribution(n1, this.fquad( this.bc_face_id(n) ), bc_funs, 1:4 );
+            %         b = b + ;
+            %     end
+            % end
         end
 
 
@@ -597,11 +688,15 @@ classdef var_rec_t5
             sz      = size(CELLS,dim_sz{:});
             n_vars        = CELLS(1).n_vars;
             n_cells       = numel(CELLS);
+
+            % update RHS coefficients
+            % CELLS = var_rec_t5.set_all_RHS(n1,CELLS);
             for iter = 1:n_iter
                 for i = 1:n_cells
-                    n_terms = CELLS(i).basis.n_terms;
-                    update = zeros(n_terms-n1,n_vars);
                     n_nbors = CELLS(i).n_nbors;
+                    n_terms = CELLS(i).basis.n_terms;
+                    
+                    update = zeros(n_terms-n1,n_vars);
                     for n = 1:n_nbors
                         nbor_idx = CELLS(i).nbor_idx(1:n_dim,n);
                         j = zero_mean_basis5.local_to_global(nbor_idx,sz);
@@ -611,11 +706,20 @@ classdef var_rec_t5
                             update(:,v) = update(:,v) + AinvB * uj(:,v);
                         end
                     end
+
                     invA  = CELLS(i).self_LHS_inv;
                     bi    = CELLS(i).RHS;
                     for v = 1:n_vars
                         update(:,v) = update(:,v) + invA * bi(:,v);
                     end
+
+                    % nbors = zeros(n_nbors,1);
+                    % for n = 1:n_nbors
+                    %     nbor_idx = CELLS(i).nbor_idx(1:n_dim,n);
+                    %     nbors(n) = zero_mean_basis5.local_to_global(nbor_idx,sz);
+                    % end
+                    % update = CELLS(i).get_RHS_update( n1, CELLS( nbors ) );
+
                     CELLS(i).coefs(n1+1:n_terms,:) = ...
                                   (1-omega) * CELLS(i).coefs(n1+1:n_terms,:) ...
                                    + omega  * update;
@@ -648,7 +752,7 @@ classdef var_rec_t5
             n_cells       = numel(CELLS);
 
             % update RHS coefficients if needed
-            CELLS = var_rec_t5.set_all_RHS(n1,CELLS);
+            % CELLS = var_rec_t5.set_all_RHS(n1,CELLS);
 
             RHS = var_rec_t5.construct_full_RHS_fully_coupled(           n1, ...
                                                                       CELLS, ...

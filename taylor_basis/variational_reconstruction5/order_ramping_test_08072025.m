@@ -16,7 +16,7 @@ GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 blk     = 1;
 dim     = 2;
 degree  = 3;
-n_vars  = 1;
+n_vars  = 4;
 
 test_funs = cell(n_vars,1);
 % for i = 1:n_vars
@@ -30,12 +30,12 @@ gamma  = 1.4;
 % inputs = [2.0, 1.0, 0.8611583247416177E+05, 0.5];
 inputs = [2.0, 1.0, 0.8611583247416177E+05, 2.0];
 ref_inputs = [1.0, 1.0, 347.2206293753677000 ];
-% test_funs{1}  = @(x,y) dens_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
-% test_funs{2} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
-% test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
-% test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{1}  = @(x,y) dens_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{2} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
-test_funs{1} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+% test_funs{1} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
 idx_low  = [1,1,1];
 idx_high = [10,10,1];
@@ -45,30 +45,46 @@ SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 degrees = 1:degree;
 ns      = arrayfun(@(degree)nchoosek(dim+degree,degree),degrees-1);
 
-CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(end),test_funs,1,false,'vector_dist');
-CELLS = var_rec_t5.perform_reconstruction_fully_coupled(1,CELLS,[]);
+CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(end),test_funs,1,true,'vector_dist');
+% CELLS = var_rec_t5.perform_reconstruction_fully_coupled(1,CELLS,[]);
+CELLS = var_rec_t5.perform_iterative_reconstruction_SOR(1,CELLS,1.3,100);
+
+CELLS2 = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(end),test_funs,1,true,'vector_dist');
+CELLS2 = var_rec_t5.perform_reconstruction_fully_coupled(1,CELLS2,[]);
+
+% k-exact reconstruction
+CELLS1 = set_up_cell_kexact_old_recs(SUB_GRID,blk,idx_low,idx_high,degree,test_funs,false);
+
+
+%% reconstruction error
+var = 1;
+f1 = figure(1); set_monitor_for_figure(f1,2);
+plot_reconstruction_error_over_cells(test_funs,var,CELLS,21,'FaceColor','r','EdgeColor','none')
+plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','b','EdgeColor','none')
+colorbar
+% axis equal;
+
 
 S = struct();
 S2 = struct();
 
 for i = 1:numel(degrees)
-    S(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(1),false,'vector_dist');
-    S2(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(1),false,'vector_dist');
+    S(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(1),true,'vector_dist');
+    S2(i).CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degrees(i),test_funs,ns(1),true,'vector_dist');
 end
 
-S(1).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(1),S(1).CELLS,[]);
+% S(1).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(1),S(1).CELLS,[]);
 
 omega = 1.3;
-n_iter = 5;
+n_iter = 50;
 
 S2(1).CELLS = var_rec_t5.perform_iterative_reconstruction_SOR(ns(1),S2(1).CELLS,omega,n_iter);
 
 for i = 2:degree
-    n_iter = n_iter + 1;
     for j = 1:prod(SUB_GRID.gblock.Ncells)
         % S(i).CELLS(j).coefs(1:ns(i),:) = S(i-1).CELLS(j).coefs(1:ns(i),:);
-        S(i).CELLS(j).coefs(1:ns(i),:) = CELLS(j).coefs(1:ns(i),:);
-        S2(i).CELLS(j).coefs(1:ns(i),:) = S2(i-1).CELLS(j).coefs(1:ns(i),:);
+        % S(i).CELLS(j).coefs(1:ns(i),:) = CELLS(j).coefs(1:ns(i),:);
+        % S2(i).CELLS(j).coefs(1:ns(i),:) = S2(i-1).CELLS(j).coefs(1:ns(i),:);
     end
     % S(i).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(i),S(i).CELLS,[]);
     S(i).CELLS = var_rec_t5.perform_reconstruction_fully_coupled(ns(1),S(i).CELLS,[]);

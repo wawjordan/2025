@@ -7,7 +7,7 @@ classdef grid_block < grid_block_lite
         interp    (1,1) lagrange_interpolant
         nskip     (1,3) {mustBeInteger} = [1,1,1]
         dim       (1,1) {mustBeInteger}
-        % bounds
+        bounds
     end
 
     methods
@@ -66,20 +66,20 @@ classdef grid_block < grid_block_lite
             this.grid_vars = this.grid_vars.allocate_derived_grid( imax-1, jmax-1, kmax-1 );
             
              % will revisit this later
-            % this.bounds    = struct();
-            % for i = 1:6
-            %     this.bounds(i).bc = constraint_container_t();
-            % end
+            this.bounds    = struct();
+            for i = 1:6
+                this.bounds(i).bc = constraint_container_t();
+            end
         end
-        % function  this = set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
-        %     this.bounds(bound_num).bc.n_constraints = n_constraints;
-        %     this.bounds(bound_num).bc.constraint = repmat(constraint_t(),[n_constraints,1]);
-        %     this.bounds(bound_num).n_var         = n_var;
-        %     this.bounds(bound_num).n_dim         = n_dim;
-        %     this.bounds(bound_num).constraint_types = constraint_types;
-        %     this.bounds(bound_num).VAR_IDX = VAR_IDX;
-        %     this.bounds(bound_num).constraint_eval = constraint_eval;
-        % end
+        function  this = set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
+            this.bounds(bound_num).bc.n_constraints = n_constraints;
+            this.bounds(bound_num).bc.constraint = repmat(constraint_t_old(),[n_constraints,1]);
+            this.bounds(bound_num).n_var         = n_var;
+            this.bounds(bound_num).n_dim         = n_dim;
+            this.bounds(bound_num).constraint_types = constraint_types;
+            this.bounds(bound_num).VAR_IDX = VAR_IDX;
+            this.bounds(bound_num).constraint_eval = constraint_eval;
+        end
         function this = fill_derived_grid_block( this, n_quad, varargin )
             p = inputParser;
             p.addOptional('fine_grid_block',grid_block_lite())

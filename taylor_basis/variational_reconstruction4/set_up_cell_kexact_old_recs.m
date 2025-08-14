@@ -1,44 +1,59 @@
 function CELLS = set_up_cell_kexact_old_recs(GRID,blk,idx_low,idx_high,degree,funs,use_bcs)
 nvars = numel(funs);
 IDX = generate_index_array(idx_low,idx_high);
-CELLS = arrayfun( @(idx)set_up_cell(GRID,blk,idx,degree,nvars,funs), IDX );
+CELLS = arrayfun( @(idx)set_up_cell(GRID,blk,idx,degree,nvars,funs,use_bcs), IDX );
 if (use_bcs)
     error('need to implement this')
 end
 end
 
-function CELL = set_up_cell(GRID_OLD,blk,idx,degree,n_vars,funs)
+function CELL = set_up_cell(GRID,blk,idx,degree,n_vars,funs1,use_bcs)
 
-[n_dim,~] = get_dim_and_nbor_info(GRID_OLD,blk,[idx{:}]);
+% q_scale = [1.0,75.0,75.0,75.0,100000.0];
+% q_scale = [1,1,1,1,1];
+% select = @(M,r) M(r);
+% qfun1 = @(x)svf_prim(x,inputs);
+% qfuns = {@(x)select(qfun1(x),1),@(x)select(qfun1(x),2),@(x)select(qfun1(x),3),@(x)select(qfun1(x),4),@(x)select(qfun1(x),5)};
+
+funs = cell(numel(funs1),1);
+for i = 1:numel(funs1)
+    funs{i} = @(x) funs1{i}( x(1), x(2) );
+end
+
+
+[n_dim,~] = get_dim_and_nbor_info(GRID,blk,[idx{:}]);
 % stencil_info
 n_stencil = get_n_terms( n_dim, degree );
 balanced   = true;
 print_iter = false;
 
-N = [GRID_OLD.gblock(1).imax,GRID_OLD.gblock(1).jmax,GRID_OLD.gblock(1).kmax];
+N = [GRID.gblock(1).imax,GRID.gblock(1).jmax,GRID.gblock(1).kmax];
 block_info_list(1)           = block_info_t_old();
 block_info_list(1).block_id  = 1;
 block_info_list(1).Ncells(:) = max(N - 1,1);
 
 % make stencil
-[ stencil, ~, ~ ] = cell_t_old.build_stencil( blk, [idx{:}], n_stencil, GRID_OLD, block_info_list, balanced, print_iter );
+% [ stencil, n_stencil, stencil_cells ] = build_stencil( block_id, idx, n_stencil, grid, block_info_list, balanced, print_iter )
+[ stencil, ~, stencil_cells ] = cell_t_old.build_stencil( blk, [idx{:}], n_stencil, GRID, block_info_list, balanced, print_iter );
 
 % soln_in_stencil = calc_soln_in_stencil_quads(n_var,funs,stencil,grid)
-soln_stencil = calc_soln_in_stencil_quads(n_vars,n_dim,funs,stencil,GRID_OLD);
+soln_stencil = calc_soln_in_stencil_quads(n_vars,n_dim,funs,stencil,GRID);
 
 % set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
-% GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(1,5,2,1,3000,{[2,3,4]},[0]);
+if (use_bcs)
+for b = 1:6
+% this = set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
+    GRID.gblock(blk) = GRID.gblock(1).set_bc_constraints(b,n_vars,n_dim,n_vars,repmat(1000,[1,n_vars]),num2cell(1:n_vars),funs);
+    % GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(1,5,2,1,3000,{[2,3,4]},[0]);
+end
+end
 
-% for b = [2,4]
-%     GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(b,5,2,1,3000,{[2,3,4]},{@(x)0*x(1)});
-% end
-
-% neighbor_max_degree = 0;
-
-CELL = reconstruct_mod_t_old();
-CELL = CELL.setup_interior( n_vars, n_dim, degree, stencil, GRID_OLD );
-CELL.polynomial = CELL.least_squares.solve( soln_stencil, CELL.polynomial, CELL.moments, stencil, GRID_OLD );
+% CELL = reconstruct_mod_t_old();
+% CELL = CELL.setup_interior( n_vars, n_dim, degree, stencil, GRID );
+% CELL.polynomial = CELL.least_squares.solve( soln_stencil, CELL.polynomial, CELL.moments, stencil, GRID );
 % pfun1 = @(x)rec1.polynomial.evaluate(x);
+
+neighbor_max_degree = 0;
 % mean_factor = 1;
 % boundary_factor = 1000;
 % rec2 = reconstruct_mod_t_old();
@@ -46,10 +61,9 @@ CELL.polynomial = CELL.least_squares.solve( soln_stencil, CELL.polynomial, CELL.
 % rec2.polynomial = rec2.least_squares.solve(soln_stencil,rec2.polynomial,rec2.moments,stencil,GRID);
 % pfun2 = @(x)rec2.polynomial.evaluate(x);
 
-% rec3 = reconstruct_mod_t_old();
-% rec3 = rec3.setup_boundary2( n_var, n_dim, degree, stencil, GRID, neighbor_max_degree, stencil_cells );
-% rec3.polynomial = rec3.least_squares.solve(soln_stencil,rec3.polynomial,rec3.moments,stencil,GRID);
-% pfun3 = @(x)rec3.polynomial.evaluate(x);
+CELL = reconstruct_mod_t_old();
+CELL = CELL.setup_boundary2( n_vars, n_dim, degree, stencil, GRID, neighbor_max_degree, stencil_cells );
+CELL.polynomial = CELL.least_squares.solve(soln_stencil,CELL.polynomial,CELL.moments,stencil,GRID);
 end
 
 function [n_dim,id] = get_dim_and_nbor_info(GRID,blk,idx)
@@ -189,8 +203,10 @@ for si = 1:n_stencil
     tmp_soln = zeros(n_var,quad.n_quad);
     for n = 1:quad.n_quad
         for vi = 1:n_var
-            tmp_pt = num2cell(quad.quad_pts(:,n));
-            tmp_soln(vi,n) = funs{vi}( tmp_pt{1:n_dim} );
+            % tmp_pt = num2cell(quad.quad_pts(:,n));
+            % tmp_soln(vi,n) = funs{vi}( tmp_pt{1:n_dim} );
+            tmp_pt = quad.quad_pts(:,n);
+            tmp_soln(vi,n) = funs{vi}( tmp_pt );
         end
     end
     soln_in_stencil(si,:) = quad.integrate(tmp_soln)/vol;

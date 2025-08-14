@@ -1,18 +1,18 @@
 %% Testing script 2 for the new geometry loading and calculation (07/31/2024)
 clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-parent_dir_str = '2022_2024';
+parent_dir_str = '2025';
 path_parts = regexp(mfilename('fullpath'), filesep, 'split');
 path_idx = find(cellfun(@(s1)strcmp(s1,parent_dir_str),path_parts));
 parent_dir = fullfile(path_parts{1:path_idx});
-rmpath(genpath(fullfile(parent_dir,'..')))
 addpath(genpath(parent_dir));
-rmpath(genpath(fullfile(parent_dir,"SENSEI_Translation/")))
 clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-grid_file = fullfile(parent_dir,'anisotropic\test_geometry\svf\svf\_svf0017x0009\svf.grd');
-grid_t_file = fullfile(parent_dir,'anisotropic\constrained_least_squares\reconstruction_surgery\grid_derived_type\SVF_GRID.mat');
+% grid_file = fullfile(parent_dir,'anisotropic\test_geometry\svf\svf\_svf0017x0009\svf.grd');
+% grid_t_file = fullfile(parent_dir,'anisotropic\constrained_least_squares\reconstruction_surgery\grid_derived_type\SVF_GRID.mat');
+grid_file = fullfile(parent_dir,'taylor_basis\k_exact_revisited\reconstruction_surgery\grid_derived_type\kt.grd');
+grid_t_file = fullfile(parent_dir,'taylor_basis\k_exact_revisited\reconstruction_surgery\grid_derived_type\GRID_OLD.mat');
 if isfile(grid_t_file)
     load(grid_t_file)
 else

@@ -13,6 +13,8 @@ agglom=true;
 load_file=true;
 GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 
+
+
 blk     = 1;
 dim     = 2;
 degree  = 2;
@@ -37,6 +39,12 @@ test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
 
+
+for b = 1:6
+    GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(b,4,2,4,[1000,1000,1000,1000],{1,2,3,5},test_funs);
+end
+
+
 % if agglom
 %     idx_low  = [1,1,1];
 %     idx_high = [5,5,1];
@@ -49,7 +57,7 @@ SUB_GRID = GRID.subset_grid(1,idx_low,idx_high);
 n1 = 1;
 
 % k-exact reconstruction
-CELLS1 = set_up_cell_kexact_old_recs(SUB_GRID,blk,idx_low,idx_high,degree,test_funs,false);
+CELLS1 = set_up_cell_kexact_old_recs(SUB_GRID,blk,idx_low,idx_high,degree,test_funs,true);
 
 % variational reconstruction
 % CELLS2 = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);

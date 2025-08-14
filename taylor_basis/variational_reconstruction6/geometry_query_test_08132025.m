@@ -16,12 +16,15 @@ GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 dim     = 2;
 degree  = 3;
 n1      = 1;
-n_vars  = 1;
+n_vars  = 4;
 
 gamma  = 1.4;
 inputs = [2.0, 1.0, 0.8611583247416177E+05, 2.0];
 ref_inputs = [1.0, 1.0, 347.2206293753677000 ];
-test_funs{1} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{1}  = @(x,y) dens_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{2} = @(x,y) uvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{3} = @(x,y) vvel_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
+test_funs{4} = @(x,y) pres_svf(x,y,0,gamma,inputs(:),ref_inputs(:));
 
 blk = 1;
 idx_low  = [1,1,1];
@@ -37,7 +40,7 @@ n_iter = 200;
 % C = C.perform_iterative_reconstruction_SOR(omega,n_iter);
 % t1 = toc
 
-CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,1,false,'vector_dist');
+CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,1,true,'vector_dist');
 tic
 % CELLS = var_rec_t5.perform_reconstruction_fully_coupled(1,CELLS,[]);
 CELLS = var_rec_t5.perform_iterative_reconstruction_SOR(1,CELLS,omega,n_iter);
