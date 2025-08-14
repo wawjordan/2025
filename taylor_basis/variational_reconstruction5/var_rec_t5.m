@@ -18,11 +18,8 @@ classdef var_rec_t5
         RHS          (:,:)   {mustBeNumeric}     % RHS for self
         self_LHS_inv (:,:)   {mustBeNumeric}     % pseudo-inverse of self LHS
         AinvB        (:,:,:) {mustBeNumeric}     % product with self_LHS_inv
-        Ainvb        (:,:)   {mustBeNumeric}
-        c            (:,:)   {mustBeNumeric}     % RHS = c*u_bar + d
-        d            (:,:)   {mustBeNumeric}
-        Ainvc        (:,:)   {mustBeNumeric}
-        Ainvd        (:,:)   {mustBeNumeric}
+        AinvC        (:,:,:) {mustBeNumeric}     % product with self_LHS_inv
+        AinvD        (:,:)   {mustBeNumeric}     % product with self_LHS_inv
         get_nbor_dist
     end
 

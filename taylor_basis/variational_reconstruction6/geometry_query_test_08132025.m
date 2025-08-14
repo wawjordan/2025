@@ -31,11 +31,11 @@ SUB_GRID = GRID.subset_grid(blk,idx_low,idx_high);
 omega  = 1.3;
 n_iter = 200;
 
-C = var_rec_t6_array_helper( SUB_GRID, 1, [1,1,1], SUB_GRID.gblock.Ncells, degree, test_funs, n1, 'vector_dist' );
-tic
-% C = C.perform_reconstruction_fully_coupled();
-C = C.perform_iterative_reconstruction_SOR(omega,n_iter);
-t1 = toc
+% C = var_rec_t6_array_helper( SUB_GRID, 1, [1,1,1], SUB_GRID.gblock.Ncells, degree, test_funs, n1, 'vector_dist' );
+% tic
+% % C = C.perform_reconstruction_fully_coupled();
+% C = C.perform_iterative_reconstruction_SOR(omega,n_iter);
+% t1 = toc
 
 CELLS = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,1,false,'vector_dist');
 tic
