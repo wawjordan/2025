@@ -2,9 +2,9 @@ function CELLS = set_up_cell_kexact_old_recs(GRID,blk,idx_low,idx_high,degree,fu
 nvars = numel(funs);
 IDX = generate_index_array(idx_low,idx_high);
 CELLS = arrayfun( @(idx)set_up_cell(GRID,blk,idx,degree,nvars,funs,use_bcs), IDX );
-if (use_bcs)
-    error('need to implement this')
-end
+% if (use_bcs)
+%     error('need to implement this')
+% end
 end
 
 function CELL = set_up_cell(GRID,blk,idx,degree,n_vars,funs1,use_bcs)
@@ -41,29 +41,30 @@ soln_stencil = calc_soln_in_stencil_quads(n_vars,n_dim,funs,stencil,GRID);
 
 % set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
 if (use_bcs)
-for b = 1:6
-% this = set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
-    GRID.gblock(blk) = GRID.gblock(1).set_bc_constraints(b,n_vars,n_dim,n_vars,repmat(1000,[1,n_vars]),num2cell(1:n_vars),funs);
-    % GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(1,5,2,1,3000,{[2,3,4]},[0]);
+    for b = 1:6
+        % this = set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
+        GRID.gblock(blk) = GRID.gblock(1).set_bc_constraints(b,n_vars,n_dim,n_vars,repmat(1000,[1,n_vars]),num2cell(1:n_vars),funs);
+        % GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(1,5,2,1,3000,{[2,3,4]},[0]);
+    end
+    neighbor_max_degree = 0;
+    mean_factor = 1000;
+    boundary_factor = 1000;
+    CELL = reconstruct_mod_t_old();
+    CELL = CELL.setup_boundary( n_vars, n_dim, degree, stencil, GRID, neighbor_max_degree, stencil_cells, mean_factor, boundary_factor );
+    CELL.polynomial = CELL.least_squares.solve(soln_stencil,CELL.polynomial,CELL.moments,stencil,GRID);
+else
+    CELL = reconstruct_mod_t_old();
+    CELL = CELL.setup_interior( n_vars, n_dim, degree, stencil, GRID );
+    CELL.polynomial = CELL.least_squares.solve( soln_stencil, CELL.polynomial, CELL.moments, stencil, GRID );
 end
-end
-
-% CELL = reconstruct_mod_t_old();
-% CELL = CELL.setup_interior( n_vars, n_dim, degree, stencil, GRID );
-% CELL.polynomial = CELL.least_squares.solve( soln_stencil, CELL.polynomial, CELL.moments, stencil, GRID );
 % pfun1 = @(x)rec1.polynomial.evaluate(x);
 
-neighbor_max_degree = 0;
-% mean_factor = 1;
-% boundary_factor = 1000;
-% rec2 = reconstruct_mod_t_old();
-% rec2 = rec2.setup_boundary( n_var, n_dim, degree, stencil, GRID, neighbor_max_degree, stencil_cells, mean_factor, boundary_factor );
-% rec2.polynomial = rec2.least_squares.solve(soln_stencil,rec2.polynomial,rec2.moments,stencil,GRID);
+
 % pfun2 = @(x)rec2.polynomial.evaluate(x);
 
-CELL = reconstruct_mod_t_old();
-CELL = CELL.setup_boundary2( n_vars, n_dim, degree, stencil, GRID, neighbor_max_degree, stencil_cells );
-CELL.polynomial = CELL.least_squares.solve(soln_stencil,CELL.polynomial,CELL.moments,stencil,GRID);
+% CELL = reconstruct_mod_t_old();
+% CELL = CELL.setup_boundary2( n_vars, n_dim, degree, stencil, GRID, neighbor_max_degree, stencil_cells );
+% CELL.polynomial = CELL.least_squares.solve(soln_stencil,CELL.polynomial,CELL.moments,stencil,GRID);
 end
 
 function [n_dim,id] = get_dim_and_nbor_info(GRID,blk,idx)

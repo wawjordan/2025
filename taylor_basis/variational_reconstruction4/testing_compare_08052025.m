@@ -17,7 +17,7 @@ GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 
 blk     = 1;
 dim     = 2;
-degree  = 2;
+degree  = 3;
 n_vars  = 4;
 
 % [test_fun,deriv] = generate_random_poly_fun(dim,degree+1);
@@ -63,19 +63,19 @@ CELLS1 = set_up_cell_kexact_old_recs(SUB_GRID,blk,idx_low,idx_high,degree,test_f
 % CELLS2 = set_up_cell_var_recs4(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false);
 % [CELLS2,LHS2,~,~] = var_rec_t4.perform_reconstruction_fully_coupled(n1,CELLS2,[]);
 
-CELLSV = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,false,'vector_dist');
+CELLSV = var_rec_t5.set_up_cell_var_recs(SUB_GRID,1,[1,1,1],SUB_GRID.gblock.Ncells,degree,test_funs,n1,true,'vector_dist');
 
-omega = 1.3;
-
-n_iter = 1;
-CELLS2 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter);
-
-
-n_iter = 10;
-CELLS3 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter);
-
-n_iter = 100;
-CELLS4 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter);
+% omega = 1.3;
+% 
+% n_iter = 1;
+% CELLS2 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter);
+% 
+% 
+% n_iter = 10;
+% CELLS3 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter);
+% 
+% n_iter = 100;
+% CELLS4 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter);
 
 [CELLS5,LHS2,~,~] = var_rec_t5.perform_reconstruction_fully_coupled(n1,CELLSV,[]);
 
@@ -86,8 +86,8 @@ CELLS4 = var_rec_t5.perform_iterative_reconstruction_SOR(n1,CELLSV,omega,n_iter)
 %% reconstruction compare + function
 f1 = figure(1); set_monitor_for_figure(f1,2);
 var = 2;
-plot_function_over_cells(test_funs{var},1,CELLS2,21,'EdgeColor','none')
-plot_reconstruction_over_cells_old(var,CELLS2,CELLS1,21,'FaceColor','b','EdgeColor','none')
+plot_function_over_cells(test_funs{var},1,CELLSV,21,'EdgeColor','none')
+plot_reconstruction_over_cells_old(var,CELLSV,CELLS1,21,'FaceColor','b','EdgeColor','none')
 plot_reconstruction_over_cells(var,CELLS5,21,'FaceColor','r','EdgeColor','none')
 
 colorbar
@@ -98,15 +98,15 @@ hold on;
 %% reconstruction error compare
 f2 = figure(2); set_monitor_for_figure(f2,2);
 var = 2;
-% plot_reconstruction_error_over_cells_old(test_funs,var,CELLS2,CELLS1,21,'FaceColor','b','EdgeColor','none')
-plot_reconstruction_error_over_cells_old(test_funs,var,CELLS2,CELLS1,21,'EdgeColor','none')
+plot_reconstruction_error_over_cells_old(test_funs,var,CELLSV,CELLS1,21,'FaceColor','b','EdgeColor','none')
+% plot_reconstruction_error_over_cells_old(test_funs,var,CELLSV,CELLS1,21,'EdgeColor','none')
 colorbar
 axis square
 
 plot_reconstruction_error_over_cells(test_funs,var,CELLS5,21,'FaceColor','r','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS4,21,'FaceColor','m','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS3,21,'FaceColor','g','EdgeColor','none')
-plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','c','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS4,21,'FaceColor','m','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS3,21,'FaceColor','g','EdgeColor','none')
+% plot_reconstruction_error_over_cells(test_funs,var,CELLS2,21,'FaceColor','c','EdgeColor','none')
 
 hold on;
 
