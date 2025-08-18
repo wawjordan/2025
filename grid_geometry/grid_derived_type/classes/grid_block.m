@@ -68,7 +68,7 @@ classdef grid_block < grid_block_lite
              % will revisit this later
             this.bounds    = struct();
             for i = 1:6
-                this.bounds(i).bc = constraint_container_t();
+                this.bounds(i).bc = constraint_container_t_old();
             end
         end
         function  this = set_bc_constraints( this, bound_num, n_var, n_dim, n_constraints, constraint_types, VAR_IDX, constraint_eval )
