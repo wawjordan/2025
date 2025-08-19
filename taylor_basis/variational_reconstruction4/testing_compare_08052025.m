@@ -46,7 +46,8 @@ test_funs = test_funs([1:3,5]);
 
 
 for b = 1:6
-    GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(b,4,2,4,[1000,1000,1000,1000],{1,2,3,5},test_funs);
+    GRID.gblock(blk) = GRID.gblock(blk).set_bc_constraints(b,4,2,4,[1000,1000,1000,1000],{1,2,3,5},test_funs);
+    % GRID.gblock(1) = GRID.gblock(1).set_bc_constraints(1,5,2,1,3000,{[2,3,4]},[0]);
 end
 
 
@@ -89,8 +90,8 @@ fprintf('EV1: %f  %f  %f  %f\n',E_V1_norm)
 fprintf('EV2: %f  %f  %f  %f\n',E_V2_norm)
 
 
-fprintf('condest(LHSV1) = %f\n',condest(LHSV1))
-fprintf('condest(LHSV2) = %f\n',condest(LHSV2))
+fprintf('condest(LHSV1) = %E\n',condest(LHSV1))
+fprintf('condest(LHSV2) = %E\n',condest(LHSV2))
 
 
 %% reconstruction compare + function

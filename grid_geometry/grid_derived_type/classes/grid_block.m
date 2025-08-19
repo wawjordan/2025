@@ -36,6 +36,7 @@ classdef grid_block < grid_block_lite
             sub_grid.allocated = true;
             sub_grid.dim = this.dim;
             sub_grid.nbounds  = this.nbounds; %%%%%
+            sub_grid.bounds   = this.bounds;
             sub_grid.quad_ref = this.quad_ref;
             sub_grid.block_id = this.block_id;
 
