@@ -10,7 +10,7 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 agglom=true;
-load_file=true;
+load_file=false;
 GRID = load_gen_svf_grid_for_testing(parent_dir,agglom,load_file);
 
 blk     = 1;

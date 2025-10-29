@@ -215,7 +215,7 @@ classdef grid_block < grid_block_lite
             [iCell,nCoarse] = this.get_all_coarse_indices(nFine,nSkip);
             nCellNodes = nSkip + 1;
             
-            for m = 1:nCoarse
+            for m = 1:prod(nCoarse)
                 iFine = this.global_to_local(iCell(m), nFine );
                 iCoarse = (iFine-1)./nSkip + 1;
                 [Xtmp,Ytmp,Ztmp] = this.copy_gblock_nodes(block,iFine,nSkip);

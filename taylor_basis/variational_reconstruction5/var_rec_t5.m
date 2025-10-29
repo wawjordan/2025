@@ -127,6 +127,15 @@ classdef var_rec_t5
             end
             this.AinvD = this.self_LHS_inv * self_RHS;
             % this.RHS = zeros( n_terms_local, this.n_vars );
+
+            A = this.self_LHS;
+            B = this.nbor_LHS;
+            C = nbor_RHS;
+            D = self_RHS;
+            Ainv = this.self_LHS_inv;
+            AinvB = this.AinvB;
+            AinvC = this.AinvC;
+            AinvD = this.AinvD;
         end
 
         function d = get_nbor_distance_scalar(this,nbor)

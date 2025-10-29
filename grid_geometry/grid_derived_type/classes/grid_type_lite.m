@@ -63,6 +63,7 @@ classdef grid_type_lite
                         this.gblock(1).z(:,:,2) = 1;
                     end
                 else
+                    this.gblock(1) = this.gblock(1).allocate_grid_block(imax,jmax,kmax);
                     this.gblock(1).x = grid_struct.x;
                     this.gblock(1).y = grid_struct.y;
                     this.gblock(1).z = grid_struct.z;
