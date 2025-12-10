@@ -34,7 +34,7 @@ SUB_GRID = GRID.subset_grid(blk,idx_low,idx_high);
 omega  = 1.3;
 n_iter = 200;
 
-% C = var_rec_t6_array_helper( SUB_GRID, 1, [1,1,1], SUB_GRID.gblock.Ncells, degree, test_funs, n1, 'vector_dist' );
+C = var_rec_t6_array_helper( SUB_GRID, 1, [1,1,1], SUB_GRID.gblock.Ncells, degree, test_funs, n1, 'vector_dist' );
 % tic
 % % C = C.perform_reconstruction_fully_coupled();
 % C = C.perform_iterative_reconstruction_SOR(omega,n_iter);

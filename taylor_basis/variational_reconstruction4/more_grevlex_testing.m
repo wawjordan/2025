@@ -42,10 +42,10 @@ n_dim = 3; degree = 3;
 
 
 E = enumerate_exponents(n_dim,degree);
-% E.'
+E.'
 
 
-E = enumerate_exponents_sorted(n_dim,degree);
+% E = enumerate_exponents_sorted(n_dim,degree);
 
 
 function E = enumerate_exponents(n_dim,degree)

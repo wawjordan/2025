@@ -17,7 +17,7 @@ GRID = load_gen_kt_grid_for_testing(parent_dir,agglom,load_file);
 
 blk     = 1;
 dim     = 2;
-degree  = 5;
+degree  = 3;
 n_vars  = 4;
 
 % [test_fun,deriv] = generate_random_poly_fun(dim,degree+1);
