@@ -25,7 +25,7 @@ end
 % stencil_info
 n_stencil = get_n_terms( n_dim, degree );
 balanced   = true;
-print_iter = false;
+print_iter = true;
 
 N = [GRID.gblock(1).imax,GRID.gblock(1).jmax,GRID.gblock(1).kmax];
 block_info_list(1)           = block_info_t_old();
