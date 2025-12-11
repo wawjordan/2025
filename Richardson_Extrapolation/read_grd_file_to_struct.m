@@ -29,8 +29,7 @@ end
 
 % Hopefully multiblock...
 if (~single_block)
-    % if (length(tmp) == 1)
-    if isscalar(tmp)
+    if (length(tmp) == 1)
         plot2d       = false;
         single_block = false;
     else

@@ -1,4 +1,4 @@
-function GRID_OUT = grid_struct_check(grid_struct)
+function GRID_OUT = grid_struct_check(grid_struct,add_centroids)
 GRID_OUT = struct();
 if isfield(grid_struct,'nblocks')
     nb = grid_struct.nblocks;
@@ -8,7 +8,7 @@ else
     nb = 1;
 end
 GRID_OUT.nblocks = nb;
-GRID_OUT = copy_grid_blocks(GRID_OUT,grid_struct);
+GRID_OUT = copy_grid_blocks(GRID_OUT,grid_struct,add_centroids);
 
 GRID_OUT.twod = false;
 if (any([GRID_OUT.gblock(:).twod]) )
@@ -16,7 +16,7 @@ if (any([GRID_OUT.gblock(:).twod]) )
 end
 end
 
-function GRID_OUT = copy_grid_blocks(GRID_OUT,grid_struct)
+function GRID_OUT = copy_grid_blocks(GRID_OUT,grid_struct,add_centroids)
 if (isfield(grid_struct,'gblock') )
     for n = 1:GRID_OUT.nblocks
         imax = size(grid_struct.gblock(n).x,1);
@@ -35,7 +35,12 @@ if (isfield(grid_struct,'gblock') )
                 GRID_OUT.gblock(n).z(:,:,1) = 0;
                 GRID_OUT.gblock(n).z(:,:,2) = 1;
             end
+            if ( add_centroids )
+                [GRID_OUT.gblock(n).xc,GRID_OUT.gblock(n).yc,GRID_OUT.gblock(n).V] = quad_grid_centroids(grid_struct.gblock(n).x, grid_struct.gblock(n).y);
+                GRID_OUT.gblock(n).zc       = GRID_OUT.gblock(n).z(:,:,1) + 0.5;
+            end
         else
+            % todo: add centroids and volume calc for 3D
             GRID_OUT.gblock(n).x = grid_struct.gblock(n).x;
             GRID_OUT.gblock(n).y = grid_struct.gblock(n).y;
             GRID_OUT.gblock(n).z = grid_struct.gblock(n).z;
@@ -58,7 +63,12 @@ elseif ( isfield(grid_struct,'x')&&isfield(grid_struct,'y') )
             GRID_OUT.gblock(1).z(:,:,1) = 0;
             GRID_OUT.gblock(1).z(:,:,2) = 1;
         end
+        if ( add_centroids )
+            [GRID_OUT.gblock(n).xc,GRID_OUT.gblock(n).yc,GRID_OUT.gblock(n).V] = quad_grid_centroids(grid_struct.gblock(n).x, grid_struct.gblock(n).y);
+            GRID_OUT.gblock(n).zc       = GRID_OUT.gblock(n).z(:,:,1) + 0.5;
+        end
     else
+        % todo: add centroids and volume calc for 3D
         GRID_OUT.gblock(1)   = create_gblock_struct(imax,jmax,kmax);
         GRID_OUT.gblock(1).x = grid_struct.x;
         GRID_OUT.gblock(1).y = grid_struct.y;
@@ -99,3 +109,58 @@ else
     end
 end
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [xc,yc,A] = quad_grid_centroids(x,y)
+% order = [1,2,4,2];
+% x1 = x(1:end-1,1:end-1);
+% x2 = x(2:end  ,1:end-1);
+% x3 = x(2:end  ,2:end  );
+% x4 = x(1:end-1,2:end  );
+% y1 = y(1:end-1,1:end-1);
+% y2 = y(2:end  ,1:end-1);
+% y3 = y(2:end  ,2:end  );
+% y4 = y(1:end-1,2:end  );
+
+[xc,yc,A] = arrayfun( @(x1,x2,x3,x4,y1,y2,y3,y4)               ...
+                        quad_centroid(x1,x2,x3,x4,y1,y2,y3,y4),...
+                        x(1:end-1,1:end-1), ...
+                        x(2:end  ,1:end-1), ...
+                        x(2:end  ,2:end  ), ...
+                        x(1:end-1,2:end  ), ...
+                        y(1:end-1,1:end-1), ...
+                        y(2:end  ,1:end-1), ...
+                        y(2:end  ,2:end  ), ...
+                        y(1:end-1,2:end  ) );
+end
+
+function [xc,yc,A] = quad_centroid(x1,x2,x3,x4,y1,y2,y3,y4)
+[c,A] = poly_centroid([x1,x2,x3,x4],[y1,y2,y3,y4]);
+xc = c(1);
+yc = c(2);
+end
+
+function [c,A] = poly_centroid(x_coords,y_coords)
+x_coords = [x_coords(:);x_coords(1)];
+y_coords = [y_coords(:);y_coords(1)];
+N = numel(x_coords);
+c = [0;0];
+A = 0;
+for i = 1:N-1
+    det = x_coords(i)*y_coords(i+1) - x_coords(i+1)*y_coords(i);
+    A    = A    + det;
+    c(1) = c(1) + ( x_coords(i) + x_coords(i+1) )*det;
+    c(2) = c(2) + ( y_coords(i) + y_coords(i+1) )*det;
+end
+
+c = c / (3*A);
+A = A * 0.5;
+end
+% function A = poly_area(x_coords,y_coords)
+% N = numel(x_coords);
+% A = 0;
+% for i = 1:N-1
+%     A = A + x_coords(i)*y_coords(i+1) - x_coords(i+1)*y_coords(i);
+% end
+% A = 0.5 * A;
+% end
