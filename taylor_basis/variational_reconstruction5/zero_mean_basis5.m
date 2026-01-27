@@ -69,6 +69,54 @@ classdef zero_mean_basis5
             end
         end
 
+        % function r = orthonormalize(this,quad)
+        %     r = zeros(this.n_terms,this.n_terms);
+        %     phi = zeros(quad.n_quad,this.n_terms);
+        %     for i = 1:this.n_terms
+        %         for q = 1:quad.n_quad
+        %             phi(q,i) = this.eval(i,quad.quad_pts(:,q));
+        %         end
+        %     end
+        %     phi_hat = phi;
+        %     for i = 1:this.n_terms
+        %         for j = 1:i-1
+        %             % inner product (integrate)
+        %             r(i,j) = dot( phi_hat(:,i).*phi(:,j), quad.quad_wts );
+        %             phi_hat(:,i) = phi_hat(:,i) - r(i,j) * phi(:,j);
+        %         end
+        %         r(i,i) = sqrt( dot( phi_hat(:,i).*phi_hat(:,i), quad.quad_wts ) );
+        %         phi_hat(:,i) = phi_hat(:,i) / r(i,i);
+        %         phi(:,i) = phi_hat(:,i);
+        %     end
+        % end
+
+        function r = orthonormalize2(this,quad)
+            r = zeros(this.n_terms,this.n_terms);
+            phi     = cell(this.n_terms,1);
+            phi_hat = cell(this.n_terms,1);
+
+            for i = 1:this.n_terms
+                phi{i}     = @(x) this.eval(i,x);
+                phi_hat{i} = @(x) this.eval(i,x);
+            end
+            for i = 1:this.n_terms
+                for j = 1:i-1
+                    % inner product (integrate)
+                    r(i,j) = 0;
+                    for q = 1:quad.n_quad
+                        r(i,j) = r(i,j) + phi_hat{i}( quad.quad_pts(:,q) ) * phi{j}( quad.quad_pts(:,q) ) * quad.quad_wts(q);
+                    end
+                end
+                r(i,i) = 0;
+                for q = 1:quad.n_quad
+                    r(i,i) = r(i,i) + phi_hat{i}( quad.quad_pts(:,q) ) * phi_hat{i}( quad.quad_pts(:,q) ) * quad.quad_wts(q);
+                end
+                r(i,i) = sqrt( r(i,i) );
+                phi_hat{i} = @(x)phi_hat{i}(x) / r(i,i);
+                phi{i} = @(x)phi_hat{i}(x);
+            end
+        end
+
         function dB = deval(this,n,point,order)
             if (all(order== 0))
                 dB = this.eval(n,point);
