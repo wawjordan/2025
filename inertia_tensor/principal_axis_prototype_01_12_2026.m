@@ -58,7 +58,13 @@ I2_ = calculate_inertia_tensor_alt( basis2 );
 
 diff_eig = sort(eig(I1(1:n_dim,1:n_dim))) - sort(eig(I2(1:n_dim,1:n_dim)));
 
-[R2,U,V] = poldecomp(I2);
+diff_eig = sort(eig(I1_(1:n_dim,1:n_dim))) - sort(eig(I2_(1:n_dim,1:n_dim)));
+
+
+[R2,~] = eig(I2(1:n_dim,1:n_dim));
+v3 = pagemldivide(R2,v2.').';
+
+% [R2,U,V] = poldecomp(I2);
 
 disp(I1);
 
