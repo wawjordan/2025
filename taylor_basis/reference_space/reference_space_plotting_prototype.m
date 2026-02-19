@@ -11,24 +11,37 @@ clear parent_dir_str path_idx path_parts
 clc;
 n_dim    = 2;
 N      = 9;
-r = 4;
+r = 2;
 Ng     = r*(N-1)+1;
 n_quad = ceil( 0.5*(r + 1) );
-% Ns     = 5;
+% Ns     = 1;
 Ns     = ceil(1.5*nchoosek(n_dim+r,r));
 balanced = true;
 
-GRID = curv_grid(Ng,Ng);
+x1_map = @(x1,x2,n)my_geomspace_w_refine(n,x1,xmax=x2,dx0=0.5/(N-1));
+x2_map = @(x1,x2,n)my_geomspace(n,x1,xmax=x2,dx0=0.5/(N-1));
+
+GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
 % GRID = cart_grid(Ng,Ng); GRID.x = GRID.x/r; GRID.y = GRID.y/r;
+FGRID = grid_type(GRID); % fine grid
 GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
+
 S    = make_all_stencils(GRID,Ns,balanced);
 
 
 hold on
 plot_grid_2D_local(GRID,'k')
-plot_stencil_coords_2D_edges(GRID,S,1,[1,5,1],5,'r','m')
-plot_stencil_coords_2D_edges(GRID,S,1,[2,1,1],5,'g','c--')
+plot_grid_2D_local(FGRID,'k:')
 
+blk = 1;
+idx = [2,1,1];
+plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,1,r+1,'k.-')
+plot_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,2*r+1,'m','r.-')
+axis equal
+idx = [1,1,1];
+plot_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,2*r+1,'g','c--')
+
+axis equal
 hold off;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -62,38 +75,34 @@ for blk = 1:GRID.nblocks
 end
 end
 
-function plot_stencil_coords_2D_edges(GRID,S,blk,idx,npts,color,varargin)
-plot_cell_stencil_coords_2D_edges(GRID,S,blk,idx,1,npts,varargin{:},'Color',color,'LineStyle','-','Marker','o','MarkerEdgeColor',color)
+function plot_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,npts,color,varargin)
+plot_cell_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,1,npts,varargin{:},'Color',color,'LineStyle','-','Marker','o','MarkerEdgeColor',color)
 for i = 2:S.sblock(blk).stencils(idx(1),idx(2),idx(3)).N
-    plot_cell_stencil_coords_2D_edges(GRID,S,blk,idx,i,npts,varargin{:})
+    plot_cell_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,i,npts,varargin{:})
 end
 
 end
 
-function plot_stencil_coords_2D(GRID,S,blk,idx,npts,color,varargin)
-plot_cell_stencil_coords_2D(GRID,S,blk,idx,1,npts,varargin{:},'Color',color,'LineStyle','-','Marker','o','MarkerEdgeColor',color)
+function plot_stencil_coords_2D(FGRID,GRID,S,blk,idx,npts,color,varargin)
+plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,1,npts,varargin{:},'Color',color,'LineStyle','-','Marker','o','MarkerEdgeColor',color)
 for i = 2:S.sblock(blk).stencils(idx(1),idx(2),idx(3)).N
-    plot_cell_stencil_coords_2D(GRID,S,blk,idx,i,npts,varargin{:})
+    plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,i,npts,varargin{:})
 end
 
 end
 
-function plot_cell_stencil_coords_2D(GRID,S,blk,idx,i,npts,varargin)
-n_dim = GRID.gblock(blk).dim;
-Q = GRID.gblock(blk).grid_vars.quad(idx(1),idx(2),idx(3));
-n_quad = repmat( round( Q.n_quad.^(1/n_dim) ), 1, n_dim );
+function plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,i,npts,varargin)
 
-quad_ref = quad_t.create_quad_ref_2D( n_quad(1) );
-
-lo = min(quad_ref.quad_pts,[],2); lo = 1./lo;
-hi = max(quad_ref.quad_pts,[],2); hi = 1./hi;
-[Xq1,Xq2] = ndgrid(linspace(lo(1),hi(1),npts),linspace(lo(2),hi(2),npts));
+[Xq1,Xq2] = ndgrid(linspace(-1,1,npts),linspace(-1,1,npts));
 Xq3 = zeros(npts,npts);
 
-[xfun,yfun,~] = local_grid_interpolant_2D(Q,n_quad);
+n_skip = GRID.nskip;
+cell_idx = (idx-1).*n_skip+1;
+[xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
+[xfun,yfun,~] = local_grid_interpolant_2D(xtmp,ytmp,ztmp);
 
 stencil = S.sblock(blk).stencils(idx(1),idx(2),idx(3));
-off = (hi-lo).*(stencil.idx(:,i)-stencil.idx(:,1));
+off = 2.*(stencil.idx(:,i)-stencil.idx(:,1));
 
 X = xfun(Xq1+off(1),Xq2+off(2),Xq3);
 Y = yfun(Xq1+off(1),Xq2+off(2),Xq3);
@@ -101,22 +110,16 @@ plot(X,Y,varargin{:})
 plot(X.',Y.',varargin{:})
 end
 
-function plot_cell_stencil_coords_2D_edges(GRID,S,blk,idx,i,npts,varargin)
-n_dim = GRID.gblock(blk).dim;
-Q = GRID.gblock(blk).grid_vars.quad(idx(1),idx(2),idx(3));
-n_quad = repmat( round( Q.n_quad.^(1/n_dim) ), 1, n_dim );
-
-quad_ref = quad_t.create_quad_ref_2D( n_quad(1) );
-
-lo = min(quad_ref.quad_pts,[],2); lo = 1./lo;
-hi = max(quad_ref.quad_pts,[],2); hi = 1./hi;
-
-[xfun,yfun,~] = local_grid_interpolant_2D(Q,n_quad);
+function plot_cell_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,i,npts,varargin)
+n_skip = GRID.nskip;
+cell_idx = (idx-1).*n_skip+1;
+[xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
+[xfun,yfun,~] = local_grid_interpolant_2D(xtmp,ytmp,ztmp);
 
 stencil = S.sblock(blk).stencils(idx(1),idx(2),idx(3));
-off = (hi-lo).*(stencil.idx(:,i)-stencil.idx(:,1));
+off = 2.*(stencil.idx(:,i)-stencil.idx(:,1));
 Xq3 = zeros(npts,1);
-xi_eta = {linspace(lo(1),hi(1),npts),linspace(lo(2),hi(2),npts)};
+xi_eta = {linspace(-1,1,npts),linspace(-1,1,npts)};
 
 [Xq1,Xq2] = ndgrid(xi_eta{1}(:),xi_eta{2}(1));
 X = xfun(Xq1(:)+off(1),Xq2(:)+off(2),Xq3);
@@ -139,16 +142,24 @@ Y = yfun(Xq1(:)+off(1),Xq2(:)+off(2),Xq3);
 plot(X,Y,varargin{:})
 end
 
-function [xfun,yfun,zfun] = local_grid_interpolant_2D(Q,n_quad)
-xtmp = reshape(Q.quad_pts(1,:),n_quad);
-ytmp = reshape(Q.quad_pts(2,:),n_quad);
-ztmp = reshape(Q.quad_pts(3,:),n_quad);
-L = lagrange_interpolant(n_quad(1) + 1);
+function [xfun,yfun,zfun] = local_grid_interpolant_2D(xtmp,ytmp,ztmp)
+L = lagrange_interpolant(size(xtmp,1));
 fun = @(xq) L.map_point(xtmp,ytmp,ztmp,xq);
 xfun = @(xq1,xq2,xq3) eval_x(fun,xq1,xq2,xq3);
 yfun = @(xq1,xq2,xq3) eval_y(fun,xq1,xq2,xq3);
 zfun = @(xq1,xq2,xq3) eval_z(fun,xq1,xq2,xq3);
 end
+
+% function [xfun,yfun,zfun] = local_grid_interpolant_2D_from_quad(Q,n_quad)
+% xtmp = reshape(Q.quad_pts(1,:),n_quad);
+% ytmp = reshape(Q.quad_pts(2,:),n_quad);
+% ztmp = reshape(Q.quad_pts(3,:),n_quad);
+% L = lagrange_interpolant(n_quad(1) + 1);
+% fun = @(xq) L.map_point(xtmp,ytmp,ztmp,xq);
+% xfun = @(xq1,xq2,xq3) eval_x(fun,xq1,xq2,xq3);
+% yfun = @(xq1,xq2,xq3) eval_y(fun,xq1,xq2,xq3);
+% zfun = @(xq1,xq2,xq3) eval_z(fun,xq1,xq2,xq3);
+% end
 
 function x = eval_x(fun,xq1,xq2,xq3)
 x = arrayfun(@(xq1,xq2,xq3)eval_x_(fun,xq1,xq2,xq3),xq1,xq2,xq3);
@@ -196,26 +207,49 @@ end
 
 end
 
-function GRID = curv_grid(N_x,N_y,N_z)
+function GRID = curv_grid(N_x,N_y,varargin)
+p = inputParser;
+validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
+validFunctionHandle = @(x) isa(x,'function_handle');
+addRequired(p,'N_x',validScalarPosInt);
+addRequired(p,'N_y',validScalarPosInt);
+addOptional(p,'N_z',nan,validScalarPosInt);
+addOptional(p,'x1_map',@(x1,x2,n)linspace(x1,x2,n),validFunctionHandle);
+addOptional(p,'x2_map',@(x1,x2,n)linspace(x1,x2,n),validFunctionHandle);
+addOptional(p,'x3_map',@(x1,x2,n)linspace(x1,x2,n),validFunctionHandle);
+parse(p,N_x,N_y,varargin{:});
+
+if (nargin(p.Results.x1_map)~=3)
+    error('incorrect number of input arguments for x1_map')
+end
+if (nargin(p.Results.x2_map)~=3)
+    error('incorrect number of input arguments for x2_map')
+end
+if (nargin(p.Results.x3_map)~=3)
+    error('incorrect number of input arguments for x3_map')
+end
+x1_map = p.Results.x1_map;
+x2_map = p.Results.x2_map;
+x3_map = p.Results.x3_map;
+
+xi_range   = [0, 1];
+eta_range  = [0, 1];
+zeta_range = [0, 1];
+
+N_x = p.Results.N_x;
+N_y = p.Results.N_y;
+N_z = p.Results.N_z;
+
+GRID.dim  = 2;
 GRID.imax = N_x;
 GRID.jmax = N_y;
-x_range = [0, 1];
-y_range = [0, 1];
-GRID.dim  = 2;
-r_val = 1.3;
-   
-xi  = linspace(x_range(1),x_range(2),N_x);
-eta = linspace(y_range(1),y_range(2),N_y);
+xi   = x1_map(xi_range(1),xi_range(2),N_x);
+eta  = x2_map(eta_range(1),eta_range(2),N_y);
 zeta = 0;
-xi  = my_geomspace(N_x,x_range(1),xmax=x_range(2),r=r_val);
-eta  = my_geomspace(N_y,y_range(1),xmax=y_range(2),r=r_val);
-
-if nargin == 3
+if (~isnan(p.Results.N_z))
+    GRID.dim  = 3;
     GRID.kmax = N_z;
-    GRID.dim = 3;
-    z_range = [0, 1];
-    zeta = linspace(z_range(1),z_range(2),N_z);
-    zeta  = my_geomspace(N_z,z_range(1),xmax=z_range(2),r=r_val);
+    zeta  = x3_map(zeta_range(1),zeta_range(2),N_z);
 end
 
 [XI,ETA,ZETA] = ndgrid(xi,eta,zeta);
@@ -223,7 +257,7 @@ end
 GRID.x = xFunc3D(XI,ETA,ZETA);
 GRID.y = yFunc3D(XI,ETA,ZETA);
 
-if nargin == 3
+if GRID.dim == 3
     GRID.z = zFunc3D(XI,ETA,ZETA);
 end
 

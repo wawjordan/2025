@@ -1,4 +1,7 @@
 function [x,varargout] = my_geomspace(N,xmin,varargin)
+if (nargout>3)
+    error('too many output arguments')
+end
 p = inputParser;
 validScalarNum = @(x) isnumeric(x) && isscalar(x);
 validScalarPosNum = @(x) validScalarNum(x) && (x > 0);
@@ -25,6 +28,7 @@ xmin = p.Results.xmin;
 
 
 nout = max(nargout,1) - 1;
+varargout = cell(nout);
 if (all(mask([3,4,5,6])))
     [x,s(1),s(2)] = geomspace_1( N, xmin, xmax, r );
     for k = 1:nout
@@ -35,7 +39,7 @@ elseif (all(mask([1,3,4,6])))
     for k = 1:nout
         varargout{k} = s(k);
     end
-elseif (all(mask([1,2,3,4])))
+elseif (all(mask([1,2,3,6])))
     [x,s(1),s(2)] = geomspace_3( N, xmin, dx0, dx1 );
     for k = 1:nout
         varargout{k} = s(k);
