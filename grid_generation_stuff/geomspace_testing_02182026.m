@@ -11,12 +11,12 @@ clear parent_dir_str path_idx path_parts
 clc;
 
 
-xmin = 0;
+xmin = 10;
 xmax_in = 100;
-dx0_in = 0.00001;
+dx0_in = 0.001;
 dx1_in = 10;
-r_in   = 1.00001;
-N = 1;
+r_in   = 1.01;
+N = 100;
 
 hold on
 % case 1
@@ -26,8 +26,7 @@ plot(abs(x_old-x_new));
 disp(dx0_old-dx0_new)
 disp(dx1_old-dx1_new)
 
-
-% case 2
+% % case 2
 [x_old,xmax_old,dx1_old] = my_geomspace(N,xmin,dx0=dx0_in,r=r_in);
 [x_new,xmax_new,dx1_new,~] = my_geomspace_w_refine(N,1,xmin,dx0=dx0_in,r=r_in);
 plot(abs(x_old-x_new));

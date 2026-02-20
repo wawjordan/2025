@@ -14,12 +14,19 @@ N      = 9;
 r = 2;
 Ng     = r*(N-1)+1;
 n_quad = ceil( 0.5*(r + 1) );
-% Ns     = 1;
+% Ns     = 2;
 Ns     = ceil(1.5*nchoosek(n_dim+r,r));
 balanced = true;
 
-x1_map = @(x1,x2,n)my_geomspace_w_refine(n,x1,xmax=x2,dx0=0.5/(N-1));
-x2_map = @(x1,x2,n)my_geomspace(n,x1,xmax=x2,dx0=0.5/(N-1));
+
+[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.0/(N-1));
+[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.0/(N-1));
+
+x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
+x2_map = @(x1,x2,n) x1 + (x2-x1)*fh2(linspace(0,1,n));
+
+% x1_map = @(x1,x2,n)my_geomspace_w_refine(n,r,x1,xmax=x2,dx0=0.01/(N-1));
+% x2_map = @(x1,x2,n)my_geomspace_w_refine(n,r,x1,xmax=x2,dx0=0.1/(N-1));
 
 GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
 % GRID = cart_grid(Ng,Ng); GRID.x = GRID.x/r; GRID.y = GRID.y/r;
@@ -34,7 +41,7 @@ plot_grid_2D_local(GRID,'k')
 plot_grid_2D_local(FGRID,'k:')
 
 blk = 1;
-idx = [2,1,1];
+idx = [3,8,1];
 plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,1,r+1,'k.-')
 plot_stencil_coords_2D_edges(FGRID,GRID,S,blk,idx,2*r+1,'m','r.-')
 axis equal

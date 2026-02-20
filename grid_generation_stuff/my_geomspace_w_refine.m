@@ -75,13 +75,12 @@ function val = eval_fun(N,xmin,xmax,dx0,r,x)
     function val = eval_real(N,xmin,xmax,dx0,r,x)
         if abs(x)<10*eps(1)
             val = xmin;
-        elseif abs(xmax-xmin-(N-1)*x)<N*eps(1)
+        elseif abs(x-1)<N*eps(1)
             val = xmax;
         elseif abs(r-1)<N*eps(1)
-            val = xmin + (N-1)*x;
+            val = xmin + (N-1)*dx0*x;
         elseif (mod((N-1)*x,1)<(N-1)*eps(1))
-            Nx = round((N-1)*x);
-            rNx = exp(Nx*log(r));
+            rNx = r.^round((N-1)*x);
             val = xmin + dx0*(rNx - 1)/(r-1);
         else
             rN = r^(N-1);
@@ -91,8 +90,6 @@ function val = eval_fun(N,xmin,xmax,dx0,r,x)
 end
 
 function [x,dx0,dx1,fh] = geomspace_1( N, xmin, xmax, r )
-% dx0 = ( xmax - xmin )/sum(r.^(0:N-2));
-% dx1 = r^(N-2)*dx0;
 if (N<2)
     dx0 = 0;
     dx1 = 0;
@@ -101,8 +98,8 @@ else
         dx0 = (xmax - xmin)/(N-1);
         dx1 = dx0;
     else
-        dx0 = (xmax - xmin)*(r-1)/(exp((N-1)*log(r)) - 1);
-        dx1 = dx0*exp((N-2)*log(r));
+        dx0 = (xmax - xmin)*(r-1)/(r^(N-1) - 1);
+        dx1 = dx0*r^(N-2);
     end
 end
 fh = @(x) eval_fun(N,xmin,xmax,dx0,r,x);
@@ -110,13 +107,6 @@ x = fh(linspace(0,1,N));
 end
 
 function [x,xmax,dx1,fh] = geomspace_2( N, xmin, dx0, r )
-% x = zeros(1,N);
-% x(1) = xmin;
-% for i = 2:N
-%     x(i) = x(i-1) + (r^(i-2)*dx0);
-% end
-% xmax = x(N);
-% dx1 = r^(N-2)*dx0;
 if (N<2)
     xmax = xmin;
     dx1  = dx0;
@@ -125,8 +115,8 @@ else
         xmax = xmin + (N-1)*dx0;
         dx1 = dx0;
     else
-        xmax = xmin + dx0*(exp((N-1)*log(r)) - 1)/(r-1);
-        dx1 = dx0*exp((N-2)*log(r));
+        xmax = xmin + dx0*(r^(N-1) - 1)/(r-1);
+        dx1 = dx0*r^(N-2);
     end
 end
 fh = @(x) eval_fun(N,xmin,xmax,dx0,r,x);
@@ -134,13 +124,6 @@ x = fh(linspace(0,1,N));
 end
 
 function [x,xmax,r,fh] = geomspace_3( N, xmin, dx0, dx1 )
-% r = (dx1/dx0)^(1/(N-2));
-% x = zeros(1,N);
-% x(1) = xmin;
-% for i = 2:N
-%     x(i) = x(i-1) + (r^(i-2)*dx0);
-% end
-% xmax = x(N);
 if (N<2)
     xmax = xmin;
     r    = 1;
@@ -149,8 +132,8 @@ else
         xmax = xmin + (N-1)*dx0;
         r    = 1;
     else
-        r = exp( log(dx1/dx0)/(N-2) );
-        xmax = xmin + dx0*(exp((N-1)*log(r)) - 1)/(r-1);
+        r = (dx1/dx0)^(1/(N-2));
+        xmax = xmin + dx0*(r^(N-1) - 1)/(r-1);
     end
 end
 fh = @(x) eval_fun(N,xmin,xmax,dx0,r,x);
@@ -162,21 +145,20 @@ if (N<2)
     r    = 1;
     dx1 = dx0;
 else
-    dx = xmax - xmin;
-    if (abs(dx-dx0)<10*eps(1))
+    delta_x = xmax - xmin;
+    if (abs(delta_x/(N-1)-dx0)<10*eps(1))
         r    = 1;
         dx1 = dx0;
     else
-        if dx/(N-2) > dx0
+        if delta_x/(N-1) > dx0
             r0 = 1.01;
         else
             r0 = 0.99;
         end
-        
-        fun = @(r) dx/dx0 - (exp((N-1)*log(r)) - 1)/(r-1);
+        fun = @(r) delta_x/dx0 - (r.^(N-1) - 1)/(r-1);
         options = optimset('FunValCheck','on');
         r = fzero(fun,r0,options);
-        dx1 = dx0*exp((N-2)*log(r));
+        dx1 = dx0*r^(N-2);
     end
 end
 fh = @(x) eval_fun(N,xmin,xmax,dx0,r,x);
