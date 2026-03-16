@@ -20,20 +20,22 @@ classdef rec_cell_t
                 n_bnd, nbor_block, nbor_idx,     ...
                 nbor_degree, bnd_idx, n_vars,    ...
                 quad, h_ref )
-            this.basis    = zero_mean_basis_t( p, quad, h_ref );
-            this.n_vars   = n_vars;
-            this.self_idx = self_idx;
-            this.self_block = self_block;
-            this.n_nbor     = n_nbor;
-            this.n_bnd      = n_bnd;
-            this.nbor_block = nbor_block;
-            this.nbor_idx    = nbor_idx;
-            this.nbor_degree = nbor_degree;
-            this.bnd_idx     = bnd_idx;
-            this.coefs       = zeros( p.n_terms, n_vars );
-            this.LHS         = zeros( n_nbor, p.n_terms-1 );
-            this.Ainv        = zeros( p.n_terms-1, n_nbor );
-            this.col_scale   = zeros( p.n_terms-1, 1 );
+            if ( nargin > 0 )
+                this.basis    = zero_mean_basis_t( p, quad, h_ref );
+                this.n_vars   = n_vars;
+                this.self_idx = self_idx;
+                this.self_block = self_block;
+                this.n_nbor     = n_nbor;
+                this.n_bnd      = n_bnd;
+                this.nbor_block = nbor_block;
+                this.nbor_idx    = nbor_idx;
+                this.nbor_degree = nbor_degree;
+                this.bnd_idx     = bnd_idx;
+                this.coefs       = zeros( p.n_terms, n_vars );
+                this.LHS         = zeros( n_nbor, p.n_terms-1 );
+                this.Ainv        = zeros( p.n_terms-1, n_nbor );
+                this.col_scale   = zeros( p.n_terms-1, 1 );
+            end
         end
 
         function val = evaluate_reconstruction( this, p, point, n_terms,...

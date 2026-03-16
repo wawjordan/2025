@@ -57,6 +57,16 @@ classdef quad_t
                 end
             end
         end
+        function quad_phys = map_quad_ref_0D(X1,X2,X3,quad_ref,~)
+            quad_phys = quad_t();
+            quad_phys = quad_phys.allocate_quad(quad_ref.n_quad);
+            for n = 1:quad_ref.n_quad
+                quad_phys.quad_pts(1,n) = X1;
+                quad_phys.quad_pts(2,n) = X2;
+                quad_phys.quad_pts(3,n) = X3;
+                quad_phys.quad_wts(n) = 1.0;
+            end
+        end
         function quad_phys = map_quad_ref_1D(X1,X2,X3,quad_ref,interpolant)
             quad_phys = quad_t();
             quad_phys = quad_phys.allocate_quad(quad_ref.n_quad);

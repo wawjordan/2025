@@ -59,7 +59,9 @@ classdef grid_block < grid_block_lite
         end
         function this = allocate_grid_block( this, imax, jmax, kmax )
             this = this.allocate_grid_block@grid_block_lite(imax,jmax,kmax);
-            if (kmax == 1 || kmax == 2)
+            if (jmax == 1 || jmax == 2)
+                this.dim = 1;
+            elseif (kmax == 1 || kmax == 2)
                 this.dim = 2;
             else
                 this.dim = 3;
@@ -116,18 +118,68 @@ classdef grid_block < grid_block_lite
         end
         function this = compute_quadrature_points( this, n_quad, fine_grid_block )
             if nargin>2
-                if this.dim == 2
+                if this.dim == 1
+                    this = compute_quadrature_points_1D( this, n_quad, fine_grid_block );
+                elseif this.dim == 2
                     this = compute_quadrature_points_2D( this, n_quad, fine_grid_block );
                 else
                     this = compute_quadrature_points_3D( this, n_quad, fine_grid_block );
                 end
             else
-                if this.dim == 2
+                if this.dim == 1
+                    this = compute_quadrature_points_1D( this, n_quad );
+                elseif this.dim == 2
                     this = compute_quadrature_points_2D( this, n_quad );
                 else
                     this = compute_quadrature_points_3D( this, n_quad );
                 end
             end
+        end
+
+        function this = compute_quadrature_points_1D( this, n_quad, fine_grid_block )
+            this.quad_ref = reference_quad( [n_quad,1,1] );
+            quad_ref1 = quad_t.create_quad_ref_1D(n_quad);
+
+            block = this;
+            if nargin>2
+                block = fine_grid_block;
+            end
+            nFine = block.Nnodes;
+            
+            nSkip = this.nskip;
+            [iCell,nCoarse] = this.get_all_coarse_indices(nFine,nSkip);
+            nCellNodes = nSkip + 1;
+
+            for m = 1:prod(nCoarse)
+                iFine = this.global_to_local(iCell(m), nFine );
+                iCoarse = (iFine-1)./nSkip + 1;
+                [Xtmp,Ytmp,Ztmp] = this.copy_gblock_nodes(block,iFine,nSkip);
+                this.grid_vars.quad( iCoarse(1), iCoarse(2), iCoarse(3) ) = quad_t.map_quad_ref_1D(Xtmp,Ytmp,Ztmp,quad_ref1,this.interp);
+
+                % xi-min faces
+                face_mask = false(nCellNodes(1),nCellNodes(2),nCellNodes(3));
+                face_mask(1,1,1) = true;
+                this.grid_vars.xi_face_quad( iCoarse(1), iCoarse(2), iCoarse(3) ) = ...
+                            quad_t.map_quad_ref_0D( ...
+                            Xtmp(face_mask),...
+                            Ytmp(face_mask),...
+                            Ztmp(face_mask),...
+                            quad_ref1,this.interp);
+            this.grid_vars.xi_n( iCoarse(1), iCoarse(2), iCoarse(3) ) = ...
+            this.grid_vars.xi_n( iCoarse(1), iCoarse(2), iCoarse(3) ).set_face_normals_2D( Xtmp, Ytmp, Ztmp, this.quad_ref.e(5).pts, 1, this.interp );
+            % xi-max faces
+            face_mask = false(nCellNodes(1),nCellNodes(2),nCellNodes(3));
+            face_mask(nCellNodes(1),1,1) = true;
+            this.grid_vars.xi_face_quad( iCoarse(1)+1, iCoarse(2), iCoarse(3) ) = ...
+                            quad_t.map_quad_ref_0D( ...
+                            Xtmp(face_mask),...
+                            Ytmp(face_mask),...
+                            Ztmp(face_mask),...
+                            quad_ref1,this.interp);
+            this.grid_vars.xi_n( iCoarse(1)+1, iCoarse(2), iCoarse(3) ) = ...
+            this.grid_vars.xi_n( iCoarse(1)+1, iCoarse(2), iCoarse(3) ).set_face_normals_2D( Xtmp, Ytmp, Ztmp, this.quad_ref.e(6).pts, 1, this.interp );
+            end
+
         end
 
         function this = compute_quadrature_points_2D( this, n_quad, fine_grid_block )

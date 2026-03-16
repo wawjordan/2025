@@ -23,10 +23,41 @@ classdef grid_type_lite
         function this = copy_grid_blocks(this,grid_struct)
             if isfield(grid_struct,'gblock')
                 for n = 1:this.nblocks
+                    if ( isvector(grid_struct.gblock(n).x) )
+                        grid_struct.gblock(n).x = grid_struct.gblock(n).x(:);
+                    end
                     imax = size(grid_struct.gblock(n).x,1);
                     jmax = size(grid_struct.gblock(n).x,2);
                     kmax = size(grid_struct.gblock(n).x,3);
-                    if (kmax == 1)
+                    if (jmax == 1)
+                        this.gblock(n) = this.gblock(1).allocate_grid_block(imax,2,2);
+                        this.gblock(n).x(:,1,1) = grid_struct.gblock(n).x;
+                        this.gblock(n).x(:,2,1) = grid_struct.gblock(n).x;
+                        this.gblock(n).x(:,1,2) = grid_struct.gblock(n).x;
+                        this.gblock(n).x(:,2,2) = grid_struct.gblock(n).x;
+                        if isfield(grid_struct,'y')
+                            this.gblock(n).y(:,1,1) = grid_struct.gblock(n).y;
+                            this.gblock(n).y(:,2,1) = grid_struct.gblock(n).y + 1;
+                            this.gblock(n).y(:,1,2) = grid_struct.gblock(n).y;
+                            this.gblock(n).y(:,2,2) = grid_struct.gblock(n).y + 1;
+                        else
+                            this.gblock(n).y(:,1,1) = 0;
+                            this.gblock(n).y(:,2,1) = 1;
+                            this.gblock(n).y(:,1,2) = 0;
+                            this.gblock(n).y(:,2,2) = 1;
+                        end
+                        if isfield(grid_struct,'z')
+                            this.gblock(n).z(:,1,1) = grid_struct.gblock(n).z;
+                            this.gblock(n).z(:,2,1) = grid_struct.gblock(n).z;
+                            this.gblock(n).z(:,1,2) = grid_struct.gblock(n).z + 1;
+                            this.gblock(n).z(:,2,2) = grid_struct.gblock(n).z + 1;
+                        else
+                            this.gblock(n).y(:,1,1) = 0;
+                            this.gblock(n).y(:,2,1) = 0;
+                            this.gblock(n).y(:,1,2) = 1;
+                            this.gblock(n).y(:,2,2) = 1;
+                        end
+                    elseif (kmax == 1)
                         this.gblock(n) = this.gblock(n).allocate_grid_block(imax,jmax,2);
                         this.gblock(n).x(:,:,1) = grid_struct.gblock(n).x;
                         this.gblock(n).x(:,:,2) = grid_struct.gblock(n).x;
@@ -46,10 +77,41 @@ classdef grid_type_lite
                     end
                 end
             else
+                if ( isvector(grid_struct.x) )
+                    grid_struct.x = grid_struct.x(:);
+                end
                 imax = size(grid_struct.x,1);
                 jmax = size(grid_struct.x,2);
                 kmax = size(grid_struct.x,3);
-                if (kmax == 1)
+                if (jmax == 1)
+                    this.gblock(1) = this.gblock(1).allocate_grid_block(imax,2,2);
+                    this.gblock(1).x(:,1,1) = grid_struct.x;
+                    this.gblock(1).x(:,2,1) = grid_struct.x;
+                    this.gblock(1).x(:,1,2) = grid_struct.x;
+                    this.gblock(1).x(:,2,2) = grid_struct.x;
+                    if isfield(grid_struct,'y')
+                        this.gblock(1).y(:,1,1) = grid_struct.y;
+                        this.gblock(1).y(:,2,1) = grid_struct.y + 1;
+                        this.gblock(1).y(:,1,2) = grid_struct.y;
+                        this.gblock(1).y(:,2,2) = grid_struct.y + 1;
+                    else
+                        this.gblock(1).y(:,1,1) = 0;
+                        this.gblock(1).y(:,2,1) = 1;
+                        this.gblock(1).y(:,1,2) = 0;
+                        this.gblock(1).y(:,2,2) = 1;
+                    end
+                    if isfield(grid_struct,'z')
+                        this.gblock(1).z(:,1,1) = grid_struct.z;
+                        this.gblock(1).z(:,2,1) = grid_struct.z;
+                        this.gblock(1).z(:,1,2) = grid_struct.z + 1;
+                        this.gblock(1).z(:,2,2) = grid_struct.z + 1;
+                    else
+                        this.gblock(1).y(:,1,1) = 0;
+                        this.gblock(1).y(:,2,1) = 0;
+                        this.gblock(1).y(:,1,2) = 1;
+                        this.gblock(1).y(:,2,2) = 1;
+                    end
+                elseif (kmax == 1)
                     this.gblock(1) = this.gblock(1).allocate_grid_block(imax,jmax,2);
                     this.gblock(1).x(:,:,1) = grid_struct.x;
                     this.gblock(1).x(:,:,2) = grid_struct.x;

@@ -23,7 +23,7 @@ classdef zero_mean_basis_t
         function moments = compute_grid_moments(this,p,quad)
             moments = zeros(p.n_terms,1);
             xtmp    = 0*quad.quad_pts(1:p.n_dim,:);
-            tmp     = 0*quad.quad_wts;
+            tmp     = 0*quad.quad_wts.';
             for q = 1:quad.n_quad
                 xtmp(:,q) = this.transform( p.n_dim, quad.quad_pts(:,q) );
             end
@@ -45,8 +45,8 @@ classdef zero_mean_basis_t
             delta2(:,1) = 1.0;
             delta2(:,2) = nbor.h_ref ./ this.h_ref;
             for m = 2:p.total_degree
-                delta1(:,m+1) = delta1(:,m) .* delta1(:,1);
-                delta2(:,m+1) = delta2(:,m) .* delta2(:,1);
+                delta1(:,m+1) = delta1(:,m) .* delta1(:,2);
+                delta2(:,m+1) = delta2(:,m) .* delta2(:,2);
             end
             for n = 1:p.n_terms
                 alpha = p.exponents(:,n);
@@ -60,8 +60,8 @@ classdef zero_mean_basis_t
                         comb_factor = comb_factor ...
                                     * nchoosek( alpha(d), beta(d) );
                         grid_factor = grid_factor ...
-                                     * delta1( d, beta(d) ) ...
-                                     * delta2( d, shift_exp(d) );
+                                     * delta1( d, beta(d)+1 ) ...
+                                     * delta2( d, shift_exp(d)+1 );
                     end
                     for shift_row = 1:p.n_terms
                         if ( all( p.exponents(:,shift_row) == shift_exp ) )
@@ -77,7 +77,7 @@ classdef zero_mean_basis_t
         end
         function moments = compute_shifted_moments_quad(this,p,quad)
             moments = zeros(p.n_terms,1);
-            tmp     = 0*quad.quad_wts;
+            tmp     = 0*quad.quad_wts.';
             for n = 2:p.n_terms
                 for q = 1:quad.n_quad
                     tmp(q) = this.evaluate_basis(p,n,quad.quad_pts(:,q));
