@@ -1,10 +1,10 @@
-%% combinatorics puzzle (08/05/2025)
+%% monomial derivative scaling
 clc; clear; close all;
 
-dim    = 3;
-degree = 5;
+dim    = 2;
+degree = 4;
 n_terms = get_n_terms_( dim, degree );
-order = get_exponents_sorted_( dim, degree );
+exponents = get_exponents_sorted_( dim, degree );
 
 % num_fmt = '%4d';
 num_fmt = '%5d/%-5d';
@@ -13,39 +13,54 @@ fmt_fun = @(n,fmt) [repmat([fmt,' '],1,n-1), fmt, '\n'];
 
 fmt = fmt_fun(5,num_fmt);
 
-for i = 1:n_terms
-    den = get_factorial_scaling_1( order(:,i) );
-    num1 = get_factorial_scaling_2( order(:,i) );
-    [num2,num3] = multichoose( sum(order(:,i)), order(:,i) );
+degree = [2;0];
+order  = [0;0];
+[num2,den2] = get_derivative_scaling2(degree,order);
 
-    den2 = prod( factorial(order(:,i)));
-    den3 = get_factorial_scaling_3( order(:,i) );
-    tmp1 = 1/den2;
-    tmp2 = 1/den3;
-    [N,D] = rat([num1/den,num2/den,num3/den,tmp1,tmp2]);
-    tmp_vec = [N;D];
-    fprintf(fmt,tmp_vec(:));
-    % fprintf('%d %d\n',[den2,den3]);
+for j = 1:n_terms
+    degree = exponents(:,j);
+    for i = 1:j-1
+        order = exponents(:,i);
+        [num1,den1] = get_derivative_scaling(degree,order);
+        [num2,den2] = get_derivative_scaling2(degree,order);
+        num3 = get_factorial_scaling(order);
+        fprintf('%d | %d\n',[num1/den1,num2]);
+    end
 end
 
 
 % num3 = nchoosek(sum(order(1:n_dim)),order(1)) * nchoosek(sum(order(2:n_dim)),order(2));
 
-function den = get_factorial_scaling_1(order)
-den = factorial( sum(order) );
+function [num,den] = get_derivative_scaling(degree,order)
+if any( degree-order<0 )
+    num = 0;
+    den = 1;
+    return
+end
+num = prod( factorial(degree) );
+den = prod( factorial(degree-order) );
 end
 
-function den = get_factorial_scaling_3(order)
+function [num,den] = get_derivative_scaling2(degree,order)
+if any( degree-order<0 )
+    num = 0;
+    den = 1;
+    return
+end
 n_dim = numel(order);
+num = 1;
 den = 1;
 for d = 1:n_dim
-    for n = order(d):-1:1
+    for n = degree(d):-1:degree(d)-order(d)+1
+        num = num * n;
+    end
+    for n = degree(d)-order(d):-1:1
         den = den * n;
     end
 end
 end
 
-function num = get_factorial_scaling_2(order)
+function num = get_factorial_scaling(order)
 n_dim = numel(order);
 num = 1;
 for d = 1:n_dim
