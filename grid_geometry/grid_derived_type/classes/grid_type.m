@@ -15,13 +15,10 @@ classdef grid_type < grid_type_lite
             addOptional(p,'mask',true,@(x)islogical(x))
             addOptional(p,'calc_quads',false,@(x)isscalar(x)&&islogical(x))
             addOptional(p,'nquad',1,@(x)isPositiveIntegerValuedNumeric(x))
-            addOptional(p,'ndim',3,@(x)isPositiveIntegerValuedNumeric(x))
+            % addOptional(p,'ndim',3,@(x)isPositiveIntegerValuedNumeric(x))
             
             parse(p,varargin{:})
 
-            if p.Results.ndim==3
-                grid_struct;
-            end
             if p.Results.agglomerate
                 fine_grid = grid_type_lite(grid_struct);
                 this = agglom_grid_blocks(this,fine_grid,p.Results.nskip);
@@ -42,13 +39,13 @@ classdef grid_type < grid_type_lite
                 this.nblocks = nb;
                 this.gblock = repmat(grid_block(),this.nblocks,1);
                 this = this.copy_grid_blocks(grid_struct);
-                for n = 1:this.nblocks
-                    this.gblock(n).dim = p.Results.ndim;
-                end
                 this.nskip = [1,1,1];
                 if p.Results.calc_quads
                     this = this.fill_derived_grid( p.Results.nquad );
                 end
+                % for n = 1:this.nblocks
+                %     this.gblock(n).dim = p.Results.ndim;
+                % end
             end
         end
         function sub_grid = subset_grid(this,blk,lo,hi)
