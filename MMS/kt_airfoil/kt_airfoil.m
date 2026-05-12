@@ -77,6 +77,8 @@ classdef kt_airfoil
             zeta_frac = ( (zeta - this.l)./(zeta + this.l) ).^this.n;
             factor = 4*(this.n*this.l)^2;
             dz = factor*zeta_frac./( (zeta.^2-1).*(1-zeta_frac).^2 );
+            dz(isnan(dz)) = 0;
+            dz(isinf(dz)) = 0;
         end
         function zeta = z_to_zeta(this,z)
             z_p = (z+this.n*this.l);
@@ -87,6 +89,31 @@ classdef kt_airfoil
         function z = airfoil_coords(this,theta)
             z = this.zeta_to_z( this.cylinder_map(theta) );
         end
+        function [x,y] = output_airfoil_coords_theta(this,theta)
+            z = ( this.airfoil_coords(theta) - this.airfoil_coords(this.thetaLE) )./this.chord;
+            x = real(z);
+            y = imag(z);
+        end
+        function [x,y] = output_airfoil_coords(this,N,F)
+            mid = this.thetaLE/(2*pi);
+            N1 = floor(mid*N)+1;
+            N2 = N-N1+1;
+            t01 = linspace(0,mid,N1);
+            t02 = linspace(mid,1,N2);
+            t1 = this.arc_length_param(t01);
+            t2 = this.arc_length_param(t02);
+            % t1 = this.arc_length_param(F(t01));
+            % t2 = this.arc_length_param(F(t02));
+            % t1 = t01(:);
+            % t2 = t02(:);
+            t  = [t1(1:end-1);t2(:)];
+            t = this.arc_length_param(linspace(0,1,N));
+            theta = 2*pi*F(t);
+            % t  = [F(t1(1:end-1));F(t2(:))];
+            % theta = 2*pi*t;
+            [x,y] = output_airfoil_coords_theta(this,theta);
+        end
+
         function this = get_airfoil_chord(this)
             z_fun = @(s,theta)s*real(this.airfoil_coords(theta));
             this.thetaLE = fminbnd(@(theta)z_fun( 1,theta),0,2*pi);
@@ -195,6 +222,27 @@ classdef kt_airfoil
         function dS = airfoil_differential_arc_length(this,theta)
             dS = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
                      .*this.cylinder_map_derivative(theta);
+        end
+        function S = airfoil_arc_length(this,t0,t1)
+            S = integral(@(t)diff_arc_length(this,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
+            function dS = diff_arc_length(this,t)
+                dS = 2*pi*abs(this.airfoil_differential_arc_length( 2*pi*t ));
+                dS(isnan(dS)) = 0;
+                dS(isinf(dS)) = 0;
+            end
+        end
+        function ts = arc_length_param(this,t)
+            options = optimset('TolFun',1e-15,'TolX',1e-17);
+            N = numel(t);
+            L_total = this.airfoil_arc_length(t(1),t(N));
+            dL = ( t(N) - t(1) ) / L_total;
+            ts = zeros(N,1);
+            ts(1) = t(1);
+            ts(N) = t(N);
+            for i = 2:N-1
+                ftmp = @(tsi) t(i)-t(i-1) - dL * this.airfoil_arc_length(ts(i-1),tsi);
+                ts(i) = fzero( @(tsi)ftmp(tsi),ts(i-1),options);
+            end
         end
         function val = airfoil_surface_integral(this,fun,t0,t1)
             val = integral(@(theta)fun(theta) ...
