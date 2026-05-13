@@ -62,6 +62,27 @@ classdef kt_airfoil
             h2 = fplot( @(theta)xfun(theta), @(theta)pfun(theta), [this.thetaLE,2*pi-tol] );
         end
 
+        function [h] = plot_osculating_circles(this,theta,n,scale)
+            t = linspace(0,2*pi,n);
+            h = struct();
+            [r,x,y] = this.get_osculating_circle(theta,scale);
+            for i = 1:numel(theta)
+                h.p(i) = plot(x(i)+r(i)*cos(t),y(i)+r(i)*sin(t));
+            end
+        end
+        function [r,x,y] = get_osculating_circle(this,theta,scale)
+            K = this.airfoil_curvature2(theta);
+            r = 1./K;
+            [N1,N2,~] = this.unit_normal(theta);
+            if scale
+                z = ( this.airfoil_coords(theta) - this.airfoil_coords(this.thetaLE) )./this.chord;
+            else
+                z = this.airfoil_coords(theta);
+            end
+            x = real(z(:)) - r(:).*N1(:);
+            y = imag(z(:)) - r(:).*N2(:);
+        end
+
         function zeta = cylinder_map(this,theta)
             zeta = this.a*exp(1i*(theta-this.beta)) + this.mu;
         end
@@ -239,16 +260,38 @@ classdef kt_airfoil
             dS = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
                      .*this.cylinder_map_derivative(theta);
         end
-        function K = airfoil_curvature(this,theta)
+        function K = airfoil_curvature1(this,theta)
             dz = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
                      .*this.cylinder_map_derivative(theta);
             xdot = real(dz);
             ydot = imag(dz);
             % D[D[f1[f2[x]], x], x] = f2'[x]^2 f1''[f2[x]] + f1'[f2[x]] f2''[x]
             % dz2  = 
-            K = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
-                     .*this.cylinder_map_derivative(theta);
+            term1 = this.cylinder_map_derivative(theta).^2;
+            term2 = this.diff_zeta_to_z2( this.cylinder_map(theta) );
+            term3 = this.diff_zeta_to_z( this.cylinder_map(theta) );
+            term4 = this.cylinder_map_derivative2(theta);
+            dF2 = term1.*term2 + term3.*term4;
+            xdotdot = real(dF2);
+            ydotdot = imag(dF2);
+            K = abs(xdot.*ydotdot - ydot.*xdotdot)./(xdot.^2+ydot.^2).^(3/2);
         end
+        function K = airfoil_curvature2(this,theta)
+            dz = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
+                     .*this.cylinder_map_derivative(theta);
+            % D[D[f1[f2[x]], x], x] = f2'[x]^2 f1''[f2[x]] + f1'[f2[x]] f2''[x]
+            % dz2  = 
+            term1 = this.cylinder_map_derivative(theta).^2;
+            term2 = this.diff_zeta_to_z2( this.cylinder_map(theta) );
+            term3 = this.diff_zeta_to_z( this.cylinder_map(theta) );
+            term4 = this.cylinder_map_derivative2(theta);
+            dz2 = term1.*term2 + term3.*term4;
+            rdot_rdot       = real(dz.*conj(dz));
+            rdot_rdotdot    = real(dz.*conj(dz2));
+            rdotdot_rdotdot = real(dz2.*conj(dz2));
+            K = sqrt(rdot_rdot.*rdotdot_rdotdot - rdot_rdotdot.^2)./(rdot_rdot).^(3/2);
+        end
+        
         function S = airfoil_arc_length(this,t0,t1)
             S = integral(@(t)diff_arc_length(this,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
             function dS = diff_arc_length(this,t)

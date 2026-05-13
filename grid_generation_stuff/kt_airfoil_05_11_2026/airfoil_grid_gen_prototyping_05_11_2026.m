@@ -39,14 +39,16 @@ airfoil        = airfoil.set_alpha(inputs.alpha);
 
 
 N = 257;
-F = smooth_symmetric_stretch(N,airfoil.thetaLE/(2*pi),0.001,0.001,0.01);
+% F = smooth_symmetric_stretch(N,airfoil.thetaLE/(2*pi),0.001,0.001,0.01);
 % F = @(t) t;
-t = linspace(0,1,10001);
-t2 = F(t);
+% t = linspace(0,1,10001);
+% t2 = F(t);
 % plot(t,t2)
 % plot(t(1:end-1),diff(t2));
 % hold on
 airfoil.plot_airfoil(true);
+ts = weight_grid(0,1,N,@(t)1./airfoil.airfoil_curvature2(min(max(2*pi*t,0.001),2*pi-0.001)));
+F = @(t)interp1(linspace(0,1,N),ts,t);
 [x,y] = airfoil.output_airfoil_coords(N,F);
 plot(x,y,'r.')
 xlim([-0.0579 0.0538])
