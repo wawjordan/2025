@@ -68,6 +68,9 @@ classdef kt_airfoil
         function zeta = cylinder_map_derivative(this,theta)
             zeta = 1i*this.a*exp(1i*(theta-this.beta));
         end
+        function zeta = cylinder_map_derivative2(this,theta)
+            zeta = -this.a*exp(1i*(theta-this.beta));
+        end
         function z = zeta_to_z(this,zeta)
             zeta_p = (zeta+this.l).^this.n;
             zeta_m = (zeta-this.l).^this.n;
@@ -77,6 +80,19 @@ classdef kt_airfoil
             zeta_frac = ( (zeta - this.l)./(zeta + this.l) ).^this.n;
             factor = 4*(this.n*this.l)^2;
             dz = factor*zeta_frac./( (zeta.^2-1).*(1-zeta_frac).^2 );
+            dz(isnan(dz)) = 0;
+            dz(isinf(dz)) = 0;
+        end
+        function dz = diff_zeta_to_z2(this,zeta)
+            % (8*l^2*n^2*(zeta + l)^n*(zeta - l)^n*(zeta*(zeta - l)^n - zeta*(zeta + l)^n + l*n*(zeta + l)^n + l*n*(zeta - l)^n))/(((l + zeta)^n - (- l + zeta)^n)^3*(l^2 - zeta^2)^2)
+            % (8*l^2*n^2*zeta_p*zeta_m*(zeta*zeta_m - zeta*zeta_p + l*n*zeta_p + l*n*zeta_m))/((zeta_p - zeta_m)^3*(l^2 - zeta^2)^2)
+            % (8*l^2*n^2*zeta_p*zeta_m*(zeta*zeta_m - zeta*zeta_p + l*n*zeta_p + l*n*zeta_m))
+            zeta_p = (zeta+this.l).^this.n;
+            zeta_m = (zeta-this.l).^this.n;
+            factor = 8*(this.n*this.l)^2;
+            num = factor*zeta_p.*zeta_m.*(zeta.*zeta_m - zeta.*zeta_p + this.l*this.n*(zeta_p + zeta_m) );
+            den = (zeta_p - zeta_m).^3 .* (this.l^2 - zeta.^2).^2;
+            dz = num./den;
             dz(isnan(dz)) = 0;
             dz(isinf(dz)) = 0;
         end
@@ -221,6 +237,16 @@ classdef kt_airfoil
         end
         function dS = airfoil_differential_arc_length(this,theta)
             dS = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
+                     .*this.cylinder_map_derivative(theta);
+        end
+        function K = airfoil_curvature(this,theta)
+            dz = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
+                     .*this.cylinder_map_derivative(theta);
+            xdot = real(dz);
+            ydot = imag(dz);
+            % D[D[f1[f2[x]], x], x] = f2'[x]^2 f1''[f2[x]] + f1'[f2[x]] f2''[x]
+            % dz2  = 
+            K = this.diff_zeta_to_z( this.cylinder_map(theta) ) ...
                      .*this.cylinder_map_derivative(theta);
         end
         function S = airfoil_arc_length(this,t0,t1)
