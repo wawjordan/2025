@@ -33,11 +33,41 @@ classdef kt_airfoil
             this.beta = asin(this.l*this.kappa/this.a);
             this = this.get_airfoil_chord();
         end
+        function V = get_prim_variables(this,i,x,y,scale)
+            z = x + 1i*y;
+            if (scale)
+                z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+            end
+            zeta = this.z_to_zeta(z);
+            switch(i)
+                case(1)
+                    V = this.airfoil_density(zeta);
+                case(2)
+                    V = this.airfoil_x_velocity(zeta);
+                case(3)
+                    V = this.airfoil_y_velocity(zeta);
+                case(4)
+                    V = this.airfoil_z_velocity(zeta);
+                case(5)
+                    V = this.airfoil_pressure(zeta);
+                otherwise
+                    error('only primitive variables 1-5 are supported')
+            end
+        end
         function this = set_alpha(this,alpha)
             this.alpha = deg2rad(alpha);
         end
         function val = CL(this)
             val = 8*pi*(this.a/this.chord)*sin(this.alpha+this.beta);
+        end
+        function val = CD(~)
+            val = 0;
+        end
+        function val = CX(this)
+            val = -this.CL * sin(this.alpha);
+        end
+        function val = CY(this)
+            val = this.CL * cos(this.alpha);
         end
 
         function [h1,h2] = plot_airfoil(this,scale)
@@ -52,16 +82,6 @@ classdef kt_airfoil
             h2 = fplot( @(theta)real(zfun(theta)), @(theta)imag(zfun(theta)), [this.thetaLE,2*pi] );
             set(gca,'DataAspectRatio',[1 1 1])
         end
-
-        function [h1,h2] = plot_cp(this)
-            tol = 1e-12;
-            xfun = @(theta) real(this.airfoil_coords(theta) - this.airfoil_coords(this.thetaLE) )./this.chord;
-            pfun = @(theta) ( this.airfoil_pressure(this.cylinder_map(theta)) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
-            h1 = fplot( @(theta)xfun(theta), @(theta)pfun(theta), [0+tol,this.thetaLE] );
-            hold on;
-            h2 = fplot( @(theta)xfun(theta), @(theta)pfun(theta), [this.thetaLE,2*pi-tol] );
-        end
-
         function [h] = plot_osculating_circles(this,theta,n,scale)
             t = linspace(0,2*pi,n);
             h = struct();
@@ -81,6 +101,15 @@ classdef kt_airfoil
             end
             x = real(z(:)) - r(:).*N1(:);
             y = imag(z(:)) - r(:).*N2(:);
+        end
+
+        function [h1,h2] = plot_cp(this)
+            tol = 1e-12;
+            xfun = @(theta) real(this.airfoil_coords(theta) - this.airfoil_coords(this.thetaLE) )./this.chord;
+            pfun = @(theta) ( this.airfoil_pressure(this.cylinder_map(theta)) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
+            h1 = fplot( @(theta)xfun(theta), @(theta)pfun(theta), [0+tol,this.thetaLE] );
+            hold on;
+            h2 = fplot( @(theta)xfun(theta), @(theta)pfun(theta), [this.thetaLE,2*pi-tol] );
         end
 
         function zeta = cylinder_map(this,theta)
@@ -457,29 +486,40 @@ classdef kt_airfoil
             vol = this.integrate_polygon_area(x,y,scale,use_curv);
             src = src/vol;
         end
-
-        function V = get_prim_variables(this,i,x,y,scale)
-            z = x + 1i*y;
-            if (scale)
-                z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+        function Cp = get_averaged_cp_on_segment(this,x1,y1,x2,y2,scale,use_curv)
+            tol = 1e-8;
+            point1_on_surface = this.on_airfoil(x1,y1,scale,tol);
+            point2_on_surface = this.on_airfoil(x2,y2,scale,tol);
+            if ~( point1_on_surface || point2_on_surface )
+                fprintf('off surface\n');
             end
-
-            zeta = this.z_to_zeta(z);
-
-            switch(i)
-                case(1)
-                    V = this.airfoil_density(zeta);
-                case(2)
-                    V = this.airfoil_x_velocity(zeta);
-                case(3)
-                    V = this.airfoil_y_velocity(zeta);
-                case(4)
-                    V = this.airfoil_z_velocity(zeta);
-                case(5)
-                    V = this.airfoil_pressure(zeta);
-                otherwise
-                    error('only primitive variables 1-5 are supported')
+            on_surface = point1_on_surface ...
+                      && point2_on_surface ...
+                      && use_curv;
+            if on_surface
+                [t0,t1] = this.get_theta_from_z(x1,y1,x2,y2,scale);
+                pfun = @(theta) ( this.airfoil_pressure(this.cylinder_map(theta)) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
+                Cp_integral = airfoil_surface_integral(this,@(theta)pfun(theta),t0,t1)*sign(t1-t0);
+                area = abs(airfoil_surface_integral(this,@(theta)0*theta+1,t0,t1));
+                Cp = Cp_integral/area;
+            else
+                [z,dzdt,~] = this.line_param(x1,y1,x2,y2,scale);
+                pfun = @(t) ( this.airfoil_pressure(this.z_to_zeta(z(t))) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
+                dS   = @(t)abs(this.diff_zeta_to_z(z(t)).*dzdt(t));
+                Cp_integral = integral(@(t)pfun(t).*dS(t),0,1,"AbsTol",1e-14,'RelTol',1e-12);
+                % area = sqrt( (x2-x1).^2 + (y2-y1).^2);
+                area = integral(@(t)dS(t),0,1,"AbsTol",1e-14,'RelTol',1e-12);
+                Cp = Cp_integral/area;
             end
         end
+        function Cp = get_averaged_cp_on_airfoil(this,x,y,scale,use_curv)
+            N = length(x);
+            Cp = zeros(N-1,1);
+            for i = 1:N-1
+                Cp(i) = get_averaged_cp_on_segment(this,x(i),y(i),x(i+1),y(i+1),scale,use_curv);
+            end
+        end
+
+        
     end
 end
