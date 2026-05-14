@@ -131,26 +131,35 @@ classdef kt_airfoil
             x = real(z);
             y = imag(z);
         end
-        function [x,y] = output_airfoil_coords(this,N,F)
-            mid = this.thetaLE/(2*pi);
-            N1 = floor(mid*N)+1;
-            N2 = N-N1+1;
-            t01 = linspace(0,mid,N1);
-            t02 = linspace(mid,1,N2);
-            t1 = this.arc_length_param(t01);
-            t2 = this.arc_length_param(t02);
-            % t1 = this.arc_length_param(F(t01));
-            % t2 = this.arc_length_param(F(t02));
-            % t1 = t01(:);
-            % t2 = t02(:);
-            t  = [t1(1:end-1);t2(:)];
+        % function [x,y] = output_airfoil_coords(this,N,F)
+        %     mid = this.thetaLE/(2*pi);
+        %     N1 = floor(mid*N)+1;
+        %     N2 = N-N1+1;
+        %     t01 = linspace(0,mid,N1);
+        %     t02 = linspace(mid,1,N2);
+        %     t1 = this.arc_length_param(t01);
+        %     t2 = this.arc_length_param(t02);
+        %     % t1 = this.arc_length_param(F(t01));
+        %     % t2 = this.arc_length_param(F(t02));
+        %     % t1 = t01(:);
+        %     % t2 = t02(:);
+        %     t  = [t1(1:end-1);t2(:)];
+        %     t = this.arc_length_param(linspace(0,1,N));
+        %     theta = 2*pi*F(t);
+        %     % t  = [F(t1(1:end-1));F(t2(:))];
+        %     % theta = 2*pi*t;
+        %     [x,y] = output_airfoil_coords_theta(this,theta);
+        % end
+        function [x,y] = output_airfoil_coords1(this,N,F)
             t = this.arc_length_param(linspace(0,1,N));
             theta = 2*pi*F(t);
-            % t  = [F(t1(1:end-1));F(t2(:))];
-            % theta = 2*pi*t;
             [x,y] = output_airfoil_coords_theta(this,theta);
         end
-
+        function [x,y] = output_airfoil_coords2(this,N,F)
+            t = linspace(0,1,N);
+            theta = 2*pi*this.arc_length_param(F(t));
+            [x,y] = output_airfoil_coords_theta(this,theta);
+        end
         function this = get_airfoil_chord(this)
             z_fun = @(s,theta)s*real(this.airfoil_coords(theta));
             this.thetaLE = fminbnd(@(theta)z_fun( 1,theta),0,2*pi);

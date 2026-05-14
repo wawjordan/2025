@@ -12,7 +12,8 @@ clc;
 
 inputs = struct();
 inputs.epsilon = 0.1;
-inputs.kappa   = 0.1;
+inputs.kappa   = 0.0;
+% inputs.kappa   = 0.1;
 inputs.tau     = 0.0;
 inputs.vinf    = 75.0;
 inputs.rhoinf  = 1.0;
@@ -37,22 +38,70 @@ airfoil.pinf   = inputs.pinf;
 airfoil        = airfoil.set_alpha(inputs.alpha);
 % [ x, y, fx, fy ] = wake_cut_pts( airfoil_x, airfoil_y, boundary_distance, num_wake_pts, '' );
 
+% c1 = airfoil.airfoil_curvature2(airfoil.thetaLE);
+% curvature = @(t) min(c1,airfoil.airfoil_curvature2(2*pi*t));
+% deriv     = @(t) abs(airfoil.airfoil_differential_arc_length(2*pi*t));
+% w = @(alpha,beta,t) (1 - beta*curvature(t)).*sqrt(1+alpha^2*deriv(t).^2);
+% alpha = 1;
+% beta  = (1-0.5)/c1;
+% phi = @(t) w(alpha,beta,t);
+% N = 33;
+% F1 = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
+alpha = 10;
+gamma = 0.5;
+N = 129;
 
-N = 257;
-% F = smooth_symmetric_stretch(N,airfoil.thetaLE/(2*pi),0.001,0.001,0.01);
-% F = @(t) t;
-% t = linspace(0,1,10001);
-% t2 = F(t);
-% plot(t,t2)
-% plot(t(1:end-1),diff(t2));
-% hold on
+% F2 = @(d) arrayfun(@(d) TE_dist(airfoil,alpha,gamma,N,33,d),d);
+% % a = [0,1,10,100,1000];
+% a = (1/32) * (1/2).^(4:-1:0);
+% d = F2(a);
+% loglog(a,d);
+
+F1 = airfoil_param_fun(airfoil,alpha,gamma,33);
+F2 = airfoil_param_fun2(airfoil,alpha,gamma,33,N,0.5);
+
+% [t1,Ft,~,~,~] = my_tanh_stretching_function( 0, 1, N, 1e-1, 1e-1, nan, nan, 1.0e-6 );
+% fplot(phi,[0,1])
+% N = 2049;
+% F1 = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
+% N = 21;
+% F2 = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
+% % hold on
+% fplot(@(t)F1(t)-F2(t),[0,1],'r')
+% fplot(@(t)F1(t),[0,1],'r')
+% fplot(phi,[0,1],'b')
+
 airfoil.plot_airfoil(true);
-ts = weight_grid(0,1,N,@(t)1./airfoil.airfoil_curvature2(min(max(2*pi*t,0.001),2*pi-0.001)));
-F = @(t)interp1(linspace(0,1,N),ts,t);
-[x,y] = airfoil.output_airfoil_coords(N,F);
+[x,y] = airfoil.output_airfoil_coords1(N,F1);
 plot(x,y,'r.')
+[x,y] = airfoil.output_airfoil_coords1(N,F2);
+plot(x,y,'b.')
 xlim([-0.0579 0.0538])
 hold off
+
+function dist = TE_dist(airfoil,alpha,gamma,N1,N2,d)
+F = airfoil_param_fun(airfoil,alpha,gamma,N1);
+[~,Ft,~,~,~] = my_tanh_stretching_function( 0, 1, N2, d, d, nan, nan, 1.0e-6 );
+[x,y] = airfoil.output_airfoil_coords1(N2,@(t)Ft(F(t)));
+dist = sqrt( (x(end)-x(end-1)).^2 + (y(end)-y(end-1)).^2 );
+end
+
+function F = airfoil_param_fun(airfoil,alpha,gamma,N)
+c1 = airfoil.airfoil_curvature2(airfoil.thetaLE);
+curvature = @(t) min(c1,airfoil.airfoil_curvature2(2*pi*t));
+deriv     = @(t) abs(airfoil.airfoil_differential_arc_length(2*pi*t));
+w = @(alpha,beta,t) (1 - beta*curvature(t)).*sqrt(1+alpha^2*deriv(t).^2);
+beta  = (1-gamma)/c1;
+phi = @(t) w(alpha,beta,t);
+F = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
+end
+
+function F = airfoil_param_fun2(airfoil,alpha,gamma,N1,N2,d)
+F1 = airfoil_param_fun(airfoil,alpha,gamma,N1);
+dist = d/(N2-1);
+[~,Ft,~,~,~] = my_tanh_stretching_function( 0, 1, N2, dist, dist, nan, nan, 1.0e-6 );
+F = @(t)Ft(F1(t));
+end
 
 function F = smooth_symmetric_stretch(N,mid,spacing_end,spacing_mid,overlap)
 N1 = floor(mid*N)+1;
