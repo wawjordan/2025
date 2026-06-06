@@ -6,7 +6,7 @@ validScalarPosNum = @(x) validScalarNum(x) && (x > 0);
 validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
 
 validReal        = @(x) isreal(x) && ~isnan(x) && ~isinf(x);
-validRealPoints  = @(x) validReal(x) && isvector(x);
+validRealPoints  = @(x) all(arrayfun(@(x)validReal(x),x),"all") && isvector(x);
 validVec         = @(x) validRealPoints(x) && numel(x)==2;
 valid_fcn_handle = @(x) isa(x,'function_handle');
 addRequired(p,'airfoil_x',validRealPoints);
@@ -19,8 +19,8 @@ addOptional(p,'fx',[],valid_fcn_handle);
 addOptional(p,'fy',[],valid_fcn_handle);
 parse( p, airfoil_x, airfoil_y, boundary_distance, num_wake_pts, varargin{:} );
 
-airfoil_x         = p.Results.airfoil_x;
-airfoil_y         = p.Results.airfoil_y;
+airfoil_x         = p.Results.airfoil_x(:).';
+airfoil_y         = p.Results.airfoil_y(:).';
 boundary_distance = p.Results.boundary_distance;
 num_wake_pts      = p.Results.num_wake_pts;
 TE_loc            = p.Results.TE_loc;
@@ -42,8 +42,8 @@ x1 = fx(t);
 y1 = fy(t);
 
 % Piece the wake points together with the body points
-x = horzcat( x1(1,1:end-1), TE_loc(1), x1(1,2:end));
-y = horzcat( y1(1,1:end-1), TE_loc(2), y1(1,2:end));
+x = horzcat( x1(1,end:-1:2), airfoil_x, x1(1,2:end));
+y = horzcat( y1(1,end:-1:2), airfoil_y, y1(1,2:end));
 end
 
 function delta = get_delta(airfoil_x,airfoil_y)
@@ -95,29 +95,29 @@ function fx = default_wake_x(TE_loc,delta,boundary_distance,num_pts)
 % Set an exponential stretching rate for the wake region
 % input t ranges from 0 to 1
 body_x = TE_loc(1);
-alpha = epsilon_solve(0, boundary_distance, delta , num_pts, 1e-10, 100);
-r = 1.0 + alpha;
+% alpha = epsilon_solve(TE_loc(1), boundary_distance, delta , num_pts, 1e-10, 100);
+% r = 1.0 + alpha;
+[~,r,~] = my_geomspace( num_pts, TE_loc(1), xmax=boundary_distance, dx0=delta );
 rN = r^(num_pts-1);
 fx = @(t) body_x + delta*(rN.^t - 1)/(r-1);
-
-    function [root] = epsilon_solve( min_val, max_val, delta, n_points, toler, n_iter)
-    % Newton-Raphson root finding to find epsilon for
-    % R^{j+1} = R^{j} + delta*(1+epsilon)^(j-2)
-    converged = false;
-    nptm2 = n_points - 2;
-    % Estimate epsilon
-    root = (max_val/delta)^(1/nptm2) - 1; 
-    for n = 1:n_iter
-      const = (root+1)^nptm2;
-      value = max_val - min_val - delta*(const*(root+1) - 1)/root;
-      if ( abs(value) < toler )
-        converged = true;
-        break
-      end
-      root = root + value/(delta*( 1 + const*(root*nptm2 - 1) )/root^2);
-    end
-    if converged == false
-      error('Root finding function has failed to converge'); 
-    end
-    end
+    % function [root] = epsilon_solve( min_val, max_val, delta, n_points, toler, n_iter)
+    % % Newton-Raphson root finding to find epsilon for
+    % % R^{j+1} = R^{j} + delta*(1+epsilon)^(j-2)
+    % converged = false;
+    % nptm2 = n_points - 2;
+    % % Estimate epsilon
+    % root = (max_val/delta)^(1/nptm2) - 1; 
+    % for n = 1:n_iter
+    %   const = (root+1)^nptm2;
+    %   value = max_val - min_val - delta*(const*(root+1) - 1)/root;
+    %   if ( abs(value) < toler )
+    %     converged = true;
+    %     break
+    %   end
+    %   root = root + value/(delta*( 1 + const*(root*nptm2 - 1) )/root^2);
+    % end
+    % if converged == false
+    %   error('Root finding function has failed to converge'); 
+    % end
+    % end
 end
