@@ -54,6 +54,62 @@ classdef kt_airfoil
                     error('only primitive variables 1-5 are supported')
             end
         end
+
+        function V = get_prim_variable_derivatives(this,i,d,x,y,scale)
+            z = x + 1i*y;
+            factor = 1;
+            if (scale)
+                z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+                factor = this.chord;
+            end
+            switch(d)
+                case(1)
+                    switch(i)
+                        case(1)
+                            V = factor*this.ddens_dx(z);
+                        case(2)
+                            V = factor*this.dxvel_dx(z);
+                        case(3)
+                            V = factor*this.dyvel_dx(z);
+                        case(4)
+                            V = factor*this.dzvel_dx(z);
+                        case(5)
+                            V = factor*this.dpres_dx(z);
+                        otherwise
+                            error('only primitive variables 1-5 are supported')
+                    end
+                case(2)
+                    switch(i)
+                        case(1)
+                            V = factor*this.ddens_dy(z);
+                        case(2)
+                            V = factor*this.dxvel_dy(z);
+                        case(3)
+                            V = factor*this.dyvel_dy(z);
+                        case(4)
+                            V = factor*this.dzvel_dy(z);
+                        case(5)
+                            V = factor*this.dpres_dy(z);
+                        otherwise
+                            error('only primitive variables 1-5 are supported')
+                    end
+                case(3)
+                    switch(i)
+                        case(1)
+                            V = factor*this.ddens_dz(z);
+                        case(2)
+                            V = factor*this.dxvel_dz(z);
+                        case(3)
+                            V = factor*this.dyvel_dz(z);
+                        case(4)
+                            V = factor*this.dzvel_dz(z);
+                        case(5)
+                            V = factor*this.dpres_dz(z);
+                        otherwise
+                            error('only primitive variables 1-5 are supported')
+                    end
+            end
+        end
         function this = set_alpha(this,alpha)
             this.alpha = deg2rad(alpha);
         end
@@ -115,24 +171,51 @@ classdef kt_airfoil
         function zeta = cylinder_map(this,theta)
             zeta = this.a*exp(1i*(theta-this.beta)) + this.mu;
         end
-        function zeta = cylinder_map_derivative(this,theta)
-            zeta = 1i*this.a*exp(1i*(theta-this.beta));
+        function dzeta_dtheta = cylinder_map_derivative(this,theta)
+            dzeta_dtheta = 1i*this.a*exp(1i*(theta-this.beta));
         end
-        function zeta = cylinder_map_derivative2(this,theta)
-            zeta = -this.a*exp(1i*(theta-this.beta));
+        function d2zeta_dtheta2 = cylinder_map_derivative2(this,theta)
+            d2zeta_dtheta2 = -this.a*exp(1i*(theta-this.beta));
         end
         function z = zeta_to_z(this,zeta)
             zeta_p = (zeta+this.l).^this.n;
             zeta_m = (zeta-this.l).^this.n;
             z = this.n*this.l*( zeta_p + zeta_m )./( zeta_p - zeta_m );
         end
-        function dz = diff_zeta_to_z(this,zeta)
+        function zeta = z_to_zeta(this,z)
+            z_p = (z+this.n*this.l);
+            z_m = (z-this.n*this.l);
+            xn = 1/this.n;
+            zeta = -this.l*( (z_m./z_p).^xn + 1) ./ ( (z_m./z_p).^xn - 1);
+        end
+        function dz_dzeta = diff_zeta_to_z(this,zeta)
             zeta_frac = ( (zeta - this.l)./(zeta + this.l) ).^this.n;
             factor = 4*(this.n*this.l)^2;
-            dz = factor*zeta_frac./( (zeta.^2-1).*(1-zeta_frac).^2 );
-            dz(isnan(dz)) = 0;
-            dz(isinf(dz)) = 0;
+            dz_dzeta = factor*zeta_frac./( (zeta.^2-1).*(1-zeta_frac).^2 );
+            dz_dzeta(isnan(dz_dzeta)) = 0;
+            dz_dzeta(isinf(dz_dzeta)) = 0;
         end
+        function dzeta_dz = diff_z_to_zeta(this,z)
+            % -(4*this_l^2*(1 - (2*this_l*this_n)/(z + this_l*this_n))^(1/this_n))/((- z^2 + this_l^2*this_n^2)*((- (2*this_l*this_n)/(z + this_l*this_n) + 1)^(1/this_n) - 1)^2)
+            %
+            %                      2 /      2 l n  \1/n
+            %                   4 l  | 1 - ------- |
+            %  d zeta                \     z + l n /
+            %  ------ = ------------------------------------------
+            %    d z      2    2  2  / /    2 l n      \1/n     \2
+            %           (z  - l  n ) | | - ------- + 1 |    - 1 |
+            %                        \ \   z + l n     /        /
+            ln = this.n*this.l;
+            z_p = (z+ln);
+            xn = 1/this.n;
+            dzeta_dz = -(4*this.l^2*(1 - (2*ln)./z_p).^xn)./((ln^2 - z.^2).*((- (2*ln)./z_p + 1).^xn - 1).^2);
+            % dzeta_dz = (this.l.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n - 1).*((z - this.l.*this.n)./(z + this.l.*this.n).^2 - 1./(z + this.l.*this.n)))./(this.n.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - 1)) - (this.l.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n - 1).*((z - this.l.*this.n)./(z + this.l.*this.n).^2 - 1./(z + this.l.*this.n)).*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) + 1))./(this.n.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - 1).^2);
+        end
+
+        function d2zeta_dz2 = diff_z_to_zeta2(this,z)
+            d2zeta_dz2 = -(this.l.^3.*(8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) + 8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)) - 8.*this.l.^2.*z.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - ((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)))./((this.l.^2.*this.n.^2 - z.^2).^2.*(3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - 3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n) + ((z - this.l.*this.n)./(z + this.l.*this.n)).^(3./this.n) - 1));
+        end
+
         function dz = diff_zeta_to_z2(this,zeta)
             % (8*l^2*n^2*(zeta + l)^n*(zeta - l)^n*(zeta*(zeta - l)^n - zeta*(zeta + l)^n + l*n*(zeta + l)^n + l*n*(zeta - l)^n))/(((l + zeta)^n - (- l + zeta)^n)^3*(l^2 - zeta^2)^2)
             % (8*l^2*n^2*zeta_p*zeta_m*(zeta*zeta_m - zeta*zeta_p + l*n*zeta_p + l*n*zeta_m))/((zeta_p - zeta_m)^3*(l^2 - zeta^2)^2)
@@ -146,12 +229,7 @@ classdef kt_airfoil
             dz(isnan(dz)) = 0;
             dz(isinf(dz)) = 0;
         end
-        function zeta = z_to_zeta(this,z)
-            z_p = (z+this.n*this.l);
-            z_m = (z-this.n*this.l);
-            xn = 1/this.n;
-            zeta = -this.l*( (z_m./z_p).^xn + 1) ./ ( (z_m./z_p).^xn - 1);
-        end
+        
         function z = airfoil_coords(this,theta)
             z = this.zeta_to_z( this.cylinder_map(theta) );
         end
@@ -160,25 +238,6 @@ classdef kt_airfoil
             x = real(z);
             y = imag(z);
         end
-        % function [x,y] = output_airfoil_coords(this,N,F)
-        %     mid = this.thetaLE/(2*pi);
-        %     N1 = floor(mid*N)+1;
-        %     N2 = N-N1+1;
-        %     t01 = linspace(0,mid,N1);
-        %     t02 = linspace(mid,1,N2);
-        %     t1 = this.arc_length_param(t01);
-        %     t2 = this.arc_length_param(t02);
-        %     % t1 = this.arc_length_param(F(t01));
-        %     % t2 = this.arc_length_param(F(t02));
-        %     % t1 = t01(:);
-        %     % t2 = t02(:);
-        %     t  = [t1(1:end-1);t2(:)];
-        %     t = this.arc_length_param(linspace(0,1,N));
-        %     theta = 2*pi*F(t);
-        %     % t  = [F(t1(1:end-1));F(t2(:))];
-        %     % theta = 2*pi*t;
-        %     [x,y] = output_airfoil_coords_theta(this,theta);
-        % end
         function [x,y] = output_airfoil_coords1(this,N,F)
             t = this.arc_length_param(linspace(0,1,N));
             theta = 2*pi*F(t);
@@ -207,12 +266,108 @@ classdef kt_airfoil
                    + 2*1i*this.a*sin(this.alpha+this.beta)./(zeta-this.mu) ...
                    - this.a^2*exp(1i*this.alpha)./(zeta-this.mu).^2;
         end
+        function dwtilde = cylinder_velocity_derivative(this,zeta)
+            dwtilde = ...
+                -2*1i*this.a*sin(this.alpha+this.beta)./(zeta-this.mu).^2 ...
+                + 2*this.a^2*exp(1i*this.alpha)./(zeta-this.mu).^3;
+        end
         function w = airfoil_velocity(this,zeta)
             dz = this.diff_zeta_to_z(zeta);
             w  = this.vinf*this.cylinder_velocity(zeta)./dz;
         end
+        function dw = airfoil_velocity_derivative(this,zeta)
+            wtilde  = this.cylinder_velocity(zeta);
+            dwtilde = this.cylinder_velocity_derivative(zeta);
+            dz      = this.diff_zeta_to_z(zeta);
+            dz2     = this.diff_zeta_to_z2(zeta);
+            dw = this.vinf*( dwtilde./dz - wtilde.*dz2./(dz.^2) );
+        end
+        function dw = airfoil_velocity_derivative_wrt_theta(this,theta)
+            zeta    = this.cylinder_map(theta);
+            dzeta   = this.cylinder_map_derivative(theta);
+            wtilde  = this.cylinder_velocity(zeta);
+            dwtilde = this.cylinder_velocity_derivative(zeta);
+            dz      = this.diff_zeta_to_z(zeta);
+            dz2     = this.diff_zeta_to_z2(zeta);
+            dw = this.vinf*( ...
+                             dwtilde.*dzeta./dz ...
+                             - wtilde.*dz2.*dzeta./(dz.^2) );
+        end
+        function dw = dwdz(this,z)
+            zeta     = this.z_to_zeta(z);
+            dzeta_dz = this.diff_z_to_zeta(z);
+            dw_dzeta = this.airfoil_velocity_derivative(zeta);
+            dw = dzeta_dz.*dw_dzeta;
+        end
+        function dp = dpdz(this,z)
+            zeta     = this.z_to_zeta(z);
+            dzeta_dz = this.diff_z_to_zeta(z);
+            dw_dzeta = this.airfoil_velocity_derivative(zeta);
+            % dp_dw = -(1/2)*this.rhoinf*conj(this.airfoil_velocity(zeta));
+            dp_dw = -this.rhoinf*conj(this.airfoil_velocity(zeta));
+            dp = dzeta_dz.*dw_dzeta.*dp_dw;
+        end
+        % function dp = dpdz2(this,z)
+        %     zeta     = this.z_to_zeta(z);
+        %     dzeta_dz = this.diff_z_to_zeta(z);
+        %     d2zeta_dz2 = this.diff_z_to_zeta2(z);
+        %     dw_dzeta = this.airfoil_velocity_derivative(zeta);
+        %     d2w_dzeta = this.airfoil_velocity_derivative2(zeta);
+        %     dp_dw = -this.rhoinf*conj(this.airfoil_velocity(zeta));
+        %     dp = dzeta_dz.*dw_dzeta.*dp_dw;
+        % end
+        %     % ux = vy, uy = -vx
+        %     % f'(z) = ux + ivx = uy - ivy
+        function d = dxvel_dx(this,z)
+            d = real(this.dwdz(z));
+        end
+        function d = dxvel_dy(this,z)
+            d = -imag(this.dwdz(z));
+        end
+        function d = dxvel_dz(~,z)
+            d = zeros(size(z));
+        end
+        function d = dyvel_dx(this,z)
+            d = this.dxvel_dy(z);
+        end
+        function d = dyvel_dy(this,z)
+            d = -this.dxvel_dx(z);
+        end
+        function d = dyvel_dz(~,z)
+            d = zeros(size(z));
+        end
+        function d = dzvel_dx(~,z)
+            d = zeros(size(z));
+        end
+        function d = dzvel_dy(~,z)
+            d = zeros(size(z));
+        end
+        function d = dzvel_dz(~,z)
+            d = zeros(size(z));
+        end
+
+        function d = dpres_dx(this,z)
+            d = real(this.dpdz(z));
+        end
+        function d = dpres_dy(this,z)
+            d = -imag(this.dpdz(z));
+        end
+        function d = dpres_dz(~,z)
+            d = zeros(size(z));
+        end
+
+        function d = ddens_dx(~,z)
+            d = zeros(size(z));
+        end
+        function drho = ddens_dy(~,z)
+            drho = zeros(size(z));
+        end
+        function drho = ddens_dz(~,z)
+            drho = zeros(size(z));
+        end
+
         function rho = airfoil_density(this,zeta)
-            rho = this.rhoinf + 0*real(zeta);
+            rho = this.rhoinf*ones(size(zeta));
         end
         function u = airfoil_x_velocity(this,zeta)
             u = real(this.airfoil_velocity(zeta));
@@ -221,7 +376,7 @@ classdef kt_airfoil
             v = -imag(this.airfoil_velocity(zeta));
         end
         function w = airfoil_z_velocity(~,zeta)
-            w = 0*real(zeta);
+            w = zeros(size(zeta));
         end
         function vn = airfoil_contravariant_velocity(this,zeta,N1,N2,~)
             w = this.airfoil_velocity(zeta);

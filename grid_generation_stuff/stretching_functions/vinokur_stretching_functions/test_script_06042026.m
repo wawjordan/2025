@@ -20,8 +20,6 @@ i = 4;
 xd = xd(1:i);
 N  =  N(1:i);
 d  =  d(1:i);
-f = blend_functions(0.8,1.3,@(t)t,@(t)sqrt(t),1,0.476731294622796,0,-0.216696043010362);
-pval = arrayfun(@(t)casteljau_1D([0,cumsum(N-1)]/sum(N(:)-1),t),xd/xd(end));
 
 si = get_slopes(N,xd,d);
 
@@ -37,35 +35,6 @@ plot(tb,dxb,'r.')
 plot(t_(1:end-1),diff(x_),'r')
 
 hold off
-
-function pval = casteljau_1D(points,t_eval)
-% Let d be a positive integer and let the d + 1 points (ci)^d_{i=0} be given.
-% The point p_{d,d}(t) on the Bézier curve p_{0,d} of degree d can be determined
-% by the following computations.
-% First set p_{i,0}(t) = c_i for i = 0:d and then compute p_{d,d}(t) by
-% p_{i,r}(t) = (1-t)*p_{i-1,r-1}(t) + t*p_{i,r-1}(t)
-% for i = r:d and r = 1:d
-t_eval = t_eval(:);
-N = size(points,2);
-d = N-1;
-
-l = size(points,1); % dim
-
-
-% First set p_{i,0}(t) = c_i for i = 0:d 
-p = zeros(l,d+1,d+1);
-p(:,:,1) = points;
-
-%Then compute for i = r:d and r = 1:d
-for r = 1:d
-    for i = r:d
-        %p(i,r) = ( 1 - t ) p(i-1,r-1) + t*p(i,r-1)
-        p(:,i+1,r+1) = ( 1 - t_eval ).*p(:,i,r) + t_eval.*p(:,i+1,r);
-%         plot([p(1,i,r),p(1,i+1,r)],[p(2,i,r),p(2,i+1,r)],'k-')
-    end
-end
-pval = squeeze(p(:,d+1,d+1));
-end
 
 
 function si = get_slopes_local(N_i,x_i,d_i)

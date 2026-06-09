@@ -1,13 +1,31 @@
-function f = hermite_blended_functions(x1,x2,f1,f2,df1,df2,ddf1,ddf2)
-f = @(t) blend(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+function [f,df,ddf] = hermite_blended_functions(x1,x2,f1,f2,df1,df2,ddf1,ddf2)
+f   = @(t) fun(  t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+df  = @(t) dfun( t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+ddf = @(t) ddfun(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
 end
-
-function val = blend(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2)
+function fval = fun(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2)
+[fval,~,~] = blend(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+end
+function dfval = dfun(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2)
+[~,dfval,~] = blend(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+end
+function ddfval = ddfun(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2)
+[~,~,ddfval] = blend(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+end
+function [val,dval,ddval] = blend(t,x1,x2,f1,f2,df1,df2,ddf1,ddf2)
     mask1 = t<=x1;
     mask2 = t>=x2;
     mask3 = (~mask1)&(~mask2);
-    val = zeros(size(t));
-    val(mask1) = f1( t(mask1) );
-    val(mask2) = f2( t(mask2) );
-    val(mask3) = qh_interp(t(mask3),x1,x2,f1(x1),f2(x2),df1,df2,ddf1,ddf2);
+    val   = zeros(size(t));
+    dval  = zeros(size(t));
+    ddval = zeros(size(t));
+    val(mask1)   = f1( t(mask1) );
+    dval(mask1)  = df1( t(mask1) );
+    ddval(mask1) = ddf1( t(mask1) );
+    val(mask2)   = f2( t(mask2) );
+    dval(mask2)  = df2( t(mask2) );
+    ddval(mask2) = ddf2( t(mask2) );
+    % val(mask3) = qh_interp(t(mask3),x1,x2,f1(x1),f2(x2),df1,df2,ddf1,ddf2);
+    [val(mask3),dval(mask3),ddval(mask3)] = qh_interp(t(mask3),x1,x2,f1(x1),f2(x2),df1(x1),df2(x2),ddf1(x1),ddf2(x2));
+
 end
