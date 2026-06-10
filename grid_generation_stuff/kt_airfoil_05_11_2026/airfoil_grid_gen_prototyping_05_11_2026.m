@@ -29,8 +29,8 @@ clc;
 
 inputs = struct();
 inputs.epsilon = 0.1;
-inputs.kappa   = 0.1;
-inputs.tau     = 0.1;
+inputs.kappa   = 0.0;
+inputs.tau     = 0.0;
 inputs.vinf    = 75.0;
 inputs.rhoinf  = 1.0;
 inputs.pinf    = 100000.0;
@@ -126,15 +126,20 @@ F2 = airfoil_param_fun(airfoil,1,0,33);
 % [F1,~,~] = vinokur_two_sided_spacing_fcn(N,0.0005,0.0005,true);
 % L = airfoil.airfoil_arc_length(0,1)/airfoil.chord;
 L = airfoil.chord/airfoil.airfoil_arc_length(0,1);
-% [F1,~,~] = hermite_blend_2_vinokur(N,0.0005*L,0.0005*L,0.1*L,true);
+[F0,~,~] = hermite_blend_2_vinokur(N,0.0005*L,0.0005*L,0.1*L,true);
 
 [t_maxC,~] = fminbnd(@(t)-airfoil.airfoil_curvature2(2*pi*t),0.1,0.9);
-% t_maxC = 0.6;
 t0 =airfoil.airfoil_arc_length(0,t_maxC)/airfoil.airfoil_arc_length(0,1);
-[F1,~,~] = hermite_blend_2_vinokur_asym(N,t0,0.0005*L,0.0005*L,0.1*L,true);
-% [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
+% t0 = 0.6;
+[F1,dF1,ddF1] = hermite_blend_2_vinokur_asym(N,t0,0.0001*L,0.0001*L,0.01*L,true);
+% % [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
 [x,y] = airfoil.output_airfoil_coords1(N,F1);
 plot(x,y,'r.')
+% hold on
+% [x,y] = airfoil.output_airfoil_coords1(N,F0);
+% plot(x,y,'b.')
+% xlim([0.9991,1.0003])
+% axis equal
 % [x,y] = airfoil.output_airfoil_coords1(N,F2);
 % plot(x,y,'b.')
 % [x,y] = airfoil.output_airfoil_coords1(N,F3);
@@ -154,7 +159,7 @@ inputs2 = struct();
 inputs2.boundary_distance = 500;
 inputs2.jmax              = 129;             % Number of Points Off Body
 inputs2.wake_pts          = 129;             % Number of Points in Wake
-inputs2.wall_spacing      = 0.0005;          % Intial spacing off the wall
+inputs2.wall_spacing      = 0.0001;          % Intial spacing off the wall
 % inputs2.scjmax            = 0.977;           % Scaling Factor
 inputs2.scjmax            = 0.976;           % Scaling Factor
 inputs2.mu                = 0.1;             % 4th order explicit smoothing factor

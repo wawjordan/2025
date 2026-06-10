@@ -254,6 +254,7 @@ classdef kt_airfoil
         end
         function [x,y] = output_airfoil_coords1(this,N,F)
             t = this.arc_length_param2(linspace(0,1,N),F);
+            % t = reparam_fun(1,@(t)this.z_from_zeta(this.zeta_from_theta(2*pi*t)),F,N,0,1);
             theta = 2*pi*t;
             [x,y] = output_airfoil_coords_theta(this,theta);
         end

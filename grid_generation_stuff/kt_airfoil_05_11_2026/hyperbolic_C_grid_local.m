@@ -42,14 +42,17 @@ imax = 2*(wake_pts-1) + body_pts;
 x = zeros(imax,jmax);
 y = zeros(imax,jmax);
 
-TE_slope = set_TE_slope( x_airfoil, y_airfoil );
+[TE_slope,TE_loc] = set_TE_slope( x_airfoil, y_airfoil );
 
 %% Create ETAMIN Boundary
-[ x(:,1), y(:,1) ] = wake_cut( boundary_distance, wake_pts,     ...
-                               TE_slope, x_airfoil, y_airfoil, 0 );
+% [ x(:,1), y(:,1) ] = wake_cut( boundary_distance, wake_pts,     ...
+%                                TE_slope, x_airfoil, y_airfoil, 0 );
+% 
+% [ x0, y0 ] = wake_cut( boundary_distance, wake_pts, TE_slope, x_airfoil, y_airfoil, 0 );
 
-% [ x(:,1), y(:,1), ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope );
-% [ x1, y1, ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope );
+[ x1, y1, ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope, TE_loc=TE_loc );
+x(:,1) = x1;
+y(:,1) = y1;
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23
@@ -138,19 +141,23 @@ radial_spacing = radial_spacing_ij((1:imax).',(1:jmax),wall_spacing,wake_spacing
 
 
 
+% directly extrude the first layer
+[x(:,2), y(:,2)] = extrude_surface_pts(x(:,1),y(:,1),wake_pts,wake_pts+body_pts,wall_spacing);
+
 %% March Grid
-for j = 2:jmax
+% for j = 2:jmax
+for j = 3:jmax
   [x(:,j), y(:,j)] = march_grid( mu, muim, alpham, jm1, jm2, j,         ...
                                  imax, jmax, x(:,j-1), y(:,j-1),        ...
                                  scaling, radial_spacing );
 end
 end
 
-function [TE_slope] = set_TE_slope( x, y )
+function [TE_slope,TE_loc] = set_TE_slope( x, y )
 up_slope  = ( y(end) - y(end-1) )/( x(end) - x(end-1) );
 low_slope = ( y(1)   - y(2)     )/( x(1)   - x(2)     );   
 TE_slope  = ( up_slope + low_slope )/2;    
-
+TE_loc    = 0.5*[x(1)+x(end),y(1)+y(end)];
 end
 
 function val = radial_spacing_ij(i,j,wall_spacing,wake_spacing,boundary_distance,i_1,i_2,i_3,i_4,j_1,j_2)
