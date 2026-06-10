@@ -45,10 +45,10 @@ y = zeros(imax,jmax);
 TE_slope = set_TE_slope( x_airfoil, y_airfoil );
 
 %% Create ETAMIN Boundary
-% [ x(:,1), y(:,1) ] = wake_cut( boundary_distance, wake_pts,     ...
-%                                TE_slope, x_airfoil, y_airfoil );
+[ x(:,1), y(:,1) ] = wake_cut( boundary_distance, wake_pts,     ...
+                               TE_slope, x_airfoil, y_airfoil, 0 );
 
-[ x(:,1), y(:,1), ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope );
+% [ x(:,1), y(:,1), ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope );
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23
@@ -57,7 +57,7 @@ radial_spacing = zeros(imax, jmax);
 % Stretching factor
 [alpha] = epsilon( 0, boundary_distance, wall_spacing, jmax, 1e-10, ...
                    100);
-[~,r,~] = my_geomspace( num_pts, TE_loc(1), xmax=boundary_distance, dx0=delta );
+% [~,r,~] = my_geomspace( num_pts, TE_loc(1), xmax=boundary_distance, dx0=delta );
 
 % FIXME: resize radial spacing to be 1,jmax
 % for j = 2:jmax
@@ -125,7 +125,8 @@ j_1  = 1;
 j_2  = jmax;
 s0   = 1e-2;
 scaling = scaling_ij((1:imax).',(1:jmax),s0,scjmax,i_1,i_2,i_3,i_4,j_1,j_2);
-wake_spacing = 0.25*wall_spacing;
+% wake_spacing = 0.25*wall_spacing;
+wake_spacing = wall_spacing;
 
 
 i_1 = 1;
@@ -201,8 +202,8 @@ else
   mu_scale    = 1;
 end
 
-jm0 = jmax/6;
-alpha_scale = smooth_transition(j,jm0,jm1,jm2,jmax);
+jm0 = 1/6;
+alpha_scale = smooth_transition(j/jmax,jm0,jm1,jm2,1);
 
 alpha = 1 + (alpham - 1)*alpha_scale;
 

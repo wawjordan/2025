@@ -15,8 +15,8 @@ options = optimoptions("fmincon",...
 s = fmincon(@(s)obj_fun(N,s,d,refine),S,[],[],[],[],lb,ub,[],options);
 % options = optimoptions("fminunc","FunctionTolerance",1e-16,"OptimalityTolerance",1e-16,"Display","iter");
 % s = fminunc(@(s)obj_fun(N,s,d),S,options);
-s0 = s(1);
-s1 = s(2);
+s0 = 1/s(1);
+s1 = 1/s(2);
 end
 
 function f = obj_fun(N,s,d0,refine)

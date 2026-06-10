@@ -3,7 +3,13 @@ function [f,df,ddf] = hermite_blend_2_vinokur(N,d0,d1,off,refine)
 x1 = 0.5 - off;
 x2 = 0.5 + off;
 
-[f0,df0,ddf0] = vinokur_two_sided_spacing_fcn(N,d0,d1,refine);
+% [f0,df0,ddf0] = vinokur_two_sided_spacing_fcn(N,d0,d1,refine);
+if (mod(N,2)==0)
+    N2 = N/2;
+else
+    N2 = (N-1)/2+1;
+end
+[f0,df0,ddf0] = vinokur_two_sided_spacing_fcn(N2,2*d0,2*d1,refine);
 
 % hold on; fplot(@(t)0.5*f0(2*t),[0,0.5])
 % hold on; fplot(@(t)1-0.5*f0(2-2*t),[0.5,1])

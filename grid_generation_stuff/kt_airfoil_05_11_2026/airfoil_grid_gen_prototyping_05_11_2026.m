@@ -29,15 +29,15 @@ clc;
 
 inputs = struct();
 inputs.epsilon = 0.1;
-inputs.kappa   = 0.0;
-inputs.tau     = 0.0;
+inputs.kappa   = 0.1;
+inputs.tau     = 0.1;
 inputs.vinf    = 75.0;
 inputs.rhoinf  = 1.0;
 inputs.pinf    = 100000.0;
 inputs.gamma   = 1.4;
 
 inputs.alpha   = 5; % (degrees)
-inputs.alpha   = 0; % (degrees)
+% inputs.alpha   = 0; % (degrees)
 inputs.nskip   = 4;
 inputs.rho_ref = 1.0;
 inputs.p_ref   = 100000.0;
@@ -59,17 +59,17 @@ airfoil        = airfoil.set_alpha(inputs.alpha);
 % [X,Y] = ndgrid(linspace(-2,2,101),linspace(0.5,4.5,101));
 % [X,Y] = meshgrid(linspace(-2,2,101),linspace(-4.5,-0.5,101));
 % [X,Y] = meshgrid(linspace(-5,-1,101),linspace(-2,2,101));
-% u = airfoil.airfoil_x_velocity( airfoil.z_to_zeta( (X+1i*Y).*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) ) );
+% u = airfoil.airfoil_x_velocity( airfoil.zeta_from_z( (X+1i*Y).*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) ) );
 % [dudx1,dudy1] = gradient(u,0.04,0.04);
 % dudx2 = airfoil.get_prim_variable_derivatives(2,1,X,Y,true);
 % dudy2 = airfoil.get_prim_variable_derivatives(2,2,X,Y,true);
 % 
-% v = airfoil.airfoil_y_velocity( airfoil.z_to_zeta( (X+1i*Y).*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) ) );
+% v = airfoil.airfoil_y_velocity( airfoil.zeta_from_z( (X+1i*Y).*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) ) );
 % [dvdx1,dvdy1] = gradient(v,0.04,0.04);
 % dvdx2 = airfoil.get_prim_variable_derivatives(3,1,X,Y,true);
 % dvdy2 = airfoil.get_prim_variable_derivatives(3,2,X,Y,true);
 % 
-% p = airfoil.airfoil_pressure(   airfoil.z_to_zeta( (X+1i*Y).*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) ) );
+% p = airfoil.airfoil_pressure(   airfoil.zeta_from_z( (X+1i*Y).*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) ) );
 % [dpdx1,dpdy1] = gradient(p,0.04,0.04);
 % dpdx2 = airfoil.get_prim_variable_derivatives(5,1,X,Y,true);
 % dpdy2 = airfoil.get_prim_variable_derivatives(5,2,X,Y,true);
@@ -87,7 +87,7 @@ airfoil        = airfoil.set_alpha(inputs.alpha);
 % F1 = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
 alpha = 10; % [0,)
 gamma = 0.5; % [0,1]
-N = 129;
+N = 257;
 
 % F2 = @(d) arrayfun(@(d) TE_dist(airfoil,alpha,gamma,N,33,d),d);
 % % a = [0,1,10,100,1000];
@@ -97,77 +97,72 @@ N = 129;
 
 F1 = airfoil_param_fun(airfoil,alpha,gamma,33);
 F2 = airfoil_param_fun(airfoil,1,0,33);
+% 
+% hold on
+% fplot(F1,[0,1],'r')
+% fplot(F2,[0,1],'b')
+% fplot(F3,[0,1],'g')
 
-hold on
-fplot(F1,[0,1],'r')
-fplot(F2,[0,1],'b')
+% F1 = airfoil_param_fun2(airfoil,alpha,gamma,33,N,0.5);
+% F2 = airfoil_param_fun2_new(airfoil,alpha,gamma,33,N,0.5);
+% F1 = airfoil_param_fun3(airfoil,alpha,gamma,33,N,0.5);
+% 
+% t = linspace(0,1,N);
 
-F1 = airfoil_param_fun2(airfoil,alpha,gamma,33,N,0.5);
-F2 = airfoil_param_fun2_new(airfoil,alpha,gamma,33,N,0.5);
-F3 = airfoil_param_fun3(airfoil,alpha,gamma,33,N,0.5);
-
-t = linspace(0,1,N);
-
-hold on
-plot(t(1:end-1),diff(F2(t)),'b')
-plot(t(1:end-1),diff(F3(t)),'g')
-hold off;
-% [t1,Ft,~,~,~] = my_tanh_stretching_function( 0, 1, N, 1e-1, 1e-1, nan, nan, 1.0e-6 );
-% fplot(phi,[0,1])
-% N = 2049;
-% F1 = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
-% N = 21;
-% F2 = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
-% % hold on
-% fplot(@(t)F1(t)-F2(t),[0,1],'r')
-% fplot(@(t)F1(t),[0,1],'r')
-% fplot(phi,[0,1],'b')
-
-figure
+% hold on
+% plot(t(1:end-1),diff(F2(t)),'b')
+% plot(t(1:end-1),diff(F3(t)),'g')
+% hold off;
+% 
+% figure
 % fplot(F1,[0,1],'r')
 % hold on
-fplot(F2,[0,1],'b')
-hold on
-fplot(F3,[0,1],'g')
+% fplot(F2,[0,1],'b')
+% hold on
+% fplot(F3,[0,1],'g')
 
-airfoil.plot_airfoil(true);
+% airfoil.plot_airfoil(true);
+% F1 = @(t) t;
+% [F1,~,~] = vinokur_two_sided_spacing_fcn(N,0.0005,0.0005,true);
+% L = airfoil.airfoil_arc_length(0,1)/airfoil.chord;
+L = airfoil.chord/airfoil.airfoil_arc_length(0,1);
+% [F1,~,~] = hermite_blend_2_vinokur(N,0.0005*L,0.0005*L,0.1*L,true);
+
+[t_maxC,~] = fminbnd(@(t)-airfoil.airfoil_curvature2(2*pi*t),0.1,0.9);
+% t_maxC = 0.6;
+t0 =airfoil.airfoil_arc_length(0,t_maxC)/airfoil.airfoil_arc_length(0,1);
+[F1,~,~] = hermite_blend_2_vinokur_asym(N,t0,0.0005*L,0.0005*L,0.1*L,true);
+% [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
 [x,y] = airfoil.output_airfoil_coords1(N,F1);
 plot(x,y,'r.')
-[x,y] = airfoil.output_airfoil_coords1(N,F2);
-plot(x,y,'b.')
-[x,y] = airfoil.output_airfoil_coords1(N,F3);
-plot(x,y,'g.')
-xlim([-0.0579 0.0538])
-hold off
+% [x,y] = airfoil.output_airfoil_coords1(N,F2);
+% plot(x,y,'b.')
+% [x,y] = airfoil.output_airfoil_coords1(N,F3);
+% plot(x,y,'g.')
+% xlim([-0.0579 0.0538])
+% hold off
 
 
 %% create grid from cylinder
-zeta = airfoil.z_to_zeta( (x+y*1i)*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) );
-x_airfoil = flip(real(zeta));
-y_airfoil = flip(imag(zeta));
+% zeta = airfoil.zeta_from_z( (x+y*1i)*airfoil.chord + airfoil.airfoil_coords(airfoil.thetaLE) );
+% x_airfoil = flip(real(zeta));
+% y_airfoil = flip(imag(zeta));
+x_airfoil = flip(x);
+y_airfoil = flip(y);
 
 inputs2 = struct();
 inputs2.boundary_distance = 500;
 inputs2.jmax              = 129;             % Number of Points Off Body
 inputs2.wake_pts          = 129;             % Number of Points in Wake
 inputs2.wall_spacing      = 0.0005;          % Intial spacing off the wall
-inputs2.scjmax            = 0.977;           % Scaling Factor
+% inputs2.scjmax            = 0.977;           % Scaling Factor
+inputs2.scjmax            = 0.976;           % Scaling Factor
 inputs2.mu                = 0.1;             % 4th order explicit smoothing factor
+% inputs2.mu                = 0.0;             % 4th order explicit smoothing factor
 inputs2.muim              = 0.5;             % Implicit smoothing factor
-inputs2.alpham            = 10.0;            % Alpha scheme integration factor
+inputs2.alpham            = 5.0;            % Alpha scheme integration factor
 inputs2.jm1               = 0.3;             % Alpha variation ramp parameter
 inputs2.jm2               = 0.4;             % Alpha variation ramp parameter
-
-% inputs2.boundary_distance = 1;
-% inputs2.jmax              = 10;             % Number of Points Off Body
-% inputs2.wake_pts          = 10;             % Number of Points in Wake
-% inputs2.wall_spacing      = 0.01;          % Intial spacing off the wall
-% inputs2.scjmax            = 1.0;           % Scaling Factor
-% inputs2.mu                = 1;             % 4th order explicit smoothing factor
-% inputs2.muim              = 1;             % Implicit smoothing factor
-% inputs2.alpham            = 10;            % Alpha scheme integration factor
-% inputs2.jm1               = 0.0;             % Alpha variation ramp parameter
-% inputs2.jm2               = 0.0;             % Alpha variation ramp parameter
 
 [x2,y2] = hyperbolic_C_grid_local( x_airfoil, y_airfoil,                 ...
                                  inputs2.boundary_distance, inputs2.jmax, ...
@@ -178,19 +173,6 @@ inputs2.jm2               = 0.4;             % Alpha variation ramp parameter
 hold on
 plot(x2,y2,'k');
 plot(x2.',y2.','k');
-axis equal
-
-hold off
-
-%% map it back
-
-zeta = ( airfoil.zeta_to_z( (x2+y2*1i) ) - airfoil.airfoil_coords(airfoil.thetaLE) )/airfoil.chord;
-x3 = real(zeta);
-y3 = imag(zeta);
-figure
-hold on
-plot(x3,y3,'k');
-plot(x3.',y3.','k');
 axis equal
 
 hold off
@@ -211,24 +193,28 @@ dist = sqrt( (x(end)-x(end-1)).^2 + (y(end)-y(end-1)).^2 );
 end
 
 function F = airfoil_param_fun(airfoil,alpha,gamma,N)
-if abs(airfoil.kappa)<1e-12
+if abs(airfoil.kappa)<1e-12 % symmetric
     c1 = airfoil.airfoil_curvature2(airfoil.thetaLE);
 else
     [~,c1] = fminbnd(@(t)1-airfoil.airfoil_curvature2(2*pi*t),0.1,0.9);
 end
 
-curvature = @(t) min(0.99*c1,airfoil.airfoil_curvature2(2*pi*t));
+w_min = 1.0e-3; % minimum weight to prevent division by zero
+
+curvature = @(t) min(c1,airfoil.airfoil_curvature2(2*pi*t));
 deriv     = @(t) abs(airfoil.airfoil_differential_arc_length(2*pi*t));
-w = @(alpha,beta,t) (1 - beta*curvature(t)).*sqrt(1+alpha^2*deriv(t).^2);
+w = @(alpha,beta,t) w_min + (1 - beta*curvature(t)).*sqrt(1+alpha^2*deriv(t).^2);
 beta  = (1-gamma)/c1;
 phi = @(t) w(alpha,beta,t);
 F = @(t)interp1(linspace(0,1,N),weight_grid(0,1,N,@(t)phi(t)),t,"spline");
 end
 
 function F = airfoil_param_fun_pressure(airfoil,alpha,gamma,N)
+% weighting parameterized by pressure gradient magnitude along surface
 c1 = airfoil.airfoil_curvature2(airfoil.thetaLE);
 curvature = @(t) min(c1,airfoil.airfoil_curvature2(2*pi*t));
-deriv     = @(t) abs(airfoil.airfoil_differential_arc_length(2*pi*t));
+% deriv     = @(t) abs(airfoil.airfoil_differential_arc_length(2*pi*t));
+deriv     = @(t) abs(airfoil.dp_airfoil_dtheta(2*pi*t));
 w = @(alpha,beta,t) (1 - beta*curvature(t)).*sqrt(1+alpha^2*deriv(t).^2);
 beta  = (1-gamma)/c1;
 phi = @(t) w(alpha,beta,t);
@@ -259,7 +245,7 @@ F1 = airfoil_param_fun(airfoil,alpha,gamma,N1);
 % [Ft,~,~] = hermite_blend_2_vinokur(N2,dist/2,dist,off,true);
 % [Ft,~,~] = hermite_blend_2_vinokur(N2,dist,dist/2,off,true);
 % F = @(t)Ft(F1(t));
-[F,~,~] = hermite_blend_2_vinokur(N2,dist*10,dist,off,true);
+[F,~,~] = hermite_blend_2_vinokur(N2,dist,dist,off,true);
 end
 
 
