@@ -49,6 +49,7 @@ TE_slope = set_TE_slope( x_airfoil, y_airfoil );
                                TE_slope, x_airfoil, y_airfoil, 0 );
 
 % [ x(:,1), y(:,1), ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope );
+% [ x1, y1, ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope );
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23
@@ -57,8 +58,8 @@ radial_spacing = zeros(imax, jmax);
 % Stretching factor
 [alpha] = epsilon( 0, boundary_distance, wall_spacing, jmax, 1e-10, ...
                    100);
-% [~,r,~] = my_geomspace( num_pts, TE_loc(1), xmax=boundary_distance, dx0=delta );
-
+[~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing );
+alpha = r-1;
 % FIXME: resize radial spacing to be 1,jmax
 % for j = 2:jmax
 %   radial_spacing(:,j) = radial_spacing(:,j-1)                           ...
@@ -759,4 +760,128 @@ e = -0.053337753;
 f =  0.075845134;
 
 x = sqrt(6*y1).*( a + b*y1 + c*y1.^2 + d*y1.^3 + e*y1.^4 + f*y1.^5 );
+end
+
+function [root] = epsilon(min_val, max_val, delta, n_points, toler, iters)
+%EPSILON Uses Newton-Raphson root finding to find epsilon for
+% R^{j+1} = R^{j} + delta*(1+epsilon)^(j-2)
+
+converged = false;
+
+nptm2 = n_points - 2;
+% Estimate epsilon
+root = (max_val/delta)^(1/nptm2) - 1; 
+
+for n = 1:iters
+  const = (root+1)^nptm2;
+  value = max_val - min_val - delta*(const*(root+1) - 1)/root;
+  if ( abs(value) < toler )
+    converged = true;
+    break
+  end
+  root = root + value/(delta*( 1 + const*(root*nptm2 - 1) )/root^2);
+end
+
+if converged == false 
+  disp('Root finding function has failed to converge'); 
+end
+end
+
+function [ x_etamin, y_etamin ] = wake_cut( boundary_distance,          ...
+                                            num_wake_pts, TE_slope,     ...
+                                            body_x, body_y,             ...
+                                            smooth_wake )
+%% Function: wake_cut
+%
+% Description: Defines the points in the wake
+%
+% Note: If not using linear distribution, then this function creates a 
+%       linear distribution with the specified te_slope until 1/6 of the 
+%       wake length, a cubic fit between 1/6 and 2/3, and a constant value 
+%       for the last 1/3.
+
+%% Initialization
+x_wake_pts = zeros(1,num_wake_pts);
+y_wake_pts = zeros(1,num_wake_pts);
+
+%% Set Up Solve for Cubic Fit
+y_0_prime = TE_slope;
+y_1_prime = 0;
+
+x_0 = 1+boundary_distance/6;
+y_0 = body_y(1) + y_0_prime*(x_0 - body_x(1));
+x_1 = 1+2*boundary_distance/3;
+y_1 = 2*y_0 - body_y(1);
+
+A = [ x_0^3   x_0^2 x_0 1;
+      x_1^3   x_1^2 x_1 1;
+      3*x_0^2 2*x_0  1  0;
+      3*x_1^2 2*x_1  1  0 ];
+    
+b = [y_0; y_1; y_0_prime; y_1_prime];
+
+coefs = A\b;
+
+%% Set an exponential stretching rate for the wake region
+delta   = sqrt( (body_x(2)-body_x(1))^2 + (body_y(2)-body_y(1))^2 );
+[alpha] = epsilon(0, boundary_distance, delta , num_wake_pts,       ...
+                  1e-10, 100);
+
+% xi = linspace(0,1,num_wake_pts);
+% s0 = boundary_distance/(delta*(1+alpha)*(num_wake_pts-1));
+% s1 = 0.5;
+% t = stretching_function( xi, 'one-sided', s0, s1 );
+% x_wake_pts2 = body_x(1) + t*boundary_distance;
+
+x_wake_pts(1) = body_x(1);
+y_wake_pts(1) = body_y(1);
+
+%% Set x and y locations in wake
+% for x < 1/6 of the wake length, y changes at constant slope
+% for 1/6 < x < 2/3 of the wake length, y is a cubic fit
+% for x > 2/3 of the wake length, y is constant
+
+% Set x-coordinates of wake
+for i = 2:num_wake_pts
+    x_wake_pts(i) = x_wake_pts(i-1) + delta*(1+alpha)^(i-2);
+end
+
+% x_wake_pts = x_wake_pts2;
+
+% Smooth Distribution of Points (Elliptic Smoother)
+for n = 1:smooth_wake
+    x_wake_pts_copy = x_wake_pts;
+    for i = 2:num_wake_pts-1
+        x_wake_pts(i) = (x_wake_pts_copy(i-1) + x_wake_pts_copy(i+1))/2;
+    end
+end
+
+
+
+% Set y-coordinates of wake
+if (abs(TE_slope) < sqrt(eps(1)))
+    y_wake_pts(:) = y_wake_pts(1);
+else
+    for i = 2:num_wake_pts           
+        if x_wake_pts(i) <= x_0
+            y_wake_pts(i) = y_wake_pts(1)                                   ...
+                          + y_0_prime*(x_wake_pts(i)-x_wake_pts(1));
+        elseif x_wake_pts(i) >= x_1
+            y_wake_pts(i) = y_1;
+        else
+            y_wake_pts(i) = coefs(1)*x_wake_pts(i)^3                        ...
+                          + coefs(2)*x_wake_pts(i)^2                        ...
+                          + coefs(3)*x_wake_pts(i) + coefs(4);
+        end
+    end
+end
+
+%% Create the etamin line points 
+% Piece the wake points together with the body points
+x_etamin = fliplr(x_wake_pts);
+y_etamin = fliplr(y_wake_pts);
+
+x_etamin = horzcat(x_etamin(1,1:end-1), body_x, x_wake_pts(1,2:end));
+y_etamin = horzcat(y_etamin(1,1:end-1), body_y, y_wake_pts(1,2:end));
+
 end
