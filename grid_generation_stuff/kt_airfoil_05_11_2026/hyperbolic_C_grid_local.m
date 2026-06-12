@@ -144,7 +144,7 @@ radial_spacing = radial_spacing_ij((1:imax).',(1:jmax),wall_spacing,wake_spacing
 % directly extrude the first layer
 
 % hfun = @(t) smooth_transition(x,a,b,c,d)
-% h = smooth_expand_outside(linspace(0,1,513),129,129,1/513,97/513,417/513,512/513,wall_spacing,wall_spacing,wall_spacing,0.001,0.001,true);
+h = smooth_expand_outside(linspace(0,1,513),129,129,1/513,97/513,417/513,512/513,wall_spacing,wall_spacing,wall_spacing,0.001,0.001,true);
 n_layers = 1;
 h = wall_spacing;
 for j = 2:n_layers
