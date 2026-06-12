@@ -54,6 +54,20 @@ airfoil.rhoinf = inputs.rhoinf;
 airfoil.pinf   = inputs.pinf;
 airfoil        = airfoil.set_alpha(inputs.alpha);
 
+inputs2 = struct();
+inputs2.boundary_distance = 500;
+inputs2.jmax              = 129;             % Number of Points Off Body
+inputs2.wake_pts          = 129;             % Number of Points in Wake
+inputs2.wall_spacing      = 0.0005;          % Intial spacing off the wall
+% inputs2.scjmax            = 0.977;           % Scaling Factor
+inputs2.scjmax            = 0.976;           % Scaling Factor
+inputs2.mu                = 0.1;             % 4th order explicit smoothing factor
+% inputs2.mu                = 0.0;             % 4th order explicit smoothing factor
+inputs2.muim              = 0.5;             % Implicit smoothing factor
+inputs2.alpham            = 5.0;            % Alpha scheme integration factor
+inputs2.jm1               = 0.3;             % Alpha variation ramp parameter
+inputs2.jm2               = 0.4;             % Alpha variation ramp parameter
+
 % airfoil.plot_airfoil(true);
 
 % [X,Y] = ndgrid(linspace(-2,2,101),linspace(0.5,4.5,101));
@@ -131,7 +145,7 @@ L = airfoil.chord/airfoil.airfoil_arc_length(0,1);
 [t_maxC,~] = fminbnd(@(t)-airfoil.airfoil_curvature2(2*pi*t),0.1,0.9);
 t0 =airfoil.airfoil_arc_length(0,t_maxC)/airfoil.airfoil_arc_length(0,1);
 % t0 = 0.6;
-[F1,dF1,ddF1] = hermite_blend_2_vinokur_asym(N,t0,0.0001*L,0.0001*L,0.01*L,true);
+[F1,dF1,ddF1] = hermite_blend_2_vinokur_asym(N,t0,inputs2.wall_spacing*L,inputs2.wall_spacing*L,0.01*L,true);
 % % [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
 [x,y] = airfoil.output_airfoil_coords1(N,F1);
 plot(x,y,'r.')
@@ -155,20 +169,6 @@ plot(x,y,'r.')
 x_airfoil = flip(x);
 y_airfoil = flip(y);
 
-inputs2 = struct();
-inputs2.boundary_distance = 500;
-inputs2.jmax              = 129;             % Number of Points Off Body
-inputs2.wake_pts          = 129;             % Number of Points in Wake
-inputs2.wall_spacing      = 0.0001;          % Intial spacing off the wall
-% inputs2.scjmax            = 0.977;           % Scaling Factor
-inputs2.scjmax            = 0.976;           % Scaling Factor
-inputs2.mu                = 0.1;             % 4th order explicit smoothing factor
-% inputs2.mu                = 0.0;             % 4th order explicit smoothing factor
-inputs2.muim              = 0.5;             % Implicit smoothing factor
-inputs2.alpham            = 5.0;            % Alpha scheme integration factor
-inputs2.jm1               = 0.3;             % Alpha variation ramp parameter
-inputs2.jm2               = 0.4;             % Alpha variation ramp parameter
-
 [x2,y2] = hyperbolic_C_grid_local( x_airfoil, y_airfoil,                 ...
                                  inputs2.boundary_distance, inputs2.jmax, ...
                                  inputs2.wall_spacing, inputs2.scjmax, ...
@@ -179,6 +179,7 @@ hold on
 plot(x2,y2,'k');
 plot(x2.',y2.','k');
 axis equal
+xlim([450,500])
 
 hold off
 

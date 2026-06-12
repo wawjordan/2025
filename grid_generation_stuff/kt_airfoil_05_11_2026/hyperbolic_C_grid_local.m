@@ -142,11 +142,23 @@ radial_spacing = radial_spacing_ij((1:imax).',(1:jmax),wall_spacing,wake_spacing
 
 
 % directly extrude the first layer
-[x(:,2), y(:,2)] = extrude_surface_pts(x(:,1),y(:,1),wake_pts,wake_pts+body_pts,wall_spacing);
 
+% hfun = @(t) smooth_transition(x,a,b,c,d)
+% h = smooth_expand_outside(linspace(0,1,513),129,129,1/513,97/513,417/513,512/513,wall_spacing,wall_spacing,wall_spacing,0.001,0.001,true);
+n_layers = 1;
+h = wall_spacing;
+for j = 2:n_layers
+    [x(:,j), y(:,j)] = extrude_surface_pts(x(:,j-1),y(:,j-1),wake_pts,wake_pts+body_pts,h);
+    h = h*1.1;
+end
+
+hold on
+plot(x(:,1:n_layers),y(:,1:n_layers),'k')
+plot(x(:,1:n_layers).',y(:,1:n_layers).','k')
+axis equal
 %% March Grid
 % for j = 2:jmax
-for j = 3:jmax
+for j = n_layers+1:jmax
   [x(:,j), y(:,j)] = march_grid( mu, muim, alpham, jm1, jm2, j,         ...
                                  imax, jmax, x(:,j-1), y(:,j-1),        ...
                                  scaling, radial_spacing );

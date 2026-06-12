@@ -9,6 +9,9 @@ addpath(genpath(parent_dir));
 clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
+
+
+
 xd =  [  0, 20,  40,  60,  80, 100 ];
 N  =  [   70,   35,   50,   70,   110 ];
 
