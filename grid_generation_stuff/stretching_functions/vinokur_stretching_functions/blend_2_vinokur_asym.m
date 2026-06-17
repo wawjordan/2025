@@ -1,10 +1,14 @@
-function [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
+function [f,df,ddf] = blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
 
 delta_t1 = t0;
 delta_t2 = 1-t0;
 
-x1 = t0 - off*delta_t1;
-x2 = t0 + off*delta_t1;
+x10 = max(t0  - off*delta_t1,0);
+x1  = max(x10 - 9*off*delta_t1,0);
+x20 = min(t0  + off*delta_t2,1);
+x2  = min(x20 + 9*off*delta_t2,1);
+
+
 
 N1 = ceil(N*delta_t1);
 N2 = ceil(N*delta_t2);
@@ -31,6 +35,12 @@ f2   = @(t)     1-delta_t2*f02( tt2(t) );
 df2  = @(t)               -delta_t2*( df02( tt2(t) ).*dtt2(t) );
 ddf2 = @(t) - delta_t2 * ( dtt2(t).^2 .* ddf02( tt2(t) ) + ddtt2(t).*df02(tt2(t)) );
 
-[f,df,ddf] = hermite_blended_functions(x1,x2,f1,f2,df1,df2,ddf1,ddf2);
+fmid   = @(t) f1(t0) + ones(size(t))*0.5*(f1(t0)+f2(t0));
+dfmid  = @(t) zeros(size(t));
+ddfmid = @(t) zeros(size(t));
+[fL,dfL,ddfL] = blended_functions(x1,x10,f1,fmid,df1,dfmid,ddf1,ddfmid);
+[f,df,ddf]    = blended_functions(x20,x2,fL,f2,dfL,df2,ddfL,ddf2);
+
+% [f,df,ddf] = hermite_blended_functions(x1,x2,f1,f2,df1,df2,ddf1,ddf2);
 
 end

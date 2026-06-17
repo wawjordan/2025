@@ -1,28 +1,29 @@
 classdef kt_airfoil
     properties
-        l(1,1)       double  = 1.0
-        epsilon(1,1) double  = 0.0
-        kappa(1,1)   double  = 0.0
-        tau(1,1)     double  = 0.0
-        rhoinf(1,1)  double  = 1.0
-        vinf(1,1)    double  = 1.0
-        pinf(1,1)    double  = 1.0
-        gamma(1,1)   double  = 1.4
-        chord(1,1)   double  = 1.0
-        thetaLE(1,1) double  = 0.0
-        thetaTE(1,1) double  = 0.0
-        zLE(1,1)     double  = 0.0 + 1i*0.0
-        zTE(1,1)     double  = 0.0 + 1i*0.0
-        xLE(1,1)     double  = 0.0
-        yLE(1,1)     double  = 0.0
-        xTE(1,1)     double  = 0.0
-        yTE(1,1)     double  = 0.0
-        n(1,1)       double  = 2.0
-        alpha(1,1)   double  = 0.0
-        beta(1,1)    double  = 0.0
-        a(1,1)       double  = 1.0
-        mu(1,1)      double  = 0.0 + 1i*0.0
-    end
+        l(1,1)         double  = 1.0
+        epsilon(1,1)   double  = 0.0
+        kappa(1,1)     double  = 0.0
+        tau(1,1)       double  = 0.0
+        rhoinf(1,1)    double  = 1.0
+        vinf(1,1)      double  = 1.0
+        pinf(1,1)      double  = 1.0
+        gamma(1,1)     double  = 1.4
+        chord(1,1)     double  = 1.0
+        thetaLE(1,1)   double  = 0.0
+        thetaCmax(1,1) double  = 0.0
+        thetaTE(1,1)   double  = 0.0
+        zLE(1,1)       double  = 0.0 + 1i*0.0
+        zTE(1,1)       double  = 0.0 + 1i*0.0
+        xLE(1,1)       double  = 0.0
+        yLE(1,1)       double  = 0.0
+        xTE(1,1)       double  = 0.0
+        yTE(1,1)       double  = 0.0
+        n(1,1)         double  = 2.0
+        alpha(1,1)     double  = 0.0
+        beta(1,1)      double  = 0.0
+        a(1,1)         double  = 1.0
+        mu(1,1)        double  = 0.0 + 1i*0.0
+    end  
     methods
 %% Constructor
         function this = kt_airfoil(epsilon,kappa,tau)
@@ -33,9 +34,9 @@ classdef kt_airfoil
             this.a       = this.l*sqrt( (1+this.epsilon)^2 + this.kappa^2 );
             this.mu      = this.l*(-this.epsilon + this.kappa*1i);
             this.beta    = asin(this.l*this.kappa/this.a);
-            this         = this.get_airfoil_chord();
+            this         = this.get_airfoil_geometry();
         end
-        function this = get_airfoil_chord(this)
+        function this = get_airfoil_geometry(this)
             z_fun = @(s,theta)s*real(this.airfoil_coords(theta));
             this.thetaLE = fminbnd(@(theta)z_fun( 1,theta),0,2*pi);
             % not needed (I think)
@@ -48,6 +49,9 @@ classdef kt_airfoil
             this.yLE   = imag(this.zLE);
             this.xTE   = real(this.zTE);
             this.yTE   = imag(this.zTE);
+            c_fun = @(theta)-this.airfoil_curvature2(theta);
+            tol = 0.01;
+            [this.thetaCmax,~] = fminbnd(c_fun,0+tol,2*pi-tol);
         end
         function this = set_alpha(this,alpha)
             this.alpha = deg2rad(alpha);
@@ -312,6 +316,18 @@ classdef kt_airfoil
             rdotdot_rdotdot = real(dz2.*conj(dz2));
             K = sqrt(rdot_rdot.*rdotdot_rdotdot - rdot_rdotdot.^2)./(rdot_rdot).^(3/2);
         end
+        % function S = arc_length_streamline(this,psi,x0,x1,t0,t1)
+        %     S = integral(@(t)diff_arc_length(this,psi,x0,x1,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
+        %     function dS = diff_arc_length(this,psi,x0,x1,t)
+        %         x    = x0 + (x1-x0)*t;
+        %         z    = x + 1i*this.streamline_y(psi,x,0);
+        %         % z    = ( z - this.zLE )/this.chord;
+        %         z    = z*this.chord + this.zLE;
+        %         zeta = this.zeta_from_z(z);
+        %         dS = abs((x1-x0)*this.w_airfoil( zeta ));
+        %     end
+        % end
+
         function S = airfoil_arc_length(this,t0,t1)
             S = integral(@(t)diff_arc_length(this,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
             function dS = diff_arc_length(this,t)
@@ -425,6 +441,24 @@ classdef kt_airfoil
             val = integral(@(theta)fun(theta) ...
                            .*abs(this.airfoil_differential_arc_length(theta)),...
                            t0,t1,"AbsTol",1e-14,'RelTol',1e-12);
+        end
+%% Complex Potential
+        function val = F_cylinder(this,zeta)
+            c1  = exp(-1i*this.alpha).*(zeta-this.mu);
+            c2  = 2*1i*this.a*sin(this.alpha+this.beta)*log((zeta-this.mu)/ ( this.a*exp(1i*this.alpha) ) );
+            c3  = this.a^2*exp(1i*this.alpha)./(zeta-this.mu);
+            val = c1 + c2 + c3;
+        end
+        function psi = streamline(this,x,y)
+            z = x+1i*y;
+            z = this.chord*z + this.zLE;
+            % this.vinf*
+            psi = imag( this.F_cylinder( this.zeta_from_z(z) ) );
+        end
+        function y = streamline_y(this,psi,x,y_guess)
+            options = optimset('TolFun',1e-15,'TolX',1e-17);
+            obj_fun = @(x,y) this.streamline(x,y) - psi;
+            y = arrayfun(@(x)fzero(@(y)obj_fun(x,y),y_guess,options),x);
         end
 %% velocity around cylinder
         function val = w_cylinder(this,zeta)

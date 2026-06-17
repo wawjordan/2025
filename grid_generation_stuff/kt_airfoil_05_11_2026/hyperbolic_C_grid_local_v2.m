@@ -1,7 +1,11 @@
-function [x,y] = hyperbolic_C_grid_local( x_airfoil, y_airfoil,                 ...
-                                  boundary_distance, jmax, wall_spacing,...
-                                  scjmax, mu, muim, alpham, jm1, jm2,   ...
-                                  wake_pts )
+function [x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
+                                  boundary_distance, jmax, AR_LE, AR_TE,...
+                                  scjmax, mu, muim, alpham, n_wake_pts )
+% [x2,y2] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
+%                                  boundary_distance, jmax, ...
+%                                  AR_LE, AR_TE, scjmax, ...
+%                                  mu, muim, alpham, ...
+%                                  n_wake_pts );
 %% Function: hyperbolic_grid
 %
 % Description: Computes a grid using hyperbolic grid generation
@@ -36,7 +40,7 @@ y_airfoil = y_airfoil(:).';
 %% Derived values
 % Number of points along eta_min boundary
 body_pts = size(x_airfoil,2);
-imax = 2*(wake_pts-1) + body_pts; 
+imax = 2*(n_wake_pts-1) + body_pts; 
 
 %% Allocate Grid Storage
 x = zeros(imax,jmax);
@@ -45,55 +49,83 @@ y = zeros(imax,jmax);
 [TE_slope,TE_loc] = set_TE_slope( x_airfoil, y_airfoil );
 
 %% Create ETAMIN Boundary
-% [ x(:,1), y(:,1) ] = wake_cut( boundary_distance, wake_pts,     ...
-%                                TE_slope, x_airfoil, y_airfoil, 0 );
-% 
-% [ x0, y0 ] = wake_cut( boundary_distance, wake_pts, TE_slope, x_airfoil, y_airfoil, 0 );
-
-[ x1, y1, ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, wake_pts, TE_slope=TE_slope, TE_loc=TE_loc );
+[ x1, y1, ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, n_wake_pts, TE_slope=TE_slope, TE_loc=TE_loc );
 x(:,1) = x1;
 y(:,1) = y1;
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23
 radial_spacing = zeros(imax, jmax);
+deltas = sqrt( diff(x_airfoil).^2 + diff(y_airfoil).^2 );
+TE_spacing = 0.5*( deltas(1) + deltas(end) );
+idx1 = 1;
+idx2 = body_pts;
+for i = 2:body_pts
+    if deltas(i+1) < deltas(i)
+        idx1 = i;
+        break
+    end
+end
+for i = body_pts-1:-1:1
+    if deltas(i-1) < deltas(i)
+        idx2 = i;
+        break
+    end
+end
+if (idx1>idx2)
+    tmp = idx2;
+    idx2 = idx1;
+    idx1 = tmp;
+end
+idx = idx1;
+minval = max(deltas);
+for i = idx1:idx2
+    if deltas(i)<minval
+        minval = deltas(i);
+        idx = i;
+    end
+end
+LE_spacing = 0.5*(deltas(idx)+deltas(idx-1));
 
+wall_spacing1 = TE_spacing/AR_TE;
+wall_spacing2 = LE_spacing/AR_LE;
+
+wall_spacing  = 0.5 * ( wall_spacing1 + wall_spacing2 );
 % Stretching factor
-[alpha] = epsilon( 0, boundary_distance, wall_spacing, jmax, 1e-10, ...
-                   100);
 [~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing );
 alpha = r-1;
-% FIXME: resize radial spacing to be 1,jmax
+for j = 2:jmax
+    radial_spacing(:,j) = radial_spacing(:,j-1)                           ...
+                  + wall_spacing*(1+alpha)^(j-2);
+end
+
+% [~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing1 );
+% alpha        = (r-1)*ones(imax,1);
+% wall_spacing = wall_spacing1*ones(imax,1);
+% cnt = 0;
+% for i = n_wake_pts:n_wake_pts+idx-1
+%     cnt = cnt + 1;
+%     t = (cnt-1)/(idx-1);
+%     wall_spacing(i) = wall_spacing1 + (wall_spacing2-wall_spacing1)*t;
+%     [~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing(i) );
+%     alpha(i) = r-1;
+% end
+% cnt = 0;
+% for i = n_wake_pts+idx-1:body_pts+n_wake_pts-1
+%     cnt = cnt + 1;
+%     t = (cnt-1)/(idx-1);
+%     wall_spacing(i) = wall_spacing2 + (wall_spacing1-wall_spacing2)*t;
+%     [~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing(i) );
+%     alpha(i) = r-1;
+% end
+% 
 % for j = 2:jmax
-%   radial_spacing(:,j) = radial_spacing(:,j-1)                           ...
-%                       + wall_spacing*(1+alpha)^(j-2);
+%     for i = 1:imax
+%         radial_spacing(i,j) = radial_spacing(i,j-1)                           ...
+%                       + wall_spacing(i)*(1+alpha(i))^(j-2);
+%     end
 % end
 
-sf = 2;
-
-rad_scale = @(i) 1 + (sf-1)* ( (i-1)/(wake_pts-1) ).^4;
-
-alpha_tmp        = ones(1,imax)*alpha;
-wall_spacing_tmp = ones(1,imax)*wall_spacing;
-if ( abs(sf-1) > 1e-12 )
-    for i = 1:wake_pts-1
-        wall_spacing_tmp(i) = rad_scale(wake_pts+1-i)*wall_spacing;
-        alpha_tmp(i)        = epsilon( 0, boundary_distance, wall_spacing_tmp(i), jmax, 1e-10, 100);
-    end
-    for i = wake_pts+body_pts:imax
-        wall_spacing_tmp(i) = rad_scale(i-(wake_pts+body_pts-2))*wall_spacing;
-        alpha_tmp(i)        = epsilon( 0, boundary_distance, wall_spacing_tmp(i), jmax, 1e-10, 100);
-    end
-end
-for j = 2:jmax
-    for i = 1:imax
-        radial_spacing(i,j) = radial_spacing(i,j-1)                           ...
-            + wall_spacing_tmp(i)*(1+alpha_tmp(i))^(j-2);
-    end
-end
-% [t,F,d,s] = my_tanh_stretching_function( xi_0, xi_1, N, d0, d1, s0, s1, tol )
-% [rad_space,space_fun,~,~] = my_tanh_stretching_function( 0, boundary_distance, jmax, wall_spacing, (pi*boundary_distance/jmax), nan, nan, 1e-12 );
-% radial_spacing = repmat(rad_space(:).',imax,1);
 
 % Determine Delta_Eta
 deta = zeros(1,jmax-1);
@@ -108,60 +140,35 @@ end
 
 scale      = 1 - exp(log(scjmax)/(jmax-2));
 scaling    = zeros(imax,jmax);
+% scale2     = 1-exp(log( (wall_spacing/wall_spacing1)/(jmax-2) ) );
 scaling(:,1) = 1;
+% for j = 2:jmax
+%     scaling(:,j) = (1-scale)^(j-1);
+% end
 for j = 2:jmax
-    for i = 1:wake_pts-1
-        scaling(i,j) = (1-scale*alpha_tmp(i)/alpha)^(j-1);
-    end
-    for i = wake_pts:wake_pts+body_pts-1
+    for i = 1:imax
         scaling(i,j) = (1-scale)^(j-1);
     end
-    for i = wake_pts+body_pts:imax
-        scaling(i,j) = (1-scale*alpha_tmp(i)/alpha)^(j-1);
-    end
 end
 
-i_1 = 1;
-i_2 = wake_pts;
-i_3 = wake_pts+body_pts;
-i_4  = imax;
-j_1  = 1;
-j_2  = jmax;
-s0   = 1e-4;
-scaling = scaling_ij((1:imax).',(1:jmax),s0,scjmax,i_1,i_2,i_3,i_4,j_1,j_2);
-% scaling = scaling*0+0.9999999;
-% wake_spacing = 0.25*wall_spacing;
-wake_spacing = wall_spacing;
-
-
-% i_1 = 1;
-% i_2 = (imax-1)/2-10;
-% i_3 = (imax-1)/2+2+10;
-% i_4  = imax;
-% radial_spacing = radial_spacing_ij((1:imax).',(1:jmax),wall_spacing,wake_spacing,boundary_distance,i_1,i_2,i_3,i_4,j_1,j_2);
-xi  = ((1:imax).'-1)/(imax-1);
-eta = ((1:jmax)-1)/(jmax-1);
-radial_spacing = c_grid_radial_spacing(xi,eta,wall_spacing,0.01,boundary_distance,imax,jmax,wake_pts);
 % directly extrude the first layer
-
-% hfun = @(t) smooth_transition(x,a,b,c,d)
-% h = smooth_expand_outside(linspace(0,1,513),129,129,1/513,97/513,417/513,512/513,wall_spacing,wall_spacing,wall_spacing,0.001,0.001,true);
 h = radial_spacing(:,2);
-n_layers = 2;
+n_layers = 1;
 % h = wall_spacing;
 for j = 2:n_layers
-    [x(:,j), y(:,j)] = extrude_surface_pts(x(:,j-1),y(:,j-1),wake_pts,wake_pts+body_pts,h);
-    h = h*1.1;
+    [x(:,j), y(:,j)] = extrude_surface_pts(x(:,j-1),y(:,j-1),n_wake_pts,n_wake_pts+body_pts,h);
+    h = h*r;
 end
 
-% hold on
-% plot(x(:,1:n_layers),y(:,1:n_layers),'k')
-% plot(x(:,1:n_layers).',y(:,1:n_layers).','k')
-% axis equal
+hold on
+plot(x(:,1:n_layers),y(:,1:n_layers),'k')
+plot(x(:,1:n_layers).',y(:,1:n_layers).','k')
+axis equal
+xlim([0.9,1.1])
 %% March Grid
 % for j = 2:jmax
 for j = n_layers+1:jmax
-  [x(:,j), y(:,j)] = march_grid( mu, muim, alpham, jm1, jm2, j,         ...
+  [x(:,j), y(:,j)] = march_grid( mu, muim, alpham, j,         ...
                                  imax, jmax, x(:,j-1), y(:,j-1),        ...
                                  scaling, radial_spacing );
   % clf
@@ -180,75 +187,18 @@ TE_slope  = ( up_slope + low_slope )/2;
 TE_loc    = 0.5*[x(1)+x(end),y(1)+y(end)];
 end
 
-function val = radial_spacing_ij(i,j,wall_spacing,wake_spacing,boundary_distance,i_1,i_2,i_3,i_4,j_1,j_2)
-
-x  = (j(:)-j_1)/(j_2-j_1);
-N  = j_2;
-d0 = wake_spacing - (wake_spacing-wall_spacing) ...
-                       * smooth_transition(i(:),i_1,i_2,i_3,i_4);
-% d0 = wake_spacing - (wake_spacing-wall_spacing) ...
-%                        * (1 - smooth_transition_tanh(i(:),1e-2,i_1,i_2,i_3,i_4,0.01,0.01));
-d0 = d0/boundary_distance;
-val = zeros(numel(i),numel(j));
-for n = 1:numel(i)
-    val(n,:) = boundary_distance*basic_tanh_space(x,0,1,N,d0(n));
-end
-end
-
-
-function val = radial_spacing_new(i,j,wall_spacing,wake_spacing,boundary_distance,imax,jmax)
-    eta_min = @(xi) smooth_expand_outside(xi,jmax,jmax,1/imax,97/imax,417/imax,512/imax,wall_spacing,wall_spacing,wall_spacing,wake_spacing,wake_spacing,true);
-    [~,r,dx1] = my_geomspace(jmax,0,xmax=boundary_distance,dx0=wake_spacing);
-    eta_max = @(xi) dx1*ones(size(xi));
-    
-    xi_min = @(eta) 0 + wake_spacing*( (r^(jmax-1)).^(eta) - 1 )./(r-1);
-    xi_max = @(eta) 0 + wake_spacing*( (r^(jmax-1)).^(eta) - 1 )./(r-1);
-    val = transfinite_surface_interpolate( i/imax, j/jmax, @(eta) xi_min(eta) ,@(eta) xi_max(eta), @(xi) eta_min(xi), @(xi) eta_max(xi) );
-end
-
-function val = scaling_ij(i,j,s0,scjmax,i_1,i_2,i_3,i_4,j_1,j_2)
-base_scale = 1 - (1-scjmax)*basic_tanh_slope((j-j_1)/(j_2-j_1),0,1,s0);
-val = 1 - (1-base_scale).*smooth_transition(i,i_1,i_2,i_3,i_4);
-end
-
-function val = basic_tanh_space(x,x0,x1,N,d0)
-% [t,F,d,s] = my_tanh_stretching_function( xi_0, xi_1, N, d0, d1, s0, s1, tol )
-[~,fun1,~,~] = my_tanh_stretching_function( x0, x1, N, d0, nan, nan, nan, 1e-12 );
-val = fun1(x);
-end
-
-function val = basic_tanh_slope(x,x0,x1,s0)
-% [t,F,d,s] = my_tanh_stretching_function( xi_0, xi_1, N, d0, d1, s0, s1, tol )
-[~,fun1,~,~] = my_tanh_stretching_function( x0, x1, 2, nan, nan, s0, nan, 1e-12 );
-val = fun1(x);
-end
-
-function [ x_update, y_update ] = march_grid( mu, muim, alpham, jm1, jm2, j, imax, jmax, x, y, scale, r )
+function [ x_update, y_update ] = march_grid( mu, muim, alpham, j, imax, jmax, x, y, scale, r )
 %MARCH_GRID Main driver of grid marching in the eta direction
 
 x_update = zeros(imax,1);
 y_update = zeros(imax,1);
 
 %% Calculate scaling factors for dissipation
-if j <= jm1
-  alpha_scale = (j-2)/(jm1-2);
-  % mu_scale    = (j-2)/(jm1-2);
-elseif j >= jm2
-  alpha_scale = 1 - (j-jm2)/(jmax-jm2);
-  mu_scale    = 1;
-else
-  alpha_scale = 1;
-  mu_scale    = 1;
-end
-
-jm0 = 1/6;
-alpha_scale = smooth_transition(j/jmax,jm0,jm1,jm2,1);
-
-alpha = 1 + (alpham - 1)*alpha_scale;
+alpha = alpham;
 
 % Set scaled dissipation factors
-scaled_mu   = mu_scale*mu;
-scaled_muim = mu_scale*muim;
+scaled_mu   = mu;
+scaled_muim = muim;
 
 %% Now start building the next grid line
 % Calculate the estimated grid volumes
