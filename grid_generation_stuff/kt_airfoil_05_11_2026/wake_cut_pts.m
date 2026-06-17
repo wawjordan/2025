@@ -3,7 +3,8 @@ function [ x, y, fx, dfx, ddfx, fy, dfy, ddfy ] = wake_cut_pts( airfoil_x, airfo
 p = inputParser;
 validScalarNum = @(x) isnumeric(x) && isscalar(x);
 validScalarPosNum = @(x) validScalarNum(x) && (x > 0);
-validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
+% validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
+validScalarNonNegInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x >= 0);
 
 validReal        = @(x) isreal(x) && ~isnan(x) && ~isinf(x);
 validRealPoints  = @(x) all(arrayfun(@(x)validReal(x),x),"all") && isvector(x);
@@ -12,7 +13,7 @@ valid_fcn_handle = @(x) isa(x,'function_handle');
 addRequired(p,'airfoil_x',validRealPoints);
 addRequired(p,'airfoil_y',validRealPoints);
 addRequired(p,'boundary_distance',validScalarPosNum);
-addRequired(p,'num_wake_pts',validScalarPosInt);
+addRequired(p,'num_wake_pts',validScalarNonNegInt);
 addOptional(p,'TE_loc',[1;0],validVec);
 addOptional(p,'TE_slope',0,validReal);
 addOptional(p,'fx',  [],valid_fcn_handle);
@@ -35,6 +36,12 @@ ddfx = p.Results.ddfx;
 fy   = p.Results.fy;
 dfy  = p.Results.dfy;
 ddfy = p.Results.ddfy;
+
+if (num_wake_pts==0)
+    x = airfoil_x;
+    y = airfoil_y;
+    return
+end
 
 % 
 % delta = get_delta(airfoil_x,airfoil_y);

@@ -12,17 +12,23 @@ clc;
 
 airfoil = local_airfoil_generator();
 
-N        = 257;
-Ntrans   = 17;
+jmax         = 129;  % number of points off body
+n_body_pts   = 257;  % number of points on the body
+n_wake_pts   = 129;  % number of points in wake
+n_transition = 17;   % number of transition points for surface spacing blending
 
-AR_LE    = 1;
-AR_TE    = 1;
-% delta_LE = 0.0005*AR_LE;
-% delta_TE = 0.0005*AR_TE;
-delta_LE = 0.001*AR_LE;
-delta_TE = 0.001*AR_TE;
 
-[x_airfoil,y_airfoil,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,N,Ntrans,delta_LE,delta_TE);
+AR_LE    = 1; % target aspect ratio at the leading edge
+AR_TE    = 1; % target aspect ratio at the trailing edge
+wake_multiplier = 1;
+perim = airfoil.airfoil_arc_length(0,1)/airfoil.chord;
+uniform_spacing = perim/(n_body_pts-1);
+% delta_LE = 0.0005; % target wall spacing at leading edge
+% delta_TE = 0.0005; % target wall spacing at trailing edge
+delta_LE = 0.1*uniform_spacing; % target wall spacing at leading edge
+delta_TE = 0.1*uniform_spacing; % target wall spacing at trailing edge
+
+[x_airfoil,y_airfoil,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,delta_LE*AR_LE,delta_TE*AR_TE);
 
 hold on
 plot(x_airfoil,y_airfoil,'r.-');
@@ -30,20 +36,23 @@ axis equal
 hold off
 
 boundary_distance = 500;
-jmax              = 129;             % Number of Points Off Body
-n_wake_pts        = 129;             % Number of Points in Wake
-scjmax            = 0.9999;           % Scaling Factor
+% scjmax            = 0.9999;           % Scaling Factor
+scjmax            = 0.99;           % Scaling Factor
 mu                = 0.1;             % 4th order explicit smoothing factor
 muim              = 0.5;             % Implicit smoothing factor
 alpham            = 0.5;            % Alpha scheme integration factor
 % alpham            = 0.5;            % Alpha scheme integration factor
 
 
+boundary_distance = 10;
+jmax = 50;
+n_wake_pts=0;
+
 [x2,y2] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
                                  boundary_distance, jmax, ...
                                  AR_LE, AR_TE, scjmax, ...
                                  mu, muim, alpham, ...
-                                 n_wake_pts );
+                                 n_wake_pts, wake_multiplier );
 
 hold on
 plot(x2,y2,'k');
@@ -52,18 +61,18 @@ axis equal
 
 hold off
 %%
-% clf;
-% hold on
-% for j = 1:jmax
-%     tmp = sqrt(diff(x2(1:end-1,j)).^2+diff(y2(1:end-1,j)).^2) ./ sqrt(diff(x2(2:end,j)).^2+diff(y2(2:end,j)).^2);
-%     tmp(tmp<1) = 1./tmp(tmp<1);
-%     plot(tmp)
-% end
-% imax = size(x2,1);
-% tmp = zeros(imax,jmax-1);
-% for i = 1:imax
-%     tmp(i,:) = sqrt(gradient(x2(i,1:end-1)).^2+gradient(y2(i,1:end-1)).^2) ./ sqrt(gradient(x2(i,2:end)).^2+gradient(y2(i,2:end)).^2);
-% end
+clf;
+hold on
+for j = 1:jmax
+    tmp = sqrt(diff(x2(1:end-1,j)).^2+diff(y2(1:end-1,j)).^2) ./ sqrt(diff(x2(2:end,j)).^2+diff(y2(2:end,j)).^2);
+    tmp(tmp<1) = 1./tmp(tmp<1);
+    plot(tmp)
+end
+imax = size(x2,1);
+tmp = zeros(imax,jmax-1);
+for i = 1:imax
+    tmp(i,:) = sqrt(gradient(x2(i,1:end-1)).^2+gradient(y2(i,1:end-1)).^2) ./ sqrt(gradient(x2(i,2:end)).^2+gradient(y2(i,2:end)).^2);
+end
 % tmp(tmp<1) = 1./tmp(tmp<1);
 % contourf(tmp);
 
