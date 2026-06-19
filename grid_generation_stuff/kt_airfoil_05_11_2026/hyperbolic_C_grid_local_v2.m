@@ -1,38 +1,39 @@
-function [x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
-                                  boundary_distance, jmax, AR_LE, AR_TE,...
-                                  scjmax, mu, muim, alpham, n_wake_pts, wake_multiplier )
-% [x2,y2] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
-%                                  boundary_distance, jmax, ...
-%                                  AR_LE, AR_TE, scjmax, ...
-%                                  mu, muim, alpham, ...
-%                                  n_wake_pts );
-%% Function: hyperbolic_grid
-%
-% Description: Computes a grid using hyperbolic grid generation
-%
-% Resources: Kinsey  & Barth    1984 - Primary Reference
-%            Cordova & Barth    1988 
-%            Steger  & Chaussee 1980
-%
-% Inputs: 
-%           x_airfoil:            Coordinates of airfoil
-%           y_airfoil:            Coordinates of airfoil
-%           boundary_distance:    Distance to outer boundary
-%           jmax:                 Number of points of airfoil
-%           wall_spacing:         Initial spacing of the airfoil 
-%           scjmax:               Scaling Factor
-%           mu:                   4th Order Explicit Smoothing Factor
-%           muim:                 Implicit Smoothing Factor
-%           alpham:               Alpha scheme integration factor
-%           jm1:                  Alpha variation ramp parameter
-%           jm2:                  Alpha variation ramp parameter
-%           TE_slope:             Trailing edge slope
-%           wake_pts:             Number of points in wake
-%
-% Outputs:
-%           x:                    Coordinates of grid
-%           y:                    Coordinates of grid
-%
+function [x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil, ...
+                                             n_wake_pts, jmax, varargin )
+p = inputParser;
+validScalarNum = @(x) isnumeric(x) && isscalar(x);
+validScalarPosNum = @(x) validScalarNum(x) && (x > 0);
+validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
+validScalarNonNegInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x >= 0);
+validReal        = @(x) isreal(x) && ~isnan(x) && ~isinf(x);
+validAlpha       = @(x) isa(x,'function_handle') || all(arrayfun(@(x)validScalarPosNum(x),x),"all");
+validRealPoints  = @(x) all(arrayfun(@(x)validReal(x),x),"all") && isvector(x);
+valid_fcn_handle = @(x) isa(x,'function_handle')||isempty(x);
+addRequired(p,'x_airfoil',validRealPoints);
+addRequired(p,'y_airfoil',validRealPoints);
+addRequired(p,'n_wake_pts',validScalarNonNegInt);
+addRequired(p,'jmax',validScalarPosInt);
+addOptional(p,'boundary_distance',100,validScalarPosNum);
+addOptional(p,'wake_multiplier',1,validScalarPosNum);
+addOptional(p,'AR_LE', 1,validScalarPosNum);
+addOptional(p,'AR_TE', 1,validScalarPosNum);
+addOptional(p,'scjmax',0.999,validAlpha);
+addOptional(p,'mu',0.1,validAlpha);
+addOptional(p,'muim',0.5,validAlpha);
+addOptional(p,'alpham',0.5,validAlpha);
+addOptional(p,'fx_wake',[],valid_fcn_handle);
+addOptional(p,'fy_wake',[],valid_fcn_handle);
+parse( p, x_airfoil, y_airfoil, n_wake_pts, jmax, varargin{:} );
+boundary_distance       = p.Results.boundary_distance;
+wake_multiplier       = p.Results.wake_multiplier;
+AR_LE       = p.Results.AR_LE;
+AR_TE       = p.Results.AR_TE;
+scjmax      = p.Results.scjmax;
+mu          = p.Results.mu;
+muim        = p.Results.muim;
+alpham     = p.Results.alpham;
+fx_wake     = p.Results.fx_wake;
+fy_wake     = p.Results.fy_wake;
 
 x_airfoil = x_airfoil(:).';
 y_airfoil = y_airfoil(:).';
@@ -50,35 +51,60 @@ end
 x = zeros(imax,jmax);
 y = zeros(imax,jmax);
 
+if isa(alpham,'function_handle')
+    [I,J] = ndgrid(1:imax,1:jmax);
+    alpham = alpham(I,J);
+elseif isscalar(alpham)
+    alpham = alpham*ones(imax,jmax);
+end
+
+if isa(scjmax,'function_handle')
+    [I,J] = ndgrid(1:imax,1:jmax);
+    scjmax = scjmax(I,J);
+elseif isscalar(scjmax)
+    scjmax = scjmax*ones(imax,jmax);
+end
+
 [TE_slope,TE_loc] = set_TE_slope( x_airfoil, y_airfoil );
 
 %% Create ETAMIN Boundary
-[ x1, y1, ~, ~ ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, n_wake_pts, TE_slope=TE_slope, TE_loc=TE_loc );
+[ x1, y1 ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, ...
+                           n_wake_pts, TE_slope=TE_slope, TE_loc=TE_loc, ...
+                           fx=fx_wake, fy=fy_wake );
 x(:,1) = x1;
 y(:,1) = y1;
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23
 r_space = zeros(imax, jmax);
-% deltas = sqrt( diff(x_airfoil).^2 + diff(y_airfoil).^2 );
 if n_wake_pts>0
     i1 = n_wake_pts;
     i2 = n_wake_pts+n_body_pts-1;
 else
     i1 = 1;
-    i2 = imax-1;
+    i2 = imax;
 end
-[wall_spacing,iLE] = get_wall_spacing(x(:,1),y(:,1),i1,i2,AR_LE,AR_TE,wake_multiplier);
+[wall_spacing,iLE] = get_wall_spacing(x(:,1),y(:,1),n_wake_pts,i1,i2,AR_LE,AR_TE,wake_multiplier);
 
-
-% wall_spacing  = 0.5 * ( wall_spacing1 + wall_spacing2 );
 % Stretching factor
-[~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing(iLE) );
-alpha = r-1;
+
+% [~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing(iLE) );
+% alpha = r-1;
+
+alpha   = zeros(imax,1);
+for i = 1:imax
+    [~,r,~] = my_geomspace( jmax, 0, xmax=boundary_distance, dx0=wall_spacing(i) );
+    alpha(i) = r-1;
+end
+
+
 for j = 2:jmax
     r_space(:,j) = r_space(:,j-1)                           ...
-                  + wall_spacing*(1+alpha)^(j-2);
+                  + wall_spacing.*(1+alpha).^(j-2);
 end
+
+
+
 
 %% Set Up Scaling Factor
 % Note: Sets how the grid changes from the initial spacing given by 
@@ -86,17 +112,23 @@ end
 % See:  Kinsey and Barth - pg 26
 
 scale0      = 1 - exp(log(scjmax)/(jmax-2));
-scale    = zeros(imax,jmax);
-% scale2     = 1-exp(log( (wall_spacing/wall_spacing1)/(jmax-2) ) );
-scale(:,1) = 1;
 % for j = 2:jmax
-%     scaling(:,j) = (1-scale)^(j-1);
+%     scaling(:,j) = (1-scale0)^(j-1);
 % end
+scale    = zeros(imax,jmax);
+scale(:,1) = 1;
 for j = 2:jmax
     for i = 1:imax
-        scale(i,j) = (1-scale0)^(j-1);
+        % scale(i,j) = (1-scale2(i))^(j-1);
+        scale(i,j) = ( 1-scale0(i,j) )^(j-1);
     end
 end
+
+vscale   = ones(imax,jmax);
+% for j = 1:jmax
+%     vscale(:,j) = ( 1 - (wall_spacing-min(wall_spacing))./max(wall_spacing) ).^((j-1)/(jmax-1));
+% end
+
 
 % directly extrude the first layer
 h = r_space(:,2);
@@ -116,14 +148,16 @@ end
 % for j = 2:jmax
 for j = n_layers+1:jmax
   [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
-                                 mu, muim, alpham,            ...
-                                 scale(:,j), r_space(:,j), r_space(:,j-1) );
-  % clf
-  % hold on
-  %   plot(x(:,1:j),y(:,1:j),'k')
-  %   plot(x(:,1:j).',y(:,1:j).','k')
-  %   axis equal
-  %   xlim([-1,2])
+                                 mu, muim, alpham(:,j),            ...
+                                 scale(:,j), vscale(:,j), r_space(:,j), r_space(:,j-1) );
+  if j ==40
+    hold on
+    plot(x(:,1:j),y(:,1:j),'k')
+    plot(x(:,1:j).',y(:,1:j).','k')
+    axis equal
+    xlim([-1,2])
+    j;
+  end
   fprintf('step %d / %d\n',j-1,jmax-1)
 end
 end
@@ -135,18 +169,18 @@ TE_slope  = ( up_slope + low_slope )/2;
 TE_loc    = 0.5*[x(1)+x(end),y(1)+y(end)];
 end
 
-function [wall_spacing,iLE] = get_wall_spacing(x,y,i1,i2,AR_LE,AR_TE,wake_multiplier,iLE)
+function [wall_spacing,iLE] = get_wall_spacing(x,y,n_wake_pts,i1,i2,AR_LE,AR_TE,wake_multiplier,iLE)
 
 % segment lengths
 deltas = sqrt( diff(x).^2 + diff(y).^2 );
 
 % average top and bottom
-TE_spacing = 0.5*( deltas(i1) + deltas(i2) );
+TE_spacing = 0.5*( deltas(i1) + deltas(i2-1) );
 
-if nargin<8
+if nargin<9
     % hunt for the minimum LE spacing
     idx1 = i1;
-    idx2 = i2;
+    idx2 = i2-1;
     % search forward
     for i = i1:i2-1
         if deltas(i+1) < deltas(i)
@@ -156,7 +190,7 @@ if nargin<8
     end
     
     % search backward
-    for i = i2:-1:i1+1
+    for i = i2-1:-1:i1+1
         if deltas(i-1) < deltas(i)
             idx2 = i;
             break
@@ -180,24 +214,26 @@ if nargin<8
     %     end
     % end
     [~,iLE] = min(deltas(idx1:idx2));
-    iLE = iLE + idx1 - 1;
+    iLE = iLE + idx1;
 end
 
 % average top and bottom
 LE_spacing = 0.5*(deltas(iLE+1)+deltas(iLE));
 
 % get wall spacings
-wall_spacingLE = TE_spacing/AR_TE;
-wall_spacingTE = LE_spacing/AR_LE;
+wall_spacingLE = LE_spacing/AR_LE;
+wall_spacingTE = TE_spacing/AR_TE;
 
 imax = numel(x);
 wall_spacing = zeros(size(x));
 wall_spacing(i1:i2) = wall_spacingTE + (wall_spacingLE-wall_spacingTE)*smooth_transition(i1:i2,i1,iLE,iLE,i2);
-wall_spacing(i1-1:-1:1) = smooth_transition_1_side (1:i1-1,1,i1-1,wall_spacingTE,wall_spacingTE*wake_multiplier);
-wall_spacing(i2+1:imax) = smooth_transition_1_side (i2+1:imax,i2+1,imax,wall_spacingTE,wall_spacingTE*wake_multiplier);
+if ( n_wake_pts > 0)
+    wall_spacing(i1-1:-1:1) = smooth_transition_1_side (1:i1-1,1,i1-1,wall_spacingTE,wall_spacingTE*wake_multiplier);
+    wall_spacing(i2+1:imax) = smooth_transition_1_side (i2+1:imax,i2+1,imax,wall_spacingTE,wall_spacingTE*wake_multiplier);
+end
 end
 
-function [ x_update, y_update ] = march_grid( jmax, x, y, mu, muim, alpham, scale, rj, rjm1 )
+function [ x_update, y_update ] = march_grid( jmax, x, y, mu, muim, alpham, scale, vscale, rj, rjm1 )
 %MARCH_GRID Main driver of grid marching in the eta direction
 % INPUTS
 % j       : current j index             (integer)
@@ -222,7 +258,8 @@ volume = calc_volume( jmax, x, y, scale, rj, rjm1 );
 [xxi, yxi, xeta, yeta] = grid_metrics(x, y, volume);
 
 % Set up the matrix problem
-rhs = create_rhs( x, y, volume, xxi, yxi, xeta, yeta, alpham, mu );
+% rhs = create_rhs( x, y, volume, xxi, yxi, xeta, yeta, alpham, mu );
+rhs = create_rhs( x, y, volume, xxi, yxi, xeta, yeta, scale, mu );
 lhs = create_lhs( xxi, yxi, xeta, yeta, alpham, muim );
 % https://www.mathworks.com/matlabcentral/answers/46316-sparse-block-diagonal-matrix
 
@@ -236,7 +273,7 @@ y_update = y + reshape(soln(2,:),size(y));
 
 end
 
-function [volume] = calc_volume( jmax, x, y, scale, rj, rjm1 )
+function [volume] = calc_volume_old( jmax, x, y, scale, rj, rjm1 )
 %VOLUME Based on scaling and the local arc length, calculate the estimated
 % volumes, V^{0}
 imax = numel(x);
@@ -253,11 +290,48 @@ for i = 2:imax-1
   volume(i) = ds * ( scale(i)*dl + (1-scale(i)) * arc_length / (jmax-1) );
 end
 
-i = 1;             
+i = 1;
 volume(i) = volume(i+1);
 
-i = imax;             
+i = imax;
 volume(i) = volume(i-1);
+end
+
+function [volume] = calc_volume( jmax, x, y, scale, rj, rjm1 )
+%VOLUME Based on scaling and the local arc length, calculate the estimated
+% volumes, V^{0}
+imax = numel(x);
+volume = zeros(size(x));
+x = x(:);
+y = y(:);
+
+dx = gradient(x(:));
+dy = gradient(y(:));
+mag = (rj(:) - rjm1(:))./sqrt( dx.^2 + dy.^2 );
+x_ = x - dy.*mag;
+y_ = y + dx.*mag;
+
+% [x2,y2] = extrude_surface_pts(x,y,1,imax,mag.*sqrt( dx.^2 + dy.^2 ));
+
+x1 = x(1:imax-1);  y1 = y(1:imax-1);
+x2 = x(2:imax);    y2 = y(2:imax);
+x3 = x_(2:imax);   y3 = y_(2:imax);
+x4 = x_(1:imax-1); y4 = y_(1:imax-1);
+
+vtmp = 0.5*abs( ( x1.*y2 + x2.*y3 + x3.*y4 + x4.*y1 ) ...
+              - ( x2.*y1 + x3.*y2 + x4.*y3 + x1.*y4 ) );
+volume(1) = vtmp(1);
+volume(2:imax-1) = 0.5*( vtmp(1:end-1) + vtmp(2:end) );
+volume(imax) = vtmp(end);
+% [xxi, yxi, xeta, yeta] = grid_metrics(x, y, volume);
+% volj = xxi.*yeta - yxi.*xeta;
+% 
+% volume = scale.*volume + (1-scale).*volj;
+
+volume_old = calc_volume_old( jmax, x, y, scale, rj, rjm1 );
+% volume = scale.*volume_old + (1-scale).*volume;
+volume = volume_old;
+
 end
 
 function [xxi, yxi, xeta, yeta] = grid_metrics(x, y, volume)
@@ -281,7 +355,21 @@ for i = 2:imax-1
 
     xeta(i) = -yxi(i)*volume(i)/factor;
     yeta(i) =  xxi(i)*volume(i)/factor;
-end     
+end
+
+i = 1;
+xxi(i) = 0.5*( -3*x(i) + 4*x(i+1) - x(i+2) );
+yxi(i) = 0.5*( -3*y(i) + 4*y(i+1) - y(i+2) );
+factor = xxi(i)^2 + yxi(i)^2;
+xeta(i) = -yxi(i)*volume(i)/factor;
+yeta(i) =  xxi(i)*volume(i)/factor;
+
+i = imax;
+xxi(i) =-0.5*( -3*x(i) + 4*x(i-1) - x(i-2) );
+yxi(i) =-0.5*( -3*y(i) + 4*y(i-1) - y(i-2) );
+factor = xxi(i)^2 + yxi(i)^2;
+xeta(i) = -yxi(i)*volume(i)/factor;
+yeta(i) =  xxi(i)*volume(i)/factor;
         
 end
 

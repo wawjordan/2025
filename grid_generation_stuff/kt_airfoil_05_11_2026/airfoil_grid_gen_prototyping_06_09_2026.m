@@ -11,48 +11,85 @@ clear parent_dir_str path_idx path_parts
 clc;
 
 airfoil = local_airfoil_generator();
+% y_from_x = chebfun(@(x) airfoil.streamline_y(0,x,0),[1,500],1000);
+% s_from_x = cumsum(sqrt(1+diff(y_from_x).^2));
+% x_from_s = inv(s_from_x);
+% L = s_from_x(500);
+% y_from_t = @(t) y_from_x( x_from_s(t*L) );
+% y_from_t = @(t) y_from_x( 1 + (500-1)*t);
+% pinf = minimax(f, deg, 'tol', 1e-16);
+% p2   = polyfit(f,deg);
+% r1   = aaa(f);
+
+% perim = airfoil.airfoil_arc_length(0,1)/airfoil.chord;
+% uniform_spacing = perim/(n_body_pts-1);
+% delta_LE = 0.0005; % target wall spacing at leading edge
+% delta_TE = 0.0005; % target wall spacing at trailing edge
+% delta_LE = 0.1*uniform_spacing; % target wall spacing at leading edge
+% delta_TE = 0.1*uniform_spacing; % target wall spacing at trailing edge
+% [x_airfoil,y_airfoil,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,delta_LE*AR_LE,delta_TE*AR_TE);
+% [x2,y2] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
+%                                  boundary_distance, jmax, ...
+%                                  AR_LE, AR_TE, scjmax, ...
+%                                  mu, muim, alpham, ...
+%                                  n_wake_pts, wake_multiplier );
 
 jmax         = 129;  % number of points off body
-n_body_pts   = 257;  % number of points on the body
-n_wake_pts   = 129;  % number of points in wake
-n_transition = 17;   % number of transition points for surface spacing blending
-
+n_body_pts   = 129;  % number of points on the body
+n_wake_pts   = 65;  % number of points in wake
+n_transition = 9;   % number of transition points for surface spacing blending
+imax = n_body_pts + 2*(n_wake_pts-1);
+i1 = n_wake_pts;
+i2 = n_wake_pts+n_body_pts-1;
 
 AR_LE    = 1; % target aspect ratio at the leading edge
 AR_TE    = 1; % target aspect ratio at the trailing edge
+delta_LE = 0.1;%0.1; % target wall spacing at leading edge
+delta_TE = 0.1;%0.1; % target wall spacing at trailing edge
 wake_multiplier = 1;
-perim = airfoil.airfoil_arc_length(0,1)/airfoil.chord;
-uniform_spacing = perim/(n_body_pts-1);
-% delta_LE = 0.0005; % target wall spacing at leading edge
-% delta_TE = 0.0005; % target wall spacing at trailing edge
-delta_LE = 0.1*uniform_spacing; % target wall spacing at leading edge
-delta_TE = 0.1*uniform_spacing; % target wall spacing at trailing edge
+boundary_distance = 500;
+scjmax            = 1;           % Scaling Factor
+mu                = 0.1;             % 4th order explicit smoothing factor
+muim              = 0.5;             % Implicit smoothing factor
+% scjmax            = 0.9;           % Scaling Factor
+% o = 1;
+% f1s = @(t) smooth_transition_1_side(t,i2,imax+1-o,0,1-0.98);
+% f2s = @(t) smooth_transition_1_side(t,o,i1,1,0.98);
+% scjmax = @(i,j) f1s(i) + f2s(i) + 0*j;
+% f1s = @(t) smooth_transition_1_side(t,jmax/8,jmax,1,0.99);
+% scjmax = @(i,j) f1s(j) + 0*i;
+alpham            = 0.5;            % Alpha scheme integration factor
+% f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,4);
+% f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-1);
+% f2a =  @(t) 0*t;
+% alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
 
-[x_airfoil,y_airfoil,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,delta_LE*AR_LE,delta_TE*AR_TE);
+
+
+
+[x_airfoil,y_airfoil,~,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
+
+
+
 
 hold on
 plot(x_airfoil,y_airfoil,'r.-');
 axis equal
 hold off
 
-boundary_distance = 500;
-% scjmax            = 0.9999;           % Scaling Factor
-scjmax            = 0.99;           % Scaling Factor
-mu                = 0.1;             % 4th order explicit smoothing factor
-muim              = 0.5;             % Implicit smoothing factor
-alpham            = 0.5;            % Alpha scheme integration factor
-% alpham            = 0.5;            % Alpha scheme integration factor
 
-
-boundary_distance = 10;
-jmax = 50;
-n_wake_pts=0;
 
 [x2,y2] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
-                                 boundary_distance, jmax, ...
-                                 AR_LE, AR_TE, scjmax, ...
-                                 mu, muim, alpham, ...
-                                 n_wake_pts, wake_multiplier );
+                                      n_wake_pts, jmax, ...
+                                      boundary_distance=boundary_distance, ...
+                                      wake_multiplier=wake_multiplier, ...
+                                      AR_LE = AR_LE, ...
+                                      AR_TE = AR_TE, ...
+                                      scjmax = scjmax, ...
+                                      mu = mu, ...
+                                      muim = muim, ...
+                                      alpham = alpham, ...
+                                      fy_wake = fy_wake );
 
 hold on
 plot(x2,y2,'k');
@@ -68,38 +105,79 @@ for j = 1:jmax
     tmp(tmp<1) = 1./tmp(tmp<1);
     plot(tmp)
 end
-imax = size(x2,1);
-tmp = zeros(imax,jmax-1);
+
+clf;
+hold on
 for i = 1:imax
-    tmp(i,:) = sqrt(gradient(x2(i,1:end-1)).^2+gradient(y2(i,1:end-1)).^2) ./ sqrt(gradient(x2(i,2:end)).^2+gradient(y2(i,2:end)).^2);
+    tmp = sqrt(diff(x2(i,1:end-1)).^2+diff(y2(i,1:end-1)).^2) ./ sqrt(diff(x2(i,2:end)).^2+diff(y2(i,2:end)).^2);
+    tmp(tmp<1) = 1./tmp(tmp<1);
+    plot(tmp)
 end
+hold off;
+% imax = size(x2,1);
+% tmp = zeros(imax,jmax-1);
+% for i = 1:imax
+%     tmp(i,:) = sqrt(gradient(x2(i,1:end-1)).^2+gradient(y2(i,1:end-1)).^2) ./ sqrt(gradient(x2(i,2:end)).^2+gradient(y2(i,2:end)).^2);
+% end
 % tmp(tmp<1) = 1./tmp(tmp<1);
 % contourf(tmp);
 
-function [x,y,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,N,Ntrans,delta_LE,delta_TE)
+% [x_airfoil,y_airfoil,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,delta_LE*AR_LE,delta_TE*AR_TE);
+% function [fx,fy] = get_wake_spacing_funs(airfoil,)
+
+function [x,y,F1,dF1,ddF1,fx_wake,fy_wake] = get_airfoil_coordinates( ...
+                                             airfoil, ...
+                                             n_body_pts, ...
+                                             n_transition, ...
+                                             AR_LE,        ...
+                                             AR_TE,        ...
+                                             delta_LE,     ...
+                                             delta_TE,     ...
+                                             n_wake_pts,   ...
+                                             boundary_distance )
 % get parametric location of maximum curvature on the airfoil
 % which will approximately be the leading edge
 tLE = airfoil.thetaCmax/(2*pi);
 
+L = airfoil.airfoil_arc_length(0,1);
+
 % get normalized arc length to point of max curvature
-t0 = airfoil.airfoil_arc_length(0,tLE)/airfoil.airfoil_arc_length(0,1);
+t0 = airfoil.airfoil_arc_length(0,tLE)/L;
 
 % nondimensionalize spacings
-cxL   = airfoil.chord/airfoil.airfoil_arc_length(0,1);
-dLE = delta_LE*cxL;
-dTE = delta_TE*cxL;
+% cxL   = airfoil.chord/L;
+% perim = L/airfoil.chord;
+% uniform_spacing = perim/(n_body_pts-1);
+% dLE = AR_LE*delta_LE*uniform_spacing*cxL;
+% dTE = AR_TE*delta_TE*uniform_spacing*cxL;
+
+uniform_spacing = 1/(n_body_pts-1);
+dLE = AR_LE*delta_LE*uniform_spacing;
+dTE = AR_TE*delta_TE*uniform_spacing;
+
+% dLE = delta_LE*cxL;
+% dTE = delta_TE*cxL;
 
 % get buffer distance over which to blend the two functions
-offset = ( (Ntrans-1)/(N-1) )*cxL;
+% offset = ( (n_transition-1)/(n_body_pts-1) )*cxL;
+offset = ( (n_transition-1)/(n_body_pts-1) );
 
 % generate asymmetric stretching function for airfoil surface
-[F1,dF1,ddF1] = hermite_blend_2_vinokur_asym(N,t0,dLE,dTE,offset,true);
+[F1,dF1,ddF1] = hermite_blend_2_vinokur_asym(n_body_pts,t0,dLE,dTE,offset,true);
 % % [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
-[x,y] = airfoil.output_airfoil_coords1(N,F1);
+[x,y] = airfoil.output_airfoil_coords1(n_body_pts,F1);
 
 % flip to match the clockwise convention
 x = flip(x);
 y = flip(y);
+if (nargin > 8 && n_wake_pts>0)
+    [ ~, ~, fx_wake ] = wake_cut_pts( x, y, boundary_distance, n_wake_pts );
+    fy_wake = @(t) airfoil.streamline_y(0,fx_wake(t),0);
+else
+    fx_wake = [];
+    fy_wake = [];
+end
+
 end
 
 function airfoil = local_airfoil_generator()
@@ -110,7 +188,7 @@ vinf    = 75.0;
 rhoinf  = 1.0;
 pinf    = 100000.0;
 gamma   = 1.4;
-alpha   = 10; % (degrees)
+alpha   = 0; % (degrees)
 rho_ref = 1.0;
 p_ref   = 100000.0;
 a_ref   = sqrt(gamma*p_ref/rho_ref);

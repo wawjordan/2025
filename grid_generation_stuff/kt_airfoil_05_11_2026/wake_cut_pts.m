@@ -9,7 +9,7 @@ validScalarNonNegInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x >= 0);
 validReal        = @(x) isreal(x) && ~isnan(x) && ~isinf(x);
 validRealPoints  = @(x) all(arrayfun(@(x)validReal(x),x),"all") && isvector(x);
 validVec         = @(x) validRealPoints(x) && numel(x)==2;
-valid_fcn_handle = @(x) isa(x,'function_handle');
+valid_fcn_handle = @(x) isa(x,'function_handle')||isempty(x);
 addRequired(p,'airfoil_x',validRealPoints);
 addRequired(p,'airfoil_y',validRealPoints);
 addRequired(p,'boundary_distance',validScalarPosNum);
