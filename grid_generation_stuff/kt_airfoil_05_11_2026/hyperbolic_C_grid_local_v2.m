@@ -145,20 +145,40 @@ end
 % axis equal
 % xlim([0.9,1.1])
 %% March Grid
-% for j = 2:jmax
-for j = n_layers+1:jmax
-  [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
-                                 mu, muim, alpham(:,j),            ...
-                                 scale(:,j), vscale(:,j), r_space(:,j), r_space(:,j-1) );
-  if j ==40
-    hold on
-    plot(x(:,1:j),y(:,1:j),'k')
-    plot(x(:,1:j).',y(:,1:j).','k')
-    axis equal
-    xlim([-1,2])
-    j;
-  end
-  fprintf('step %d / %d\n',j-1,jmax-1)
+for n = 1:2
+    fprintf('pass %d / %d\n',n,2)
+    for j = 2:jmax
+        [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
+            mu, muim, alpham(:,j),            ...
+            scale(:,j), vscale(:,j), r_space(:,j), r_space(:,j-1) );
+        % if any(j ==5:40)
+        %   hold on
+        %   plot(x(:,1:j),y(:,1:j),'k')
+        %   plot(x(:,1:j).',y(:,1:j).','k')
+        %   axis equal
+        %   xlim([499.9,500.1])
+        %   j;
+        % end
+        fprintf('step %d / %d\n',j-1,jmax-1)
+    end
+
+    alpha   = zeros(imax,1);
+    for i = 1:imax
+        d = min(sqrt( ( x(i,end) - x(:,1) ).^2 + (y(i,end) - y(:,1) ).^2 ));
+        dist = boundary_distance - d;
+        if dist < 0
+            sf =  d / (d+abs(dist));
+        else
+            sf = ( d+abs(dist) ) / d;
+        end
+        sf = max(min(sf,3),0.3);
+        [~,r,~] = my_geomspace( jmax, 0, xmax=sf*boundary_distance, dx0=wall_spacing(i) );
+        alpha(i) = r-1;
+        for j = 2:jmax
+            r_space(:,j) = r_space(:,j-1)                           ...
+                + wall_spacing.*(1+alpha).^(j-2);
+        end
+    end
 end
 end
 
@@ -389,17 +409,51 @@ end
 rhs = zeros(2*imax,1);
 
 %% Compute RHS for Interior Points
-for i = 2:imax-1
+% for i = 2:imax-1
+% % Explicit fourth order dissipation
+%   if i == 2
+%     dissipation_x = -mu(i)*(-2*x(i-1) + 5*x(i) - 4*x(i+1) + x(i+2));
+%     dissipation_y = -mu(i)*(-2*y(i-1) + 5*y(i) - 4*y(i+1) + y(i+2));
+%   elseif i == imax-1
+%     dissipation_x = -mu(i)*(-2*x(i+1) + 5*x(i) - 4*x(i-1) + x(i-2));
+%     dissipation_y = -mu(i)*(-2*y(i+1) + 5*y(i) - 4*y(i-1) + y(i-2));
+%   else
+%     dissipation_x = -mu(i)*(x(i-2) - 4*x(i-1) + 6*x(i) - 4*x(i+1) + x(i+2));
+%     dissipation_y = -mu(i)*(y(i-2) - 4*y(i-1) + 6*y(i) - 4*y(i+1) + y(i+2));
+%   end
+% 
+%   xxi0  = xxi(i);
+%   yxi0  = yxi(i);
+%   xeta0 = xeta(i);
+%   yeta0 = yeta(i);
+% 
+%   determ = 1/(xxi0^2+yxi0^2);
+% 
+%   volj = xxi0*yeta0 - yxi0*xeta0;
+% 
+%   vblend = alpha(i)*volume(i) + (1-alpha(i))*volj;
+% 
+%   rhs(2*(i-1)+1) = -yxi0*determ*vblend + dissipation_x;
+%   rhs(2*(i-1)+2) =  xxi0*determ*vblend + dissipation_y;
+% end
+
+for i = 1:imax
 % Explicit fourth order dissipation
-  if i == 2
-    dissipation_x = -mu(i)*(-2*x(i-1) + 5*x(i) - 4*x(i+1) + x(i+2));
-    dissipation_y = -mu(i)*(-2*y(i-1) + 5*y(i) - 4*y(i+1) + y(i+2));
+  if i == 1
+      dissipation_x = -mu(i)*( 3*x(i)   - 14*x(i+1) + 26*x(i+2) - 24*x(i+3) + 11*x(i+4) - 2*x(i+5) );
+      dissipation_y = -mu(i)*( 3*y(i)   - 14*y(i+1) + 26*y(i+2) - 24*y(i+3) + 11*y(i+4) - 2*y(i+5) );
+  elseif i == imax
+      dissipation_x = -mu(i)*( 3*x(i)   - 14*x(i-1) + 26*x(i-2) - 24*x(i-3) + 11*x(i-4) - 2*x(i-5) );
+      dissipation_y = -mu(i)*( 3*y(i)   - 14*y(i-1) + 26*y(i-2) - 24*y(i-3) + 11*y(i-4) - 2*y(i-5) );
+  elseif i == 2
+      dissipation_x = -mu(i)*( 2*x(i-1) -  9*x(i)   + 16*x(i+1) - 14*x(i+2) + 6*x(i+3)  - 1*x(i+4) );
+      dissipation_y = -mu(i)*( 2*y(i-1) -  9*y(i)   + 16*y(i+1) - 14*y(i+2) + 6*y(i+3)  - 1*y(i+4) );
   elseif i == imax-1
-    dissipation_x = -mu(i)*(-2*x(i+1) + 5*x(i) - 4*x(i-1) + x(i-2));
-    dissipation_y = -mu(i)*(-2*y(i+1) + 5*y(i) - 4*y(i-1) + y(i-2));
+      dissipation_x = -mu(i)*( 2*x(i+1) -  9*x(i)   + 16*x(i-1) - 14*x(i-2) + 6*x(i-3)  - 1*x(i-4) );
+      dissipation_y = -mu(i)*( 2*y(i+1) -  9*y(i)   + 16*y(i-1) - 14*y(i-2) + 6*y(i-3)  - 1*y(i-4) );
   else
-    dissipation_x = -mu(i)*(x(i-2) - 4*x(i-1) + 6*x(i) - 4*x(i+1) + x(i+2));
-    dissipation_y = -mu(i)*(y(i-2) - 4*y(i-1) + 6*y(i) - 4*y(i+1) + y(i+2));
+      dissipation_x = -mu(i)*( 1*x(i-2) -  4*x(i-1) +  6*x(i)   -  4*x(i+1) + 1*x(i+2));
+      dissipation_y = -mu(i)*( 1*y(i-2) -  4*y(i-1) +  6*y(i)   -  4*y(i+1) + 1*y(i+2));
   end
 
   xxi0  = xxi(i);
@@ -417,13 +471,15 @@ for i = 2:imax-1
   rhs(2*(i-1)+2) =  xxi0*determ*vblend + dissipation_y;
 end
 
+
+
 %% Compute BC
 i = 1;
-rhs(2*(i-1)+1) = 0;
+% rhs(2*(i-1)+1) = 0;
 rhs(2*(i-1)+2) = 0;
 
 i = imax;
-rhs(2*(i-1)+1) = 0;
+% rhs(2*(i-1)+1) = 0;
 rhs(2*(i-1)+2) = 0;
 
 end
@@ -513,6 +569,145 @@ for i = 2:imax-2
   lhs(2*i-1,2*i+3) = lhs(2*i-1,2*i+3) + muim(i);
   lhs(2*i,  2*i+4) = lhs(2*i,  2*i+4) + muim(i);
 end
+
+%% Boundary Condition
+lhs(2,4) = -2;
+lhs(2,6) = 1;
+lhs(2*imax,2*imax-2) = -2;
+lhs(2*imax,2*imax-4) = 1;
+
+lhs = sparse(lhs);
+end
+
+function lhs = create_lhs_new( xxi, yxi, xeta, yeta, alpha, muim )
+%CREATE_LHS creates the LHS matrix for the standard central difference
+% scheme plus fourth order implicit dissipation for smoothing
+imax = numel(xxi);
+
+if isscalar(alpha)
+    alpha = alpha*ones(imax,1);
+end
+
+if isscalar(muim)
+    muim = muim*ones(imax,1);
+end
+muim = -muim;
+
+% n = imax;
+% m = 2;
+% nn = 2*imax;
+% nnz = 5*(n-4)*m^2;
+% entries = zeros(nnz,1);
+% idx_i   = zeros(nnz,1);
+% idx_j   = zeros(nnz,1);
+
+% Create square matrix with 1 on the diagonal
+lhs = eye(2*imax);
+
+%% Set LHS Based on Grid Type
+%% Apply Steger-Chaussee hyperbolic grid marching, eq 12
+% Kinsey and Barth pg 5
+for i = 2:imax-1
+  xxi0 = xxi(i);
+  yxi0 = yxi(i);
+  jacobian = (xxi0^2+yxi0^2);
+  xeta0 = xeta(i)/jacobian;
+  yeta0 = yeta(i)/jacobian;
+
+  BinvA = [ xxi0*xeta0 - yxi0*yeta0, xxi0*yeta0 + yxi0*xeta0; ...
+            xeta0*yxi0 + yeta0*xxi0, yxi0*yeta0 - xeta0*xxi0 ];
+
+  lhs(2*i-1:2*i,2*i-3:2*i-2) = -alpha(i)*BinvA/2;
+  lhs(2*i-1:2*i,2*i+1:2*i+2) =  alpha(i)*BinvA/2;
+
+end
+
+% Explicit fourth order dissipation
+  % if i == 1
+  %     dissipation_x = -mu(i)*( 3*x(i)   - 14*x(i+1) + 26*x(i+2) - 24*x(i+3) + 11*x(i+4) - 2*x(i+5) );
+  %     dissipation_y = -mu(i)*( 3*y(i)   - 14*y(i+1) + 26*y(i+2) - 24*y(i+3) + 11*y(i+4) - 2*y(i+5) );
+  % elseif i == imax
+  %     dissipation_x = -mu(i)*( 3*x(i)   - 14*x(i-1) + 26*x(i-2) - 24*x(i-3) + 11*x(i-4) - 2*x(i-5) );
+  %     dissipation_y = -mu(i)*( 3*y(i)   - 14*y(i-1) + 26*y(i-2) - 24*y(i-3) + 11*y(i-4) - 2*y(i-5) );
+  % elseif i == 2
+  %     dissipation_x = -mu(i)*( 2*x(i-1) -  9*x(i)   + 16*x(i+1) - 14*x(i+2) + 6*x(i+3)  - 1*x(i+4) );
+  %     dissipation_y = -mu(i)*( 2*y(i-1) -  9*y(i)   + 16*y(i+1) - 14*y(i+2) + 6*y(i+3)  - 1*y(i+4) );
+  % elseif i == imax-1
+  %     dissipation_x = -mu(i)*( 2*x(i+1) -  9*x(i)   + 16*x(i-1) - 14*x(i-2) + 6*x(i-3)  - 1*x(i-4) );
+  %     dissipation_y = -mu(i)*( 2*y(i+1) -  9*y(i)   + 16*y(i-1) - 14*y(i-2) + 6*y(i-3)  - 1*y(i-4) );
+  % else
+  %     dissipation_x = -mu(i)*( 1*x(i-2) -  4*x(i-1) +  6*x(i)   -  4*x(i+1) + 1*x(i+2));
+  %     dissipation_y = -mu(i)*( 1*y(i-2) -  4*y(i-1) +  6*y(i)   -  4*y(i+1) + 1*y(i+2));
+  % end
+
+i = 1;
+% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  -  3*muim(i);
+% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  -  3*muim(i);
+% lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  + 14*muim(i);
+% lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  + 14*muim(i);
+% lhs(2*i-1,2*i+3)  = lhs(2*i-1,2*i+3)  - 26*muim(i);
+% lhs(2*i  ,2*i+4)  = lhs(2*i  ,2*i+4)  - 26*muim(i);
+% lhs(2*i-1,2*i+5)  = lhs(2*i-1,2*i+5)  + 24*muim(i);
+% lhs(2*i  ,2*i+6)  = lhs(2*i  ,2*i+6)  + 24*muim(i);
+% lhs(2*i-1,2*i+7)  = lhs(2*i-1,2*i+7)  - 11*muim(i);
+% lhs(2*i  ,2*i+8)  = lhs(2*i  ,2*i+8)  - 11*muim(i);
+% lhs(2*i-1,2*i+9 ) = lhs(2*i-1,2*i+9 ) +  2*muim(i);
+% lhs(2*i  ,2*i+10) = lhs(2*i  ,2*i+10) +  2*muim(i);
+i = 2;
+% lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  -  2*muim(i);
+% lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  -  2*muim(i);
+% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  +  9*muim(i);
+% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  +  9*muim(i);
+% lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  - 16*muim(i);
+% lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  - 16*muim(i);
+% lhs(2*i-1,2*i+3)  = lhs(2*i-1,2*i+3)  + 14*muim(i);
+% lhs(2*i  ,2*i+4)  = lhs(2*i  ,2*i+4)  + 14*muim(i);
+% lhs(2*i-1,2*i+5)  = lhs(2*i-1,2*i+5)  -  6*muim(i);
+% lhs(2*i  ,2*i+6)  = lhs(2*i  ,2*i+6)  -  6*muim(i);
+% lhs(2*i-1,2*i+7)  = lhs(2*i-1,2*i+7)  +  1*muim(i);
+% lhs(2*i  ,2*i+8)  = lhs(2*i  ,2*i+8)  +  1*muim(i);
+
+for i = 3:imax-2
+    lhs(2*i-1,2*i-5)  = lhs(2*i-1,2*i-5)  -  1*muim(i);
+    lhs(2*i  ,2*i-4)  = lhs(2*i  ,2*i-4)  -  1*muim(i);
+    lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  +  4*muim(i);
+    lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  +  4*muim(i);
+    lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  -  6*muim(i);
+    lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  -  6*muim(i);
+    lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  +  4*muim(i);
+    lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  +  4*muim(i);
+    lhs(2*i-1,2*i+3)  = lhs(2*i-1,2*i+3)  -  1*muim(i);
+    lhs(2*i  ,2*i+4)  = lhs(2*i  ,2*i+4)  -  1*muim(i);
+end
+
+i = imax-1;
+% lhs(2*i-1,2*i-9)  = lhs(2*i-1,2*i-9)  +  1*muim(i);
+% lhs(2*i  ,2*i-8)  = lhs(2*i  ,2*i-8)  +  1*muim(i);
+% lhs(2*i-1,2*i-7)  = lhs(2*i-1,2*i-7)  -  6*muim(i);
+% lhs(2*i  ,2*i-6)  = lhs(2*i  ,2*i-6)  -  6*muim(i);
+% lhs(2*i-1,2*i-5)  = lhs(2*i-1,2*i-5)  + 14*muim(i);
+% lhs(2*i  ,2*i-4)  = lhs(2*i  ,2*i-4)  + 14*muim(i);
+% lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  - 16*muim(i);
+% lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  - 16*muim(i);
+% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  +  9*muim(i);
+% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  +  9*muim(i);
+% lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  -  2*muim(i);
+% lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  -  2*muim(i);
+% 
+% 
+i = imax;
+% lhs(2*i-1,2*i-11) = lhs(2*i-1,2*i-11) +  2*muim(i);
+% lhs(2*i  ,2*i-10) = lhs(2*i  ,2*i-10) +  2*muim(i);
+% lhs(2*i-1,2*i-9)  = lhs(2*i-1,2*i-9)  - 11*muim(i);
+% lhs(2*i  ,2*i-8)  = lhs(2*i  ,2*i-8)  - 11*muim(i);
+% lhs(2*i-1,2*i-7)  = lhs(2*i-1,2*i-7)  + 24*muim(i);
+% lhs(2*i  ,2*i-6)  = lhs(2*i  ,2*i-6)  + 24*muim(i);
+% lhs(2*i-1,2*i-5)  = lhs(2*i-1,2*i-5)  - 26*muim(i);
+% lhs(2*i  ,2*i-4)  = lhs(2*i  ,2*i-4)  - 26*muim(i);
+% lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  + 14*muim(i);
+% lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  + 14*muim(i);
+% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  -  3*muim(i);
+% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  -  3*muim(i);
 
 %% Boundary Condition
 lhs(2,4) = -2;

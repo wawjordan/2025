@@ -34,21 +34,26 @@ airfoil = local_airfoil_generator();
 %                                  mu, muim, alpham, ...
 %                                  n_wake_pts, wake_multiplier );
 
-jmax         = 129;  % number of points off body
-n_body_pts   = 129;  % number of points on the body
-n_wake_pts   = 65;  % number of points in wake
-n_transition = 9;   % number of transition points for surface spacing blending
+% jmax         = 513;  % number of points off body
+% n_body_pts   = 1025;  % number of points on the body
+% n_wake_pts   = 513;  % number of points in wake
+% n_transition = 33;   % number of transition points for surface spacing blending
+
+jmax         = 33;  % number of points off body
+n_body_pts   = 65;  % number of points on the body
+n_wake_pts   = 33;  % number of points in wake
+n_transition = 5;   % number of transition points for surface spacing blending
 imax = n_body_pts + 2*(n_wake_pts-1);
 i1 = n_wake_pts;
 i2 = n_wake_pts+n_body_pts-1;
 
 AR_LE    = 1; % target aspect ratio at the leading edge
 AR_TE    = 1; % target aspect ratio at the trailing edge
-delta_LE = 0.1;%0.1; % target wall spacing at leading edge
-delta_TE = 0.1;%0.1; % target wall spacing at trailing edge
+delta_LE = 1;%0.1; % target wall spacing at leading edge
+delta_TE = 1;%0.1; % target wall spacing at trailing edge
 wake_multiplier = 1;
 boundary_distance = 500;
-scjmax            = 1;           % Scaling Factor
+% scjmax            = 0.99;           % Scaling Factor
 mu                = 0.1;             % 4th order explicit smoothing factor
 muim              = 0.5;             % Implicit smoothing factor
 % scjmax            = 0.9;           % Scaling Factor
@@ -56,13 +61,13 @@ muim              = 0.5;             % Implicit smoothing factor
 % f1s = @(t) smooth_transition_1_side(t,i2,imax+1-o,0,1-0.98);
 % f2s = @(t) smooth_transition_1_side(t,o,i1,1,0.98);
 % scjmax = @(i,j) f1s(i) + f2s(i) + 0*j;
-% f1s = @(t) smooth_transition_1_side(t,jmax/8,jmax,1,0.99);
-% scjmax = @(i,j) f1s(j) + 0*i;
-alpham            = 0.5;            % Alpha scheme integration factor
-% f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,4);
-% f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-1);
+f1s = @(t) smooth_transition_1_side(t,1,jmax,1,0.99);
+scjmax = @(i,j) f1s(j) + 0*i;
+% alpham            = 0.5;            % Alpha scheme integration factor
+f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,1);
+f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-1);
 % f2a =  @(t) 0*t;
-% alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
+alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
 
 
 
@@ -75,7 +80,17 @@ alpham            = 0.5;            % Alpha scheme integration factor
 hold on
 plot(x_airfoil,y_airfoil,'r.-');
 axis equal
-hold off
+
+tx = linspace(0,500,10001);
+ty = linspace(-500,500,10001);
+plot(tx,airfoil.streamline_y(500*airfoil.chord,tx,-0.1),'g')
+% plot(tx,airfoil.streamline_y(0,tx,0.1),'r')
+% plot(tx,airfoil.streamline_y(-5,tx,-0.1),'b')
+% 
+% plot(airfoil.potentialline_x(-1,ty,0),ty,'g')
+% plot(airfoil.potentialline_x(1,ty,0),ty,'r')
+plot(airfoil.potentialline_x(2.22,ty,0),ty,'b')
+plot(airfoil.potentialline_x(500*airfoil.chord,ty,0),ty,'b')
 
 
 
@@ -114,16 +129,7 @@ for i = 1:imax
     plot(tmp)
 end
 hold off;
-% imax = size(x2,1);
-% tmp = zeros(imax,jmax-1);
-% for i = 1:imax
-%     tmp(i,:) = sqrt(gradient(x2(i,1:end-1)).^2+gradient(y2(i,1:end-1)).^2) ./ sqrt(gradient(x2(i,2:end)).^2+gradient(y2(i,2:end)).^2);
-% end
-% tmp(tmp<1) = 1./tmp(tmp<1);
-% contourf(tmp);
 
-% [x_airfoil,y_airfoil,F1,dF1,ddF1] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,delta_LE*AR_LE,delta_TE*AR_TE);
-% function [fx,fy] = get_wake_spacing_funs(airfoil,)
 
 function [x,y,F1,dF1,ddF1,fx_wake,fy_wake] = get_airfoil_coordinates( ...
                                              airfoil, ...
@@ -188,7 +194,7 @@ vinf    = 75.0;
 rhoinf  = 1.0;
 pinf    = 100000.0;
 gamma   = 1.4;
-alpha   = 0; % (degrees)
+alpha   = 5; % (degrees)
 rho_ref = 1.0;
 p_ref   = 100000.0;
 a_ref   = sqrt(gamma*p_ref/rho_ref);
