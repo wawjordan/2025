@@ -45,19 +45,22 @@ end
 
 % 
 % delta = get_delta(airfoil_x,airfoil_y);
-% dt    = 1/numel(airfoil_x);
-dt    = 1/num_wake_pts; %
+% dt    = 2/(numel(airfoil_x)-1);
+dt    = 1/(num_wake_pts-1);
 [delta,f,df,ddf] = get_delta(airfoil_x,airfoil_y,dt);
 
 if (isempty(fx)) % use default
     [fx,dfx,ddfx] = default_wake_x(TE_loc,delta,boundary_distance,num_wake_pts);
 end
 
-target_x_loc = TE_loc(1) + 0.01; % note: this assumes unit chord and airfoil in standard orientation
+target_x_loc = TE_loc(1) + 100*delta; % note: this assumes unit chord and airfoil in standard orientation
 
 target_t = fzero(@(t)fx(t)-target_x_loc,0);
-ftmp1 = @(t) zeros(size(t)) + f;
-ftmp2 = @(t) zeros(size(t)) + df;
+% ftmp1 = @(t) zeros(size(t)) + f;
+% ftmp2 = @(t) zeros(size(t)) + df;
+% ftmp3 = @(t) zeros(size(t)) + ddf;
+ftmp1 = @(t) f + df*t + 0.5*ddf*t.^2;
+ftmp2 = @(t) df + ddf*t;
 ftmp3 = @(t) zeros(size(t)) + ddf;
 
 [fx1,dfx1,ddfx1] = hermite_blended_functions(0,target_t,ftmp1,fx,ftmp2,dfx,ftmp3,ddfx);
@@ -69,13 +72,19 @@ end
 
 t = linspace(0,1,num_wake_pts);
 
-x1 = fx1(t);
+x1 = fx(t);
 y1 = fy(t);
 
 % clf
 % hold on
-% plot([-t(10:-1:2),t(1:9)],diff([airfoil_x(end-9:end-1),fx(t(1:10))]),'r.')
-% plot([-t(10:-1:2),t(1:9)],diff([airfoil_x(end-9:end-1),fx1(t(1:10))]),'b.')
+% plot([-t(10:-1:2),t(1:19)],diff([airfoil_x(end-9:end-1),fx(t(1:20))]),'r.')
+% plot([-t(10:-1:2),t(1:19)],diff([airfoil_x(end-9:end-1),fx1(t(1:20))]),'b.')
+% plot([-t(10:-1:2),t(1:19)],diff([airfoil_x(end-9:end-1),ftmp1(t(1:20))]),'g.')
+% 
+% clf
+% hold on
+% plot([-t(10:-1:2),t(1:20)],[airfoil_x(end-9:end-1),fx(t(1:20))],'r.')
+% plot([-t(10:-1:2),t(1:20)],[airfoil_x(end-9:end-1),fx1(t(1:20))],'b.')
 
 % Piece the wake points together with the body points
 x = horzcat( x1(1,end:-1:2), airfoil_x, x1(1,2:end));
@@ -85,16 +94,16 @@ end
 function [delta,f,df,ddf] = get_delta(airfoil_x,airfoil_y,dt)
     % approximate spacing and 1st derivative (2nd order backward difference)
     % average deltas of upper + lower surface
-    s1 = centri_param([airfoil_x(5:-1:1);airfoil_y(5:-1:1)],1);
-    s2 = centri_param([airfoil_x(end-4:end);airfoil_y(end-4:end)],1);
+    % s1 = airfoil_x(4:-1:1);
+    % s2 = airfoil_x(end-3:end);
+    s1 = centri_param([airfoil_x(4:-1:1);airfoil_y(4:-1:1)],1);
+    s2 = centri_param([airfoil_x(end-3:end);airfoil_y(end-3:end)],1);
     s = (s1+s2)/2;
-    delta = s(2)-s(1);
-    i = 5;
+    delta = s(4)-s(3);
+    i = 4;
     f     = airfoil_x(1);
     df    = (  3*s(i-0) - 4*s(i-1) + 1*s(i-2) )/(2*dt);
     ddf   = (  2*s(i-0) - 5*s(i-1) + 4*s(i-2) - 1*s(i-3) )/(dt^2);
-    % df  = ( 1*s(i-0) - 1*s(i-1) )/dt;
-    % ddf = ( 1*s(i-0) - 2*s(i-1) + 1*s(i-2) )/(dt^2);
 end 
 
 function [fy,dfy,ddfy] = default_wake_y(TE_loc,TE_slope,boundary_distance,fx,dfx,ddfx)

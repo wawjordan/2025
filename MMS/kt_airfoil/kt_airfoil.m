@@ -11,6 +11,7 @@ classdef kt_airfoil
         chord(1,1)     double  = 1.0
         thetaLE(1,1)   double  = 0.0
         thetaCmax(1,1) double  = 0.0
+        thetaSP(1,1)   double  = 0.0;
         thetaTE(1,1)   double  = 0.0
         zLE(1,1)       double  = 0.0 + 1i*0.0
         zTE(1,1)       double  = 0.0 + 1i*0.0
@@ -52,9 +53,12 @@ classdef kt_airfoil
             c_fun = @(theta)-this.airfoil_curvature2(theta);
             tol = 0.01;
             [this.thetaCmax,~] = fminbnd(c_fun,0+tol,2*pi-tol);
+            this.thetaSP = pi;
         end
         function this = set_alpha(this,alpha)
             this.alpha = deg2rad(alpha);
+            tol = 0.01;
+            this.thetaSP = fminbnd( @(theta) (abs(this.w_cylinder(this.zeta_from_theta(theta)))).^2, 0+tol, 2*pi-tol );
         end
 %% Analytic Force Coefficients
         function val = CL(this)
@@ -443,66 +447,41 @@ classdef kt_airfoil
                            t0,t1,"AbsTol",1e-14,'RelTol',1e-12);
         end
 %% Complex Potential
-        function val = F_cylinder(this,zeta)
-            uinf = 1;
-            r    = this.a;
-            gam  = 4*pi*uinf*r*sin( this.alpha + this.beta);
-            eiam = exp(-1i*this.alpha);
-            eiap = exp( 1i*this.alpha);
-            z2  = zeta-this.mu;
-            val = uinf*z2*eiam + 1i*(gam/(2*pi))*log(z2/(r*eiap)) + (uinf*(r^2)*eiap)./z2;
-        end
         % function val = F_cylinder(this,zeta)
-        %     c1  = exp(-1i*this.alpha).*(zeta-this.mu);
-        %     c2  = 2*1i*this.a*sin(this.alpha+this.beta)*log((zeta-this.mu)/ ( this.a*exp(1i*this.alpha) ) );
-        %     c3  = this.a^2*exp(1i*this.alpha)./(zeta-this.mu);
-        %     val = c1 + c2 + c3;
-        %     % val2 = this.F_cylinder2(zeta);
+        %     uinf = 1;
+        %     r    = this.a;
+        %     gam  = 4*pi*uinf*r*sin( this.alpha + this.beta);
+        %     eiam = exp(-1i*this.alpha);
+        %     eiap = exp( 1i*this.alpha);
+        %     z2  = zeta-this.mu;
+        %     val = uinf*z2*eiam + 1i*(gam/(2*pi))*log(z2/(r*eiap)) + (uinf*(r^2)*eiap)./z2;
         % end
-        function psi = streamline(this,x,y)
+        function val = F_cylinder(this,zeta)
+            c1  = exp(-1i*this.alpha).*(zeta-this.mu);
+            c2  = 2*1i*this.a*sin(this.alpha+this.beta)*log((zeta-this.mu)/ ( this.a*exp(1i*this.alpha) ) );
+            c3  = this.a^2*exp(1i*this.alpha)./(zeta-this.mu);
+            val = c1 + c2 + c3;
+            % val2 = this.F_cylinder2(zeta);
+        end
+        function psi = psi_from_xy(this,x,y)
             z = x+1i*y;
             z = this.chord*z + this.zLE;
-            % this.vinf*
             psi = imag( this.F_cylinder( this.zeta_from_z(z) ) );
         end
-        function phi = potentialline(this,x,y)
+        function phi = phi_from_xy(this,x,y)
             z = x+1i*y;
             z = this.chord*z + this.zLE;
-            % this.vinf*
             phi = real( this.F_cylinder( this.zeta_from_z(z) ) );
         end
-        function phi = potentialline_2(this,x,y)
-            z = x+1i*y;
-            z = this.chord*z + this.zLE;
-            % this.vinf*
-            % phi = real( this.F_cylinder( this.zeta_from_z(z) ).^(1/2) );
-            phi = abs( this.F_cylinder( this.zeta_from_z(z) ) );
-        end
-        function psi = streamline_2(this,x,y)
-            z = x+1i*y;
-            z = this.chord*z + this.zLE;
-            % this.vinf*
-            psi = abs( this.F_cylinder( this.zeta_from_z(z) ) );
-        end
-        function y = streamline_y(this,psi,x,y_guess)
+        function y = psi_y_from_x(this,psi,x,y_guess)
             options = optimset('TolFun',1e-15,'TolX',1e-17);
-            obj_fun = @(x,y) this.streamline(x,y) - psi;
+            obj_fun = @(x,y) this.psi_from_xy(x,y) - psi;
             y = arrayfun(@(x)fzero(@(y)obj_fun(x,y),y_guess,options),x);
         end
-        function x = potentialline_x(this,phi,y,x_guess)
+        function x = phi_x_from_y(this,phi,y,x_guess)
             options = optimset('TolFun',1e-15,'TolX',1e-17);
-            obj_fun = @(x,y) this.potentialline(x,y) - phi;
+            obj_fun = @(x,y) this.phi_from_xy(x,y) - phi;
             x = arrayfun(@(y)fzero(@(x)obj_fun(x,y),x_guess,options),y);
-        end
-        function x = potentialline2_x(this,phi,y,x_guess)
-            options = optimset('TolFun',1e-15,'TolX',1e-17);
-            obj_fun = @(x,y) this.potentialline_2(x,y) - phi;
-            x = arrayfun(@(y)fzero(@(x)obj_fun(x,y),x_guess,options),y);
-        end
-        function y = streamline2_y(this,psi,x,y_guess)
-            options = optimset('TolFun',1e-15,'TolX',1e-17);
-            obj_fun = @(x,y) this.streamline_2(x,y) - psi;
-            y = arrayfun(@(x)fzero(@(y)obj_fun(x,y),y_guess,options),x);
         end
 %% velocity around cylinder
         function val = w_cylinder(this,zeta)

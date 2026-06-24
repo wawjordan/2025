@@ -3,7 +3,8 @@ function [x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil, ...
 p = inputParser;
 validScalarNum = @(x) isnumeric(x) && isscalar(x);
 validScalarPosNum = @(x) validScalarNum(x) && (x > 0);
-validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
+validScalarInt   = @(x) mod(x,1)<10*eps(1) && isscalar(x);
+validScalarPosInt = @(x) validScalarInt(x) && (x > 0);
 validScalarNonNegInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x >= 0);
 validReal        = @(x) isreal(x) && ~isnan(x) && ~isinf(x);
 validAlpha       = @(x) isa(x,'function_handle') || all(arrayfun(@(x)validScalarPosNum(x),x),"all");
@@ -13,6 +14,8 @@ addRequired(p,'x_airfoil',validRealPoints);
 addRequired(p,'y_airfoil',validRealPoints);
 addRequired(p,'n_wake_pts',validScalarNonNegInt);
 addRequired(p,'jmax',validScalarPosInt);
+addOptional(p,'n_extrude_layers',0,validScalarInt);
+addOptional(p,'n_radial_passes',1,validScalarPosInt);
 addOptional(p,'boundary_distance',100,validScalarPosNum);
 addOptional(p,'wake_multiplier',1,validScalarPosNum);
 addOptional(p,'AR_LE', 1,validScalarPosNum);
@@ -25,13 +28,15 @@ addOptional(p,'fx_wake',[],valid_fcn_handle);
 addOptional(p,'fy_wake',[],valid_fcn_handle);
 parse( p, x_airfoil, y_airfoil, n_wake_pts, jmax, varargin{:} );
 boundary_distance       = p.Results.boundary_distance;
-wake_multiplier       = p.Results.wake_multiplier;
+wake_multiplier         = p.Results.wake_multiplier;
+n_extrude_layers        = p.Results.n_extrude_layers;
+n_radial_passes         = p.Results.n_radial_passes;
 AR_LE       = p.Results.AR_LE;
 AR_TE       = p.Results.AR_TE;
 scjmax      = p.Results.scjmax;
 mu          = p.Results.mu;
 muim        = p.Results.muim;
-alpham     = p.Results.alpham;
+alpham      = p.Results.alpham;
 fx_wake     = p.Results.fx_wake;
 fy_wake     = p.Results.fy_wake;
 
@@ -84,7 +89,7 @@ else
     i1 = 1;
     i2 = imax;
 end
-[wall_spacing,iLE] = get_wall_spacing(x(:,1),y(:,1),n_wake_pts,i1,i2,AR_LE,AR_TE,wake_multiplier);
+[wall_spacing,~] = get_wall_spacing(x(:,1),y(:,1),n_wake_pts,i1,i2,AR_LE,AR_TE,wake_multiplier);
 
 % Stretching factor
 
@@ -111,32 +116,18 @@ end
 %       wall_spacing to cells with equal volumes
 % See:  Kinsey and Barth - pg 26
 
-scale0      = 1 - exp(log(scjmax)/(jmax-2));
-% for j = 2:jmax
-%     scaling(:,j) = (1-scale0)^(j-1);
-% end
+scale0   = 1 - exp(log(scjmax)/(jmax-2));
 scale    = zeros(imax,jmax);
 scale(:,1) = 1;
 for j = 2:jmax
     for i = 1:imax
-        % scale(i,j) = (1-scale2(i))^(j-1);
         scale(i,j) = ( 1-scale0(i,j) )^(j-1);
     end
 end
 
-vscale   = ones(imax,jmax);
-% for j = 1:jmax
-%     vscale(:,j) = ( 1 - (wall_spacing-min(wall_spacing))./max(wall_spacing) ).^((j-1)/(jmax-1));
-% end
-
-
-% directly extrude the first layer
-h = r_space(:,2);
-n_layers = 1;
-% h = wall_spacing;
-for j = 2:n_layers
-    [x(:,j), y(:,j)] = extrude_surface_pts(x(:,j-1),y(:,j-1),n_wake_pts,n_wake_pts+n_body_pts,h);
-    h = h*r;
+% algebraic extrusion
+for j = 2:1+n_extrude_layers
+    [x(:,j), y(:,j)] = extrude_surface_pts(x(:,j-1),y(:,j-1),n_wake_pts,n_wake_pts+n_body_pts,r_space(:,j));
 end
 
 % hold on
@@ -145,20 +136,12 @@ end
 % axis equal
 % xlim([0.9,1.1])
 %% March Grid
-for n = 1:2
+for n = 1:n_radial_passes
     fprintf('pass %d / %d\n',n,2)
-    for j = 2:jmax
+    for j = max(2,1+n_extrude_layers):jmax
         [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
-            mu, muim, alpham(:,j),            ...
-            scale(:,j), vscale(:,j), r_space(:,j), r_space(:,j-1) );
-        % if any(j ==5:40)
-        %   hold on
-        %   plot(x(:,1:j),y(:,1:j),'k')
-        %   plot(x(:,1:j).',y(:,1:j).','k')
-        %   axis equal
-        %   xlim([499.9,500.1])
-        %   j;
-        % end
+                                       mu, muim, alpham(:,j), scale(:,j), ...
+                                       r_space(:,j), r_space(:,j-1) );
         fprintf('step %d / %d\n',j-1,jmax-1)
     end
 
@@ -247,13 +230,21 @@ wall_spacingTE = TE_spacing/AR_TE;
 imax = numel(x);
 wall_spacing = zeros(size(x));
 wall_spacing(i1:i2) = wall_spacingTE + (wall_spacingLE-wall_spacingTE)*smooth_transition(i1:i2,i1,iLE,iLE,i2);
+% if ( n_wake_pts > 0)
+%     wall_spacing(i1-1:-1:1) = smooth_transition_1_side (1:i1-1,1,i1-1,wall_spacingTE,wall_spacingTE*wake_multiplier);
+%     wall_spacing(i2+1:imax) = smooth_transition_1_side (i2+1:imax,i2+1,imax,wall_spacingTE,wall_spacingTE*wake_multiplier);
+% end
+
+% [fx1,dfx1,ddfx1] = hermite_blended_functions(1,target_t,ftmp1,fx,ftmp2,dfx,ftmp3,ddfx);
+
+
 if ( n_wake_pts > 0)
-    wall_spacing(i1-1:-1:1) = smooth_transition_1_side (1:i1-1,1,i1-1,wall_spacingTE,wall_spacingTE*wake_multiplier);
-    wall_spacing(i2+1:imax) = smooth_transition_1_side (i2+1:imax,i2+1,imax,wall_spacingTE,wall_spacingTE*wake_multiplier);
+    [wall_spacing(i1-1:-1:1),~,~] = my_geomspace( i1-1, wall_spacingTE, xmax=wall_spacingTE*wake_multiplier, r=1.5 );
+    [wall_spacing(i2+1:imax),~,~] = my_geomspace( imax-i2, wall_spacingTE, xmax=wall_spacingTE*wake_multiplier, r=1.5 );
 end
 end
 
-function [ x_update, y_update ] = march_grid( jmax, x, y, mu, muim, alpham, scale, vscale, rj, rjm1 )
+function [ x_update, y_update ] = march_grid( jmax, x, y, mu, muim, alpham, scale, rj, rjm1 )
 %MARCH_GRID Main driver of grid marching in the eta direction
 % INPUTS
 % j       : current j index             (integer)
@@ -280,7 +271,9 @@ volume = calc_volume( jmax, x, y, scale, rj, rjm1 );
 % Set up the matrix problem
 % rhs = create_rhs( x, y, volume, xxi, yxi, xeta, yeta, alpham, mu );
 rhs = create_rhs( x, y, volume, xxi, yxi, xeta, yeta, scale, mu );
+% lhs = create_lhs_sparse( xxi, yxi, xeta, yeta, alpham, muim );
 lhs = create_lhs( xxi, yxi, xeta, yeta, alpham, muim );
+% [a,b,c,d,e] = create_lhs_sparse_2( xxi, yxi, xeta, yeta, alpham, muim );
 % https://www.mathworks.com/matlabcentral/answers/46316-sparse-block-diagonal-matrix
 
 %% Solve and update
@@ -317,41 +310,33 @@ i = imax;
 volume(i) = volume(i-1);
 end
 
-function [volume] = calc_volume( jmax, x, y, scale, rj, rjm1 )
+function volume = calc_volume( jmax, x, y, scale, rj, rjm1 )
 %VOLUME Based on scaling and the local arc length, calculate the estimated
 % volumes, V^{0}
-imax = numel(x);
-volume = zeros(size(x));
-x = x(:);
-y = y(:);
-
-dx = gradient(x(:));
-dy = gradient(y(:));
-mag = (rj(:) - rjm1(:))./sqrt( dx.^2 + dy.^2 );
-x_ = x - dy.*mag;
-y_ = y + dx.*mag;
-
-% [x2,y2] = extrude_surface_pts(x,y,1,imax,mag.*sqrt( dx.^2 + dy.^2 ));
-
-x1 = x(1:imax-1);  y1 = y(1:imax-1);
-x2 = x(2:imax);    y2 = y(2:imax);
-x3 = x_(2:imax);   y3 = y_(2:imax);
-x4 = x_(1:imax-1); y4 = y_(1:imax-1);
-
-vtmp = 0.5*abs( ( x1.*y2 + x2.*y3 + x3.*y4 + x4.*y1 ) ...
-              - ( x2.*y1 + x3.*y2 + x4.*y3 + x1.*y4 ) );
-volume(1) = vtmp(1);
-volume(2:imax-1) = 0.5*( vtmp(1:end-1) + vtmp(2:end) );
-volume(imax) = vtmp(end);
-% [xxi, yxi, xeta, yeta] = grid_metrics(x, y, volume);
-% volj = xxi.*yeta - yxi.*xeta;
-% 
-% volume = scale.*volume + (1-scale).*volj;
-
-volume_old = calc_volume_old( jmax, x, y, scale, rj, rjm1 );
-% volume = scale.*volume_old + (1-scale).*volume;
-volume = volume_old;
-
+volume = calc_volume_old( jmax, x, y, scale, rj, rjm1 );
+% imax = numel(x);
+% volume = zeros(size(x));
+% x = x(:);
+% y = y(:);
+% dx = gradient(x(:));
+% dy = gradient(y(:));
+% mag = (rj(:) - rjm1(:))./sqrt( dx.^2 + dy.^2 );
+% x_ = x - dy.*mag;
+% y_ = y + dx.*mag;
+% % [x2,y2] = extrude_surface_pts(x,y,1,imax,mag.*sqrt( dx.^2 + dy.^2 ));
+% x1 = x(1:imax-1);  y1 = y(1:imax-1);
+% x2 = x(2:imax);    y2 = y(2:imax);
+% x3 = x_(2:imax);   y3 = y_(2:imax);
+% x4 = x_(1:imax-1); y4 = y_(1:imax-1);
+% vtmp = 0.5*abs( ( x1.*y2 + x2.*y3 + x3.*y4 + x4.*y1 ) ...
+%               - ( x2.*y1 + x3.*y2 + x4.*y3 + x1.*y4 ) );
+% volume(1) = vtmp(1);
+% volume(2:imax-1) = 0.5*( vtmp(1:end-1) + vtmp(2:end) );
+% volume(imax) = vtmp(end);
+% % [xxi, yxi, xeta, yeta] = grid_metrics(x, y, volume);
+% % volj = xxi.*yeta - yxi.*xeta;
+% % volume = scale.*volume + (1-scale).*volj;
+% % volume = scale.*volume_old + (1-scale).*volume;
 end
 
 function [xxi, yxi, xeta, yeta] = grid_metrics(x, y, volume)
@@ -475,11 +460,11 @@ end
 
 %% Compute BC
 i = 1;
-% rhs(2*(i-1)+1) = 0;
+rhs(2*(i-1)+1) = 0;
 rhs(2*(i-1)+2) = 0;
 
 i = imax;
-% rhs(2*(i-1)+1) = 0;
+rhs(2*(i-1)+1) = 0;
 rhs(2*(i-1)+2) = 0;
 
 end
@@ -579,7 +564,8 @@ lhs(2*imax,2*imax-4) = 1;
 lhs = sparse(lhs);
 end
 
-function lhs = create_lhs_new( xxi, yxi, xeta, yeta, alpha, muim )
+
+function lhs = create_lhs_sparse( xxi, yxi, xeta, yeta, alpha, muim )
 %CREATE_LHS creates the LHS matrix for the standard central difference
 % scheme plus fourth order implicit dissipation for smoothing
 imax = numel(xxi);
@@ -589,20 +575,21 @@ if isscalar(alpha)
 end
 
 if isscalar(muim)
-    muim = muim*ones(imax,1);
+    muim = muim*ones(1,1,imax);
 end
-muim = -muim;
 
-% n = imax;
-% m = 2;
-% nn = 2*imax;
-% nnz = 5*(n-4)*m^2;
-% entries = zeros(nnz,1);
-% idx_i   = zeros(nnz,1);
-% idx_j   = zeros(nnz,1);
+D = cell(5,1);
+D{1} = zeros(2,2,imax-2);
+D{2} = zeros(2,2,imax-1);
+D{3} = zeros(2,2,imax);
+D{4} = zeros(2,2,imax-1);
+D{5} = zeros(2,2,imax-2);
 
 % Create square matrix with 1 on the diagonal
-lhs = eye(2*imax);
+D{3}(1:8:end) = 1;
+D{3}(4:8:end) = 1;
+D{3}(5:8:end) = 1;
+D{3}(8:8:end) = 1;
 
 %% Set LHS Based on Grid Type
 %% Apply Steger-Chaussee hyperbolic grid marching, eq 12
@@ -616,104 +603,325 @@ for i = 2:imax-1
 
   BinvA = [ xxi0*xeta0 - yxi0*yeta0, xxi0*yeta0 + yxi0*xeta0; ...
             xeta0*yxi0 + yeta0*xxi0, yxi0*yeta0 - xeta0*xxi0 ];
-
-  lhs(2*i-1:2*i,2*i-3:2*i-2) = -alpha(i)*BinvA/2;
-  lhs(2*i-1:2*i,2*i+1:2*i+2) =  alpha(i)*BinvA/2;
-
+  D{2}(:,:,i-1) = -alpha(i)*BinvA/2;
+  D{4}(:,:,i)   =  alpha(i)*BinvA/2;
 end
+% xjacalpha = 0.5*alpha./(xxi.^2+yxi.^2);
+% BinvA = zeros(imax,2,2);
+% BinvA(:,1,1) = (xxi.*xeta - yxi.*yeta).*xjacalpha;
+% BinvA(:,1,2) = (xxi.*yeta + yxi.*xeta).*xjacalpha;
+% BinvA(:,2,1) = (xeta.*yxi + yeta.*xxi).*xjacalpha;
+% BinvA(:,2,2) = (yxi.*yeta - xeta.*xxi).*xjacalpha;
+% BinvA = permute(BinvA,[2,3,1]);
+% i = 2:imax-1;
+% D{2}(:,:,i-1) = -BinvA(:,:,i);
+% D{4}(:,:,i  ) =  BinvA(:,:,i);
 
-% Explicit fourth order dissipation
-  % if i == 1
-  %     dissipation_x = -mu(i)*( 3*x(i)   - 14*x(i+1) + 26*x(i+2) - 24*x(i+3) + 11*x(i+4) - 2*x(i+5) );
-  %     dissipation_y = -mu(i)*( 3*y(i)   - 14*y(i+1) + 26*y(i+2) - 24*y(i+3) + 11*y(i+4) - 2*y(i+5) );
-  % elseif i == imax
-  %     dissipation_x = -mu(i)*( 3*x(i)   - 14*x(i-1) + 26*x(i-2) - 24*x(i-3) + 11*x(i-4) - 2*x(i-5) );
-  %     dissipation_y = -mu(i)*( 3*y(i)   - 14*y(i-1) + 26*y(i-2) - 24*y(i-3) + 11*y(i-4) - 2*y(i-5) );
-  % elseif i == 2
-  %     dissipation_x = -mu(i)*( 2*x(i-1) -  9*x(i)   + 16*x(i+1) - 14*x(i+2) + 6*x(i+3)  - 1*x(i+4) );
-  %     dissipation_y = -mu(i)*( 2*y(i-1) -  9*y(i)   + 16*y(i+1) - 14*y(i+2) + 6*y(i+3)  - 1*y(i+4) );
-  % elseif i == imax-1
-  %     dissipation_x = -mu(i)*( 2*x(i+1) -  9*x(i)   + 16*x(i-1) - 14*x(i-2) + 6*x(i-3)  - 1*x(i-4) );
-  %     dissipation_y = -mu(i)*( 2*y(i+1) -  9*y(i)   + 16*y(i-1) - 14*y(i-2) + 6*y(i-3)  - 1*y(i-4) );
-  % else
-  %     dissipation_x = -mu(i)*( 1*x(i-2) -  4*x(i-1) +  6*x(i)   -  4*x(i+1) + 1*x(i+2));
-  %     dissipation_y = -mu(i)*( 1*y(i-2) -  4*y(i-1) +  6*y(i)   -  4*y(i+1) + 1*y(i+2));
-  % end
+%% Now add implicit smoothing to create pentadiagonal system
+% Kinsey and Barth pg 5
+% Lowest block diagonal
+for i = 3:imax-1
+  D{1}(1,1,i-2) = D{1}(1,1,i-2) + muim(i);
+  D{1}(2,2,i-2) = D{1}(2,2,i-2) + muim(i);
+end
+% i = 3:imax-1;
+% D{1}(1,1,i-2) = D{1}(1,1,i-2) + muim(1,1,i);
+% D{1}(2,2,i-2) = D{1}(2,2,i-2) + muim(1,1,i);
 
-i = 1;
-% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  -  3*muim(i);
-% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  -  3*muim(i);
-% lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  + 14*muim(i);
-% lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  + 14*muim(i);
-% lhs(2*i-1,2*i+3)  = lhs(2*i-1,2*i+3)  - 26*muim(i);
-% lhs(2*i  ,2*i+4)  = lhs(2*i  ,2*i+4)  - 26*muim(i);
-% lhs(2*i-1,2*i+5)  = lhs(2*i-1,2*i+5)  + 24*muim(i);
-% lhs(2*i  ,2*i+6)  = lhs(2*i  ,2*i+6)  + 24*muim(i);
-% lhs(2*i-1,2*i+7)  = lhs(2*i-1,2*i+7)  - 11*muim(i);
-% lhs(2*i  ,2*i+8)  = lhs(2*i  ,2*i+8)  - 11*muim(i);
-% lhs(2*i-1,2*i+9 ) = lhs(2*i-1,2*i+9 ) +  2*muim(i);
-% lhs(2*i  ,2*i+10) = lhs(2*i  ,2*i+10) +  2*muim(i);
+% Lower block diagonal
 i = 2;
-% lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  -  2*muim(i);
-% lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  -  2*muim(i);
-% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  +  9*muim(i);
-% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  +  9*muim(i);
-% lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  - 16*muim(i);
-% lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  - 16*muim(i);
-% lhs(2*i-1,2*i+3)  = lhs(2*i-1,2*i+3)  + 14*muim(i);
-% lhs(2*i  ,2*i+4)  = lhs(2*i  ,2*i+4)  + 14*muim(i);
-% lhs(2*i-1,2*i+5)  = lhs(2*i-1,2*i+5)  -  6*muim(i);
-% lhs(2*i  ,2*i+6)  = lhs(2*i  ,2*i+6)  -  6*muim(i);
-% lhs(2*i-1,2*i+7)  = lhs(2*i-1,2*i+7)  +  1*muim(i);
-% lhs(2*i  ,2*i+8)  = lhs(2*i  ,2*i+8)  +  1*muim(i);
+D{2}(1,1,i-1) = D{2}(1,1,i-1) - 2*muim(i);
+D{2}(2,2,i-1) = D{2}(2,2,i-1) - 2*muim(i);
+% D{2}(1,1,i-1) = D{2}(1,1,i-1) - 2*muim(1,1,i);
+% D{2}(2,2,i-1) = D{2}(2,2,i-1) - 2*muim(1,1,i);
+
+
+for i = 3:imax-1
+  D{2}(1,1,i-1) = D{2}(1,1,i-1) - 4*muim(i);
+  D{2}(2,2,i-1) = D{2}(2,2,i-1) - 4*muim(i);
+end
+% i = 3:imax-1;
+% D{2}(1,1,i-1) = D{2}(1,1,i-1) - 4*muim(1,1,i);
+% D{2}(2,2,i-1) = D{2}(2,2,i-1) - 4*muim(1,1,i);
+
+% Diagonal
+i = 2;
+D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(i);
+D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(i);
+% D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(1,1,i);
+% D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(1,1,i);
 
 for i = 3:imax-2
-    lhs(2*i-1,2*i-5)  = lhs(2*i-1,2*i-5)  -  1*muim(i);
-    lhs(2*i  ,2*i-4)  = lhs(2*i  ,2*i-4)  -  1*muim(i);
-    lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  +  4*muim(i);
-    lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  +  4*muim(i);
-    lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  -  6*muim(i);
-    lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  -  6*muim(i);
-    lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  +  4*muim(i);
-    lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  +  4*muim(i);
-    lhs(2*i-1,2*i+3)  = lhs(2*i-1,2*i+3)  -  1*muim(i);
-    lhs(2*i  ,2*i+4)  = lhs(2*i  ,2*i+4)  -  1*muim(i);
+  D{3}(1,1,i) = D{3}(1,1,i) + 6*muim(i);
+  D{3}(2,2,i) = D{3}(2,2,i) + 6*muim(i);
 end
+% i = 3:imax-2;
+% D{3}(1,1,i) = D{3}(1,1,i) + 6*muim(1,1,i);
+% D{3}(2,2,i) = D{3}(2,2,i) + 6*muim(1,1,i);
+
 
 i = imax-1;
-% lhs(2*i-1,2*i-9)  = lhs(2*i-1,2*i-9)  +  1*muim(i);
-% lhs(2*i  ,2*i-8)  = lhs(2*i  ,2*i-8)  +  1*muim(i);
-% lhs(2*i-1,2*i-7)  = lhs(2*i-1,2*i-7)  -  6*muim(i);
-% lhs(2*i  ,2*i-6)  = lhs(2*i  ,2*i-6)  -  6*muim(i);
-% lhs(2*i-1,2*i-5)  = lhs(2*i-1,2*i-5)  + 14*muim(i);
-% lhs(2*i  ,2*i-4)  = lhs(2*i  ,2*i-4)  + 14*muim(i);
-% lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  - 16*muim(i);
-% lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  - 16*muim(i);
-% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  +  9*muim(i);
-% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  +  9*muim(i);
-% lhs(2*i-1,2*i+1)  = lhs(2*i-1,2*i+1)  -  2*muim(i);
-% lhs(2*i  ,2*i+2)  = lhs(2*i  ,2*i+2)  -  2*muim(i);
-% 
-% 
-i = imax;
-% lhs(2*i-1,2*i-11) = lhs(2*i-1,2*i-11) +  2*muim(i);
-% lhs(2*i  ,2*i-10) = lhs(2*i  ,2*i-10) +  2*muim(i);
-% lhs(2*i-1,2*i-9)  = lhs(2*i-1,2*i-9)  - 11*muim(i);
-% lhs(2*i  ,2*i-8)  = lhs(2*i  ,2*i-8)  - 11*muim(i);
-% lhs(2*i-1,2*i-7)  = lhs(2*i-1,2*i-7)  + 24*muim(i);
-% lhs(2*i  ,2*i-6)  = lhs(2*i  ,2*i-6)  + 24*muim(i);
-% lhs(2*i-1,2*i-5)  = lhs(2*i-1,2*i-5)  - 26*muim(i);
-% lhs(2*i  ,2*i-4)  = lhs(2*i  ,2*i-4)  - 26*muim(i);
-% lhs(2*i-1,2*i-3)  = lhs(2*i-1,2*i-3)  + 14*muim(i);
-% lhs(2*i  ,2*i-2)  = lhs(2*i  ,2*i-2)  + 14*muim(i);
-% lhs(2*i-1,2*i-1)  = lhs(2*i-1,2*i-1)  -  3*muim(i);
-% lhs(2*i  ,2*i  )  = lhs(2*i  ,2*i  )  -  3*muim(i);
+D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(i);
+D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(i);
+
+% D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(1,1,i);
+% D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(1,1,i);
+
+% Upper block diagonal
+for i = 2:imax-2
+  D{4}(1,1,i) = D{4}(1,1,i) - 4*muim(i);
+  D{4}(2,2,i) = D{4}(2,2,i) - 4*muim(i);
+end
+% i = 2:imax-2;
+% D{4}(1,1,i) = D{4}(1,1,i) - 4*muim(1,1,i);
+% D{4}(2,2,i) = D{4}(2,2,i) - 4*muim(1,1,i);
+
+i = imax-1;
+D{4}(1,1,i) = D{4}(1,1,i) - 2*muim(i);
+D{4}(2,2,i) = D{4}(2,2,i) - 2*muim(i);
+% D{4}(1,1,i) = D{4}(1,1,i) - 2*muim(1,1,i);
+% D{4}(2,2,i) = D{4}(2,2,i) - 2*muim(1,1,i);
+
+% Last diagonal
+for i = 2:imax-2
+  D{5}(1,1,i) = D{5}(1,1,i) + muim(i);
+  D{5}(2,2,i) = D{5}(2,2,i) + muim(i);
+end
+% i = 2:imax-2;
+% D{5}(1,1,i) = D{5}(1,1,i) + muim(1,1,i);
+% D{5}(2,2,i) = D{5}(2,2,i) + muim(1,1,i);
 
 %% Boundary Condition
-lhs(2,4) = -2;
-lhs(2,6) = 1;
-lhs(2*imax,2*imax-2) = -2;
-lhs(2*imax,2*imax-4) = 1;
 
-lhs = sparse(lhs);
+D{4}(2,2,     1) = -2;
+D{5}(2,2,     1) =  1;
+
+D{2}(2,2,imax-1) = -2;
+D{1}(2,2,imax-2) =  1;
+
+lhs = create_sparse_banded_block_matrix(imax,2,5,D);
+end
+
+function [a,b,c,d,e] = create_lhs_sparse_2( xxi, yxi, xeta, yeta, alpha, muim )
+%CREATE_LHS creates the LHS matrix for the standard central difference
+% scheme plus fourth order implicit dissipation for smoothing
+imax = numel(xxi);
+
+if isscalar(alpha)
+    alpha = alpha*ones(imax,1);
+end
+
+if isscalar(muim)
+    muim = muim*ones(imax,1);
+end
+
+% D = cell(5,1);
+a = zeros((imax-2)*2,2);
+b = zeros((imax-1)*2,2);
+c = zeros(imax*2,2);
+d = zeros((imax-1)*2,2);
+e = zeros((imax-2)*2,2);
+
+% Create square matrix with 1 on the diagonal
+c(1:2:2*imax,1)      = 1;
+c(2:2:2*imax,2)      = 1;
+
+%% Set LHS Based on Grid Type
+%% Apply Steger-Chaussee hyperbolic grid marching, eq 12
+% Kinsey and Barth pg 5
+for i = 2:imax-1
+  xxi0 = xxi(i);
+  yxi0 = yxi(i);
+  jacobian = (xxi0^2+yxi0^2);
+  xeta0 = xeta(i)/jacobian;
+  yeta0 = yeta(i)/jacobian;
+
+  BinvA = [ xxi0*xeta0 - yxi0*yeta0, xxi0*yeta0 + yxi0*xeta0; ...
+            xeta0*yxi0 + yeta0*xxi0, yxi0*yeta0 - xeta0*xxi0 ];
+  % D{2}(:,:,i-1) = -alpha(i)*BinvA/2;
+  % D{4}(:,:,i)   =  alpha(i)*BinvA/2;
+  b(2*i-1:2*i,1:2) = -alpha(i)*BinvA/2;
+  d(2*i-1:2*i,1:2) =  alpha(i)*BinvA/2;
+end
+% xjacalpha = 0.5*alpha./(xxi.^2+yxi.^2);
+% BinvA = zeros(imax,2,2);
+% BinvA(:,1,1) = (xxi.*xeta - yxi.*yeta).*xjacalpha;
+% BinvA(:,1,2) = (xxi.*yeta + yxi.*xeta).*xjacalpha;
+% BinvA(:,2,1) = (xeta.*yxi + yeta.*xxi).*xjacalpha;
+% BinvA(:,2,2) = (yxi.*yeta - xeta.*xxi).*xjacalpha;
+% BinvA = permute(BinvA,[2,3,1]);
+% i = 2:imax-1;
+% D{2}(:,:,i-1) = -BinvA(:,:,i);
+% D{4}(:,:,i  ) =  BinvA(:,:,i);
+
+%% Now add implicit smoothing to create pentadiagonal system
+% Kinsey and Barth pg 5
+% Lowest block diagonal
+% for i = 3:imax-1
+%   D{1}(1,1,i-2) = D{1}(1,1,i-2) + muim(i);
+%   D{1}(2,2,i-2) = D{1}(2,2,i-2) + muim(i);
+% end
+for i = 3:imax-1
+    a(2*i-3,1) = a(2*i-3,1) + muim(i);
+    a(2*i-2,2) = a(2*i-2,2) + muim(i);
+end
+
+% Lower block diagonal
+i = 2;
+% D{2}(1,1,i-1) = D{2}(1,1,i-1) - 2*muim(i);
+% D{2}(2,2,i-1) = D{2}(2,2,i-1) - 2*muim(i);
+b(2*i-1,1) = b(2*i-1,1) - 2*muim(i);
+b(2*i  ,2) = b(2*i  ,2) - 2*muim(i);
+% D{2}(1,1,i-1) = D{2}(1,1,i-1) - 2*muim(1,1,i);
+% D{2}(2,2,i-1) = D{2}(2,2,i-1) - 2*muim(1,1,i);
+
+
+% for i = 3:imax-1
+%   D{2}(1,1,i-1) = D{2}(1,1,i-1) - 4*muim(i);
+%   D{2}(2,2,i-1) = D{2}(2,2,i-1) - 4*muim(i);
+% end
+b(1:2:(imax-2)*2,1) = b(1:2:(imax-2)*2,1) - 4*muim(3:imax-1);
+b(2:2:(imax-2)*2,2) = b(2:2:(imax-2)*2,2) - 4*muim(3:imax-1);
+% i = 3:imax-1;
+% D{2}(1,1,i-1) = D{2}(1,1,i-1) - 4*muim(1,1,i);
+% D{2}(2,2,i-1) = D{2}(2,2,i-1) - 4*muim(1,1,i);
+
+% Diagonal
+i = 2;
+D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(i);
+D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(i);
+% D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(1,1,i);
+% D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(1,1,i);
+
+for i = 3:imax-2
+  D{3}(1,1,i) = D{3}(1,1,i) + 6*muim(i);
+  D{3}(2,2,i) = D{3}(2,2,i) + 6*muim(i);
+end
+% i = 3:imax-2;
+% D{3}(1,1,i) = D{3}(1,1,i) + 6*muim(1,1,i);
+% D{3}(2,2,i) = D{3}(2,2,i) + 6*muim(1,1,i);
+
+
+i = imax-1;
+D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(i);
+D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(i);
+
+% D{3}(1,1,i) = D{3}(1,1,i) + 5*muim(1,1,i);
+% D{3}(2,2,i) = D{3}(2,2,i) + 5*muim(1,1,i);
+
+% Upper block diagonal
+for i = 2:imax-2
+  D{4}(1,1,i) = D{4}(1,1,i) - 4*muim(i);
+  D{4}(2,2,i) = D{4}(2,2,i) - 4*muim(i);
+end
+% i = 2:imax-2;
+% D{4}(1,1,i) = D{4}(1,1,i) - 4*muim(1,1,i);
+% D{4}(2,2,i) = D{4}(2,2,i) - 4*muim(1,1,i);
+
+i = imax-1;
+D{4}(1,1,i) = D{4}(1,1,i) - 2*muim(i);
+D{4}(2,2,i) = D{4}(2,2,i) - 2*muim(i);
+% D{4}(1,1,i) = D{4}(1,1,i) - 2*muim(1,1,i);
+% D{4}(2,2,i) = D{4}(2,2,i) - 2*muim(1,1,i);
+
+% Last diagonal
+for i = 2:imax-2
+  D{5}(1,1,i) = D{5}(1,1,i) + muim(i);
+  D{5}(2,2,i) = D{5}(2,2,i) + muim(i);
+end
+% i = 2:imax-2;
+% D{5}(1,1,i) = D{5}(1,1,i) + muim(1,1,i);
+% D{5}(2,2,i) = D{5}(2,2,i) + muim(1,1,i);
+
+%% Boundary Condition
+
+D{4}(2,2,     1) = -2;
+D{5}(2,2,     1) =  1;
+
+D{2}(2,2,imax-1) = -2;
+D{1}(2,2,imax-2) =  1;
+
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function x = BlockPentSolve(a, b, c, d, e, f)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% BlockPentSolve.m
+%
+% Solves the block pentadiagonal system Ax = f, where a, b, c, d, and e are 
+% the five diagonals of A. if the size of the block is n-by-n, then c is M-by-n, 
+% b and d are each (M-n)-by-n, while a and e are each (M - 2n)-by-n, f is 
+% M-by-X, M is divisible by n, n >= 1. 
+%
+% M = 12; n = 3;
+% a = rand((M-2)*n, n); b = rand((M-1)*n, n); c = 5+rand(M*n, n);  
+% d = rand((M-1)*n, n); e = rand((M-2)*n, n); f = rand(M*n,10);
+% x = BlockPentSolve(a, b, c, d, e, f);
+%
+% We can make block matrix A = BlockDiag(a, n, n, -2) + 
+% BlockDiag(b, n, n, -1) + BlockDiag(c, n, n) + BlockDiag(d, n, n, 1) + 
+% BlockDiag(e, n, n, 2); and then x = A\d to confirm the solution.
+%
+% Computational Cost of this method is 2M(5n^3+4n^2-n/3). The cost is
+% of order M*n^3. This is better than the backslash which is order (M*n)^3
+%
+% For M = 500, n = 4; This function is faster than inbuilt backslash by
+% factor of 2.5
+%
+% Written by: Lateef Adewale Kareem    05/25/2022
+% Contact:    talk2laton@yahoo.co.uk
+% 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+n = size(d, 2); M = size(f, 1)/n;
+blk  = @(i) ((i-1)*n + 1):(i*n);
+for i = 3:M
+    w1 = a(blk(i-2), :)/c(blk(i-2), :);
+    b(blk(i-1), :) = b(blk(i-1), :) - w1*d(blk(i-2), :);
+    c(blk(i), :) = c(blk(i), :) - w1*e(blk(i-2), :);
+    f(blk(i), :) = f(blk(i), :) - w1*f(blk(i-2), :);
+    w2 = b(blk(i-2), :)/c(blk(i-2), :);
+    c(blk(i-1), :) = c(blk(i-1), :) - w2*d(blk(i-2), :);
+    d(blk(i-1), :) = d(blk(i-1), :) - w2*e(blk(i-2), :);
+    f(blk(i-1), :) = f(blk(i-1), :) - w2*f(blk(i-2), :);
+end
+w2 = b(blk(M-1), :)/c(blk(M-1), :);
+c(blk(M), :) = c(blk(M), :) - w2*d(blk(M-1), :);
+f(blk(M), :) = f(blk(M), :) - w2*f(blk(M-1), :);
+x = 0*f;  x(blk(M), :) = c(blk(M), :)\f(blk(M), :);
+x(blk(M-1), :) = c(blk(M-1), :)\(f(blk(M-1), :) - ...
+    d(blk(M-1), :)*x(blk(M), :));
+for i = M-2:-1:1
+    x(blk(i), :) = c(blk(i), :)\(f(blk(i), :) - ...
+        d(blk(i), :)*x(blk(i+1), :) - e(blk(i), :)*x(blk(i+2), :));   
+end
+
 end
