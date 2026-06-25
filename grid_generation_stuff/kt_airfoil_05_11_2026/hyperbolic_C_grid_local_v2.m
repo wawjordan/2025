@@ -131,35 +131,61 @@ for j = 2:1+n_extrude_layers
 end
 
 % hold on
-% plot(x(:,1:n_layers),y(:,1:n_layers),'k')
-% plot(x(:,1:n_layers).',y(:,1:n_layers).','k')
+% plot(x(:,1:n_extrude_layers),y(:,1:n_extrude_layers),'k')
+% plot(x(:,1:n_extrude_layers).',y(:,1:n_extrude_layers).','k')
 % axis equal
 % xlim([0.9,1.1])
+
+if ( isscalar(mu) )
+    mu_ = mu*ones(imax,1);
+else
+    mu_ = mu;
+end
+if ( isscalar(muim) )
+    muim_ = muim*ones(imax,1);
+else
+    muim_ = muim;
+end
+
+
 %% March Grid
 for n = 1:n_radial_passes
     fprintf('pass %d / %d\n',n,2)
-    for j = max(2,1+n_extrude_layers):jmax
-        [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
-                                       mu, muim, alpham(:,j), scale(:,j), ...
-                                       r_space(:,j), r_space(:,j-1) );
+    for j = max(2,2+n_extrude_layers):jmax
+        % [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
+        %                                mu, muim, alpham(:,j), scale(:,j), ...
+        %                                r_space(:,j), r_space(:,j-1) );
+        xjm1 = x(:,j-1);
+        yjm1 = y(:,j-1);
+        alpham_ = alpham(:,j);
+        scale_  = scale(:,j);
+        rj      = r_space(:,j);
+        rjm1    = r_space(:,j-1);
+        [xj, yj] = march_grid_fast_mex( imax, jmax, xjm1, yjm1, ...
+                                       mu_, muim_, alpham_, scale_, ...
+                                       rj, rjm1 );
+        x(:,j) = xj;
+        y(:,j) = yj;
         fprintf('step %d / %d\n',j-1,jmax-1)
     end
 
-    alpha   = zeros(imax,1);
-    for i = 1:imax
-        d = min(sqrt( ( x(i,end) - x(:,1) ).^2 + (y(i,end) - y(:,1) ).^2 ));
-        dist = boundary_distance - d;
-        if dist < 0
-            sf =  d / (d+abs(dist));
-        else
-            sf = ( d+abs(dist) ) / d;
-        end
-        sf = max(min(sf,3),0.3);
-        [~,r,~] = my_geomspace( jmax, 0, xmax=sf*boundary_distance, dx0=wall_spacing(i) );
-        alpha(i) = r-1;
-        for j = 2:jmax
-            r_space(:,j) = r_space(:,j-1)                           ...
-                + wall_spacing.*(1+alpha).^(j-2);
+    if ( n_radial_passes > 1 )
+        alpha   = zeros(imax,1);
+        for i = 1:imax
+            d = min(sqrt( ( x(i,end) - x(:,1) ).^2 + (y(i,end) - y(:,1) ).^2 ));
+            dist = boundary_distance - d;
+            if dist < 0
+                sf =  d / (d+abs(dist));
+            else
+                sf = ( d+abs(dist) ) / d;
+            end
+            sf = max(min(sf,3),0.3);
+            [~,r,~] = my_geomspace( jmax, 0, xmax=sf*boundary_distance, dx0=wall_spacing(i) );
+            alpha(i) = r-1;
+            for j = 2:jmax
+                r_space(:,j) = r_space(:,j-1)                           ...
+                    + wall_spacing.*(1+alpha).^(j-2);
+            end
         end
     end
 end
@@ -239,8 +265,8 @@ wall_spacing(i1:i2) = wall_spacingTE + (wall_spacingLE-wall_spacingTE)*smooth_tr
 
 
 if ( n_wake_pts > 0)
-    [wall_spacing(i1-1:-1:1),~,~] = my_geomspace( i1-1, wall_spacingTE, xmax=wall_spacingTE*wake_multiplier, r=1.5 );
-    [wall_spacing(i2+1:imax),~,~] = my_geomspace( imax-i2, wall_spacingTE, xmax=wall_spacingTE*wake_multiplier, r=1.5 );
+    [wall_spacing(i1-1:-1:1),~,~] = my_geomspace( i1-1, wall_spacingTE, xmax=wall_spacingTE*wake_multiplier, r=1.3 );
+    [wall_spacing(i2+1:imax),~,~] = my_geomspace( imax-i2, wall_spacingTE, xmax=wall_spacingTE*wake_multiplier, r=1.3 );
 end
 end
 
@@ -510,6 +536,8 @@ for i = 2:imax-1
   lhs(2*i-1:2*i,2*i+1:2*i+2) =  alpha(i)*BinvA/2;
 
 end
+
+
 
 %% Now add implicit smoothing to create pentadiagonal system
 % Kinsey and Barth pg 5

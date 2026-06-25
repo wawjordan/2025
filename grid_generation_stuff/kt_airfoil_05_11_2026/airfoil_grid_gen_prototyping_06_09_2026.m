@@ -35,49 +35,49 @@ airfoil = local_airfoil_generator();
 %                                  n_wake_pts, wake_multiplier );
 
 % jmax         = 513;  % number of points off body
-% n_body_pts   = 513;  % number of points on the body
+% n_body_pts   = 1025;  % number of points on the body
 % n_wake_pts   = 257;  % number of points in wake
 % n_transition = 33;   % number of transition points for surface spacing blending
-jmax         = 65;  % number of points off body
-n_body_pts   = 65;  % number of points on the body
-n_wake_pts   = 33;  % number of points in wake
-n_transition = 9;   % number of transition points for surface spacing blending
+jmax         = 129;  % number of points off body
+n_body_pts   = 129;  % number of points on the body
+n_wake_pts   = 129;  % number of points in wake
+n_transition = 17;   % number of transition points for surface spacing blending
 imax = n_body_pts + 2*(n_wake_pts-1);
 i1 = n_wake_pts;
 i2 = n_wake_pts+n_body_pts-1;
 
 AR_LE    = 1; % target aspect ratio at the leading edge
 AR_TE    = 1; % target aspect ratio at the trailing edge
-delta_LE = 0.05; % target wall spacing at leading edge
-delta_TE = 0.05; % target wall spacing at trailing edge
+delta_LE = 0.1; % target wall spacing at leading edge
+delta_TE = 0.1; % target wall spacing at trailing edge
 wake_multiplier = 1;
 boundary_distance = 500;
-% scjmax            = 0.99;           % Scaling Factor
 mu                = 0.1;             % 4th order explicit smoothing factor
 muim              = 0.5;             % Implicit smoothing factor
-% scjmax            = 0.9;           % Scaling Factor
+% scjmax            = 0.997;           % Scaling Factor
+% alpham            = 0.7;            % Alpha scheme integration factor
 o = 33;
-% f1s = @(t) smooth_transition_1_side(t,i2,imax+1-o,0,1-0.999);
-% f2s = @(t) smooth_transition_1_side(t,o,i1,1,0.999);
-% f1ss = @(t) smooth_transition_1_side(t,1,jmax,1,0.99);
-f1s = @(t) smooth_transition_1_side(t,i2-o,imax,0,1-0.9999);
-f2s = @(t) smooth_transition_1_side(t,1,i1+o,1,0.9999);
+f1s =  @(t) smooth_transition_1_side(t,i2-o,imax,0,1-0.9999);
+f2s =  @(t) smooth_transition_1_side(t,1,i1+o,1,0.9999);
 f1ss = @(t) smooth_transition_1_side(t,1,jmax,1,0.99);
 scjmax = @(i,j) (f1s(i) + f2s(i)).*f1ss(j);
-% f1s = @(t) smooth_transition_1_side(t,1,jmax,1,0.99);
-% scjmax = @(i,j) f1s(j) + 0*i;
-% alpham            = 0.5;            % Alpha scheme integration factor
-% f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,3);
-% f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-1);
-f1a = @(t) smooth_transition_1_side(t,1,jmax/6,0.5,3);
-f2a = @(t) smooth_transition_1_side(t,  jmax/6,2*jmax/3,0,0.5-1);
-% f2a =  @(t) 0*t;
+f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,3);
+f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-3);
 alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
 
+% scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,0.999,1.0000],[0,1/3,2/3,1],...
+%                                    [1.0000,0.9950],[0,1]);
+% alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],...
+%                                    [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
+
+scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,1.0,1.0,0.999,1.0000],[0,1/3,15/32,17/32,2/3,1],...
+                                   [1.0000,1.0000,0.996],[0,0.1,1]);
+alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],...
+                                   [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
 
 
 
-[x_airfoil,y_airfoil,~,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
+[x_airfoil,y_airfoil,F1,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
 
 
 
@@ -99,50 +99,50 @@ axis equal
 
 
 tic;
-[x2,y2] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
+[x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
                                       n_wake_pts, jmax, ...
                                       boundary_distance=boundary_distance, ...
                                       wake_multiplier=wake_multiplier, ...
                                       AR_LE = AR_LE, ...
                                       AR_TE = AR_TE, ...
+                                      n_extrude_layers=0, ...
+                                      n_radial_passes=2,...
                                       scjmax = scjmax, ...
                                       mu = mu, ...
                                       muim = muim, ...
                                       alpham = alpham, ...
                                       fy_wake = fy_wake );
 time = toc;
-% hold on
-% plot(x2,y2,'k');
-% plot(x2.',y2.','k');
-% axis equal
-plot_edge_length_ratio(x2,y2,1,'jet',1);
+figure()
+s = 2^0;
+hold on
+plot(x(1:s:end,1:s:end),y(1:s:end,1:s:end),'k');
+plot(x(1:s:end,1:s:end).',y(1:s:end,1:s:end).','k');
+axis equal
+
+
+spline_x = spapi({5,5},{linspace(0,1,imax),linspace(0,1,jmax)},x);
+spline_y = spapi({5,5},{linspace(0,1,imax),linspace(0,1,jmax)},y);
+
+
+ni = 1/4;
+nj = 1/4;
+x2 = fnval(spline_x,{linspace(0,1,(imax-1)*ni+1),linspace(0,1,(jmax-1)*nj+1)});
+y2 = fnval(spline_y,{linspace(0,1,(imax-1)*ni+1),linspace(0,1,(jmax-1)*nj+1)});
+
+figure()
+plot_edge_length_ratio(x2(1:s:end,1:s:end),y2(1:s:end,1:s:end),1,'jet',1);
 xlim([-1,2])
 ylim([-1.5,1.5])
 
-plot_edge_length_ratio(x2,y2,2,'jet',1);
+plot_edge_length_ratio(x2(1:s:end,1:s:end),y2(1:s:end,1:s:end),2,'jet',1);
 xlim([-1,2])
 ylim([-1.5,1.5])
 
-% L = edge_length_ratio_2D(x,y,dir);
+% L1 = edge_length_ratio_2D(x2,y2,1);
+% L2 = edge_length_ratio_2D(x2,y2,2);
 
 hold off
-%%
-clf;
-hold on
-for j = 1:jmax
-    tmp = sqrt(diff(x2(1:end-1,j)).^2+diff(y2(1:end-1,j)).^2) ./ sqrt(diff(x2(2:end,j)).^2+diff(y2(2:end,j)).^2);
-    tmp(tmp<1) = 1./tmp(tmp<1);
-    plot(tmp)
-end
-
-clf;
-hold on
-for i = 1:imax
-    tmp = sqrt(diff(x2(i,1:end-1)).^2+diff(y2(i,1:end-1)).^2) ./ sqrt(diff(x2(i,2:end)).^2+diff(y2(i,2:end)).^2);
-    tmp(tmp<1) = 1./tmp(tmp<1);
-    plot(tmp)
-end
-hold off;
 
 
 function hfig = plot_edge_length_ratio(x,y,dir,cmap,linewidth)
@@ -150,20 +150,22 @@ hfig = figure();
 set(gca,'Color','k');
 colormap(cmap);
 L = edge_length_ratio_2D(x,y,dir);
-% x = padarray(x,[1,1],nan,'post');
-% y = padarray(y,[1,1],nan,'post');
-% L = padarray(L,[1,1],nan,'post');
-x1 = x; x1(end,:) = nan;
-x2 = x; x2(:,end) = nan;
-y1 = y; y1(end,:) = nan;
-y2 = y; x2(:,end) = nan;
-
+x = padarray(x,[1,1],nan,'both');
+y = padarray(y,[1,1],nan,'both');
+L = padarray(L,[1,1],nan,'both');
 hold on;
-patch(x,y,L,'edgecolor','flat','LineWidth',linewidth);
-patch(x.',y.',L.','edgecolor','flat','LineWidth',linewidth);
+patch(x,y,L,'edgecolor','interp','Marker','.','LineWidth',linewidth);
+patch(x.',y.',L.','edgecolor','interp','LineWidth',linewidth);
 axis equal
 colorbar;
 hold off
+end
+
+function f = bivariate_ramps(imax,jmax,i_vals,i_breaks,j_vals,j_breaks)
+f_i = @(i) smooth_ramps((i-1)/(imax-1),i_breaks,i_vals);
+f_j = @(j) smooth_ramps((j-1)/(jmax-1),j_breaks,j_vals);
+f = @(i,j) f_i(i).*f_j(j);
+
 end
 
 function [x,y,F1,dF1,ddF1,fx_wake,fy_wake] = get_airfoil_coordinates( ...

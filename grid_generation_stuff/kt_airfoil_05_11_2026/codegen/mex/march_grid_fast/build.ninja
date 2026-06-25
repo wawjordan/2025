@@ -1,0 +1,64 @@
+# CompilerName=mingw64
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root/build/win64
+matlabdir = C:/Program Files/MATLAB/R2023a
+startdir = C:/Users/Will/Documents/MATLAB/VT_Research/2025/grid_generation_stuff/kt_airfoil_05_11_2026
+
+# Toolchain information
+cc = C:\ProgramData\MATLAB\SupportPackages\R2023a\3P.instrset\mingw_w64.instrset\bin\gcc
+cxx = C:\ProgramData\MATLAB\SupportPackages\R2023a\3P.instrset\mingw_w64.instrset\bin\g++
+linker = C:\ProgramData\MATLAB\SupportPackages\R2023a\3P.instrset\mingw_w64.instrset\bin\gcc
+linkerxx = C:\ProgramData\MATLAB\SupportPackages\R2023a\3P.instrset\mingw_w64.instrset\bin\g++
+
+cflags =  -c -fexceptions -fno-omit-frame-pointer -m64 -DMATLAB_MEX_FILE  -DMATLAB_MEX_FILE -O2 -fwrapv -DNDEBUG -std=c99 -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\CXSparse\Include" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\CXSparse\SuiteSparse_config" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\CXSparse\CXSparseSupport" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\interface" -I "C:\Program Files\MATLAB\R2023a\extern\include" -I "." -DMODEL=march_grid_fast_mex -D__USE_MINGW_ANSI_STDIO=1 -msse2 
+
+cxxflags =  -c -fexceptions -fno-omit-frame-pointer -std=c++11 -m64 -DMATLAB_MEX_FILE  -DMATLAB_MEX_FILE -O2 -fwrapv -DNDEBUG -std=c++11 -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\CXSparse\Include" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\CXSparse\SuiteSparse_config" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\CXSparse\CXSparseSupport" -I "C:\Users\Will\Documents\MATLAB\VT_Research\2025\grid_generation_stuff\kt_airfoil_05_11_2026\codegen\mex\march_grid_fast\interface" -I "C:\Program Files\MATLAB\R2023a\extern\include" -I "." -DMODEL=march_grid_fast_mex -D__USE_MINGW_ANSI_STDIO=1 -msse2 
+
+ldflags =  -m64 -Wl,--no-undefined -shared -static -L"C:\Program Files\MATLAB\R2023a\extern\lib\win64\mingw64" -llibmx -llibmex -llibmat -lm -llibmwlapack -llibmwblas -o "march_grid_fast_mex.mexw64" -llibemlrt -llibcovrt -llibut -llibmwmathutil  march_grid_fast_mex.def
+
+linkobjs = 
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in -o $out
+
+rule cxx
+    command = $cxx $cxxflags $in -o $out
+
+rule link
+    command = $linker @$out.rsp $linkobjs $ldflags
+    rspfile = $out.rsp
+    rspfile_content = $in
+
+rule linkxx
+    command = $linkerxx $in $linkobjs $ldflags
+
+# Build
+build $builddir/cs_ri_bundle.o : cc $root/CXSparse/Source/cs_ri_bundle.c
+build $builddir/cs_ci_bundle.o : cc $root/CXSparse/Source/cs_ci_bundle.c
+build $builddir/solve_from_lu.o : cc $root/CXSparse/CXSparseSupport/solve_from_lu.c
+build $builddir/solve_from_qr.o : cc $root/CXSparse/CXSparseSupport/solve_from_qr.c
+build $builddir/makeCXSparseMatrix.o : cc $root/CXSparse/CXSparseSupport/makeCXSparseMatrix.c
+build $builddir/unpackCXStruct.o : cc $root/CXSparse/CXSparseSupport/unpackCXStruct.c
+build $builddir/march_grid_fast_data.o : cc $root/march_grid_fast_data.c
+build $builddir/rt_nonfinite.o : cc $root/rt_nonfinite.c
+build $builddir/march_grid_fast_initialize.o : cc $root/march_grid_fast_initialize.c
+build $builddir/march_grid_fast_terminate.o : cc $root/march_grid_fast_terminate.c
+build $builddir/march_grid_fast.o : cc $root/march_grid_fast.c
+build $builddir/sparse.o : cc $root/sparse.c
+build $builddir/warning.o : cc $root/warning.c
+build $builddir/indexShapeCheck.o : cc $root/indexShapeCheck.c
+build $builddir/assertValidSizeArg.o : cc $root/assertValidSizeArg.c
+build $builddir/_coder_march_grid_fast_api.o : cc $root/interface/_coder_march_grid_fast_api.c
+build $builddir/_coder_march_grid_fast_mex.o : cc $root/interface/_coder_march_grid_fast_mex.c
+build $builddir/eml_int_forloop_overflow_check.o : cc $root/eml_int_forloop_overflow_check.c
+build $builddir/march_grid_fast_emxutil.o : cc $root/march_grid_fast_emxutil.c
+build $builddir/_coder_march_grid_fast_info.o : cc $root/interface/_coder_march_grid_fast_info.c
+build $builddir/c_mexapi_version.o : cc $matlabdir/extern/version/c_mexapi_version.c
+
+# Link
+build $root\march_grid_fast_mex.mexw64 : link $builddir/cs_ri_bundle.o $builddir/cs_ci_bundle.o $builddir/solve_from_lu.o $builddir/solve_from_qr.o $builddir/makeCXSparseMatrix.o $builddir/unpackCXStruct.o $builddir/march_grid_fast_data.o $builddir/rt_nonfinite.o $builddir/march_grid_fast_initialize.o $builddir/march_grid_fast_terminate.o $builddir/march_grid_fast.o $builddir/sparse.o $builddir/warning.o $builddir/indexShapeCheck.o $builddir/assertValidSizeArg.o $builddir/_coder_march_grid_fast_api.o $builddir/_coder_march_grid_fast_mex.o $builddir/eml_int_forloop_overflow_check.o $builddir/march_grid_fast_emxutil.o $builddir/_coder_march_grid_fast_info.o $builddir/c_mexapi_version.o 

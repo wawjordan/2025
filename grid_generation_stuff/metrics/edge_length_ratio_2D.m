@@ -17,10 +17,14 @@ switch dir
         L_tmp = sqrt( diff(x,[],1).^2 + diff(y,[],1).^2 );
         L(2:imax-1,:) = min(L_tmp(1:imax-2,:),L_tmp(2:imax-1,:)) ...
                      ./ max(L_tmp(1:imax-2,:),L_tmp(2:imax-1,:));
+        L(1,:) = 2*L(2,:) - L(3,:);
+        L(imax,:) = 2*L(imax-1,:) - L(imax-2,:);
     case(2)
         L_tmp = sqrt( diff(x,[],2).^2 + diff(y,[],2).^2 );
         L(:,2:jmax-1) = min(L_tmp(:,1:jmax-2),L_tmp(:,2:jmax-1)) ...
                      ./ max(L_tmp(:,1:jmax-2),L_tmp(:,2:jmax-1));
+        L(:,1) = 2*L(:,2) - L(:,3);
+        L(:,jmax) = 2*L(:,jmax-1) - L(:,jmax-2);
     otherwise
         error('dir can only be 1 (i-coordinates), or 2 (j-coordinates)')
 end
