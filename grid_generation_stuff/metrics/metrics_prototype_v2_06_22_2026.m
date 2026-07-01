@@ -28,6 +28,17 @@ j1 = jac_ind_1(x,y);
 %     end
 % end
 A = quad_jacobian2(x,y,0.5,0.5);
+% out=argEval(n,fh, varargin)
+
+% A3 = @(x,y,xi,idx)scalarEval( quad_jacobian2(x,y,xi(1),xi(2)),idx );
+% A4 = @(x,y,idx,npts) avg_metric( @(xi)A3(x,y,xi,idx), x, y, npts );
+
+quad_jac_component_avg = @(x,y,idx,npts) avg_metric( @(xi)scalarEval( quad_jacobian2(x,y,xi(1),xi(2)),idx ), x, y, npts );
+
+quad_jacobian2_avg = @(x,y,n_pts) [quad_jac_component_avg(x,y,1,n_pts),quad_jac_component_avg(x,y,3,n_pts);quad_jac_component_avg(x,y,2,n_pts),quad_jac_component_avg(x,y,4,n_pts)];
+
+Aavg = quad_jacobian2_avg(x,y,3);
+
 [zeta,theta,phi,rho] = parameters_from_jacobian(A);
 W = parameterized_2D_matrix(zeta,theta,phi,rho);
 [rt_zeta,R,Q,D,S,U] = jacobian_decomp(A);
@@ -69,16 +80,25 @@ plot([x2;x2(1)],[y2;y2(1)],'--')
 plot([c2(1),c2(1)+A2(1,1)],[c2(2),c2(2)+A2(2,1)],'r--')
 plot([c2(1),c2(1)+A2(1,2)],[c2(2),c2(2)+A2(2,2)],'b--')
 
+% tmp = A\[x.';y.'];
+% x2 = tmp(1,:).';
+% y2 = tmp(2,:).';
+% A2 = quad_jacobian2(x2,y2,0.5,0.5);
+% c2 = polygon_centroid(x2,y2);
+% plot([x2;x2(1)],[y2;y2(1)],'--')
+% plot([c2(1),c2(1)+A2(1,1)],[c2(2),c2(2)+A2(2,1)],'r:')
+% plot([c2(1),c2(1)+A2(1,2)],[c2(2),c2(2)+A2(2,2)],'b:')
 
-% tmp = inv(A)*[x.';y.'];
-tmp = A\[x.';y.'];
+tmp = Aavg\[x.';y.'];
 x2 = tmp(1,:).';
 y2 = tmp(2,:).';
-A2 = quad_jacobian2(x2,y2,0.5,0.5);
+Aavg2 = quad_jacobian2_avg(x2,y2,3);
 c2 = polygon_centroid(x2,y2);
-plot([x2;x2(1)],[y2;y2(1)],'--')
-plot([c2(1),c2(1)+A2(1,1)],[c2(2),c2(2)+A2(2,1)],'r:')
-plot([c2(1),c2(1)+A2(1,2)],[c2(2),c2(2)+A2(2,2)],'b:')
+plot([x2;x2(1)],[y2;y2(1)],':')
+plot([c2(1),c2(1)+Aavg2(1,1)],[c2(2),c2(2)+Aavg2(2,1)],'r:')
+plot([c2(1),c2(1)+Aavg2(1,2)],[c2(2),c2(2)+Aavg2(2,2)],'b:')
+
+
 
 function val = vmag(v)
 val = sqrt( sum(v.^2) );
@@ -297,6 +317,20 @@ c(1,1) = 0.25*( x(1) + x(2) + x(3) + x(4) );
 c(2,1) = 0.25*( y(1) + y(2) + y(3) + y(4) );
 end
 
+function val = avg_metric(f,x,y,npts)
+X1 = [x(1),x(2);x(4),x(3)];
+X2 = [y(1),y(2);y(4),y(3)];
+X3 = [0,0;0,0];
+quad_ref = quad_t.create_quad_ref_2D(npts);
+quad_phys = quad_t.map_quad_ref_2D(X1,X2,X3,quad_ref,lagrange_interpolant());
+volume = quad_phys.integrate(ones(1,quad_phys.n_quad));
+tmp_vals = zeros(1,quad_phys.n_quad);
+for q = 1:quad_phys.n_quad
+    tmp_vals(q) = f(quad_phys.quad_pts(1:2,q));
+end
+val = quad_phys.integrate(tmp_vals)/volume;
+end
+
 function c = quad_centroid_2(x,y,npts)
 X1 = [x(1),x(2);x(4),x(3)];
 X2 = [y(1),y(2);y(4),y(3)];
@@ -336,4 +370,21 @@ Q = [1, cos(phi); 0, sin(phi)];
 D = [1/rt_rho,0;0,rt_rho];
 S = Q*D;
 U = rt_zeta*S;
+end
+
+
+function out=argEval(n,fh, varargin)
+%Get the n-th output of fh(varargin{:})
+   [argsout{1:n}]=fh(varargin{:});
+   
+   out=argsout{n};
+end
+
+function out=scalarEval(fh,idx,varargin)
+out1 = fh(varargin{:});
+out = out1(idx);
+end
+
+function out=vectorInEval(fh,vec,varargin)
+out = fh(vec{:},varargin{:});
 end

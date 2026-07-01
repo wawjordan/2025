@@ -41,7 +41,7 @@ airfoil = local_airfoil_generator();
 jmax         = 129;  % number of points off body
 n_body_pts   = 129;  % number of points on the body
 n_wake_pts   = 129;  % number of points in wake
-n_transition = 17;   % number of transition points for surface spacing blending
+n_transition = 1;   % number of transition points for surface spacing blending
 imax = n_body_pts + 2*(n_wake_pts-1);
 i1 = n_wake_pts;
 i2 = n_wake_pts+n_body_pts-1;
@@ -77,10 +77,10 @@ alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],.
 
 
 
-[x_airfoil,y_airfoil,F1,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
+[x_airfoil,y_airfoil,F1,dF1,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
 
 
-
+fplot(dF1,[0.45,0.55])
 
 hold on
 plot(x_airfoil,y_airfoil,'r.-');

@@ -76,13 +76,40 @@ end
 end
 
 function exponents = get_exponents_tp( n_dim, degree )
-n_terms   = degree^n_dim;
+n_terms   = (degree+1)^n_dim;
 exponents = zeros(n_dim,n_terms);
-nsub = degree*ones(1,n_dim);
+nsub = (degree+1)*ones(1,n_dim);
 for j = 1:n_terms
     exponents(:,j) = global2local(j,nsub)-1;
 end
+if (n_dim== 2 && degree==2)
+    exponents = exponents(:,[1,2,4,5,3,7,9,6,8]);
 end
+% % 1: [0,0]  1
+% % 2: [1,0]  2
+% % 3: [0,1]  4
+% % 4: [1,1]  5
+% % 5: [2,0]  3
+% % 6: [0,2]  7
+% % 7: [2,2]  9
+% % 8: [2,1]  6
+% % 9: [1,2]  8
+end
+
+% function exponents = get_exponents_tp( n_dim, degree )
+% max_degree   = degree*n_dim;
+% [exponents,~,~] = get_exponents( n_dim, max_degree );
+% exponents(:,any(exponents>degree,1)) = [];
+% % 1: [0,0]  1
+% % 2: [1,0]  2
+% % 3: [0,1]  3
+% % 4: [1,1]  5
+% % 5: [2,0]  4
+% % 6: [0,2]  6
+% % 7: [2,2]  9
+% % 8: [2,1]  7
+% % 9: [1,2]  8
+% end
 
 function [exponents,idx,diff_idx] = get_exponents( n_dim, degree )
 n_terms   = nchoosek( n_dim + degree, degree );
@@ -134,14 +161,14 @@ for i = nDims:-1:1
 end
 end
 
-function iG = local2global(iSub,nSub)
-iSub = iSub(:);
-nSub = nSub(:);
-nDims = numel(iSub);
-p = 1;
-iG = 1;
-for i = 1:nDims
-    iG = iG + ( iSub(i) - 1 )*p;
-    p = p*nSub(i);
-end
-end
+% function iG = local2global(iSub,nSub)
+% iSub = iSub(:);
+% nSub = nSub(:);
+% nDims = numel(iSub);
+% p = 1;
+% iG = 1;
+% for i = 1:nDims
+%     iG = iG + ( iSub(i) - 1 )*p;
+%     p = p*nSub(i);
+% end
+% end
