@@ -12,17 +12,19 @@ clear parent_dir_str path_idx path_parts
 clc;
 
 GRID = read_grd_file_to_struct(grid_file);
+% GRID = grid_type(GRID);
+% GRID = calc_vertex_centroids(GRID);
 x = GRID.gblock.x;
 y = GRID.gblock.y;
 i1 = 49;
 offset_i = 10;
-offset_j = 10;
+offset_j = 12;
 x2 = x(i1-offset_i:end+1-i1+offset_i,1:offset_j);
 y2 = y(i1-offset_i:end+1-i1+offset_i,1:offset_j);
 i1 = 1+offset_i;
 FD = c_grid_jmin_metrics_fd(x2,y2,i1);
 
-contourf(x2,y2,FD.y_eta,100,'linecolor','none')
+contourf(x2,y2,FD.jac_det,100,'linecolor','none')
 colorbar;
 hold on;
 plot(x,y,'k')

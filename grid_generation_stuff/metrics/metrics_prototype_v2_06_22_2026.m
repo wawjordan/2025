@@ -44,6 +44,8 @@ W = parameterized_2D_matrix(zeta,theta,phi,rho);
 [rt_zeta,R,Q,D,S,U] = jacobian_decomp(A);
 % max(abs(A- rt_zeta*R*Q*D),[],'all')
 c = polygon_centroid(x,y);
+% interpolant = lagrange_interpolant();
+% c2 = interpolant.map_point([x(1),x(2);x(4),x(3)],[y(1),y(2);y(4),y(3)],[0,0;0,0],[0,0,0]);
 % max(abs(quad_centroid(x,y) - polygon_centroid(x,y)),[],'all')
 % max(abs(quad_centroid_2(x,y,1) - polygon_centroid(x,y)),[],'all')
 % max(abs(quad_centroid_2(x,y,2) - polygon_centroid(x,y)),[],'all')
@@ -71,7 +73,8 @@ plot([c(1),c(1)+A(1,1)],[c(2),c(2)+A(2,1)],'r')
 plot([c(1),c(1)+A(1,2)],[c(2),c(2)+A(2,2)],'b')
 axis equal
 
-tmp = inv(D)*inv(Q)*inv(R)*[x.';y.']/rt_zeta;
+% tmp = inv(D)*inv(Q)*inv(R)*[(x-c(1)).';(y-c(2)).']/rt_zeta;
+tmp = inv(Q)*inv(R)*[(x-c(1)).';(y-c(2)).']/rt_zeta;
 x2 = tmp(1,:).';
 y2 = tmp(2,:).';
 A2 = quad_jacobian2(x2,y2,0.5,0.5);
@@ -89,7 +92,7 @@ plot([c2(1),c2(1)+A2(1,2)],[c2(2),c2(2)+A2(2,2)],'b--')
 % plot([c2(1),c2(1)+A2(1,1)],[c2(2),c2(2)+A2(2,1)],'r:')
 % plot([c2(1),c2(1)+A2(1,2)],[c2(2),c2(2)+A2(2,2)],'b:')
 
-tmp = Aavg\[x.';y.'];
+tmp = Aavg\[(x-c(1)).';(y-c(2)).'];
 x2 = tmp(1,:).';
 y2 = tmp(2,:).';
 Aavg2 = quad_jacobian2_avg(x2,y2,3);

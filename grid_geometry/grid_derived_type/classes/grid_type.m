@@ -15,7 +15,7 @@ classdef grid_type < grid_type_lite
             addOptional(p,'mask',true,@(x)islogical(x))
             addOptional(p,'calc_quads',false,@(x)isscalar(x)&&islogical(x))
             addOptional(p,'nquad',1,@(x)isPositiveIntegerValuedNumeric(x))
-            % addOptional(p,'ndim',3,@(x)isPositiveIntegerValuedNumeric(x))
+            addOptional(p,'ndim',3,@(x)isPositiveIntegerValuedNumeric(x))
             
             parse(p,varargin{:})
 
@@ -43,9 +43,9 @@ classdef grid_type < grid_type_lite
                 if p.Results.calc_quads
                     this = this.fill_derived_grid( p.Results.nquad );
                 end
-                % for n = 1:this.nblocks
-                %     this.gblock(n).dim = p.Results.ndim;
-                % end
+                for n = 1:this.nblocks
+                    this.gblock(n).dim = p.Results.ndim;
+                end
             end
         end
         function sub_grid = subset_grid(this,blk,lo,hi)
