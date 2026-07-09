@@ -54,16 +54,16 @@ wake_multiplier = 1;
 boundary_distance = 500;
 mu                = 0.1;             % 4th order explicit smoothing factor
 muim              = 0.5;             % Implicit smoothing factor
-% scjmax            = 0.997;           % Scaling Factor
-% alpham            = 0.7;            % Alpha scheme integration factor
-o = 33;
-f1s =  @(t) smooth_transition_1_side(t,i2-o,imax,0,1-0.9999);
-f2s =  @(t) smooth_transition_1_side(t,1,i1+o,1,0.9999);
-f1ss = @(t) smooth_transition_1_side(t,1,jmax,1,0.99);
-scjmax = @(i,j) (f1s(i) + f2s(i)).*f1ss(j);
-f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,3);
-f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-3);
-alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
+scjmax            = 0.997;           % Scaling Factor
+alpham            = 4;               % Alpha scheme integration factor
+% o = 33;
+% f1s =  @(t) smooth_transition_1_side(t,i2-o,imax,0,1-0.9999);
+% f2s =  @(t) smooth_transition_1_side(t,1,i1+o,1,0.9999);
+% f1ss = @(t) smooth_transition_1_side(t,1,jmax,1,0.99);
+% scjmax = @(i,j) (f1s(i) + f2s(i)).*f1ss(j);
+% f1a = @(t) smooth_transition_1_side(t,1,jmax/3,0.5,3);
+% f2a = @(t) smooth_transition_1_side(t,  jmax/3,2*jmax/3,0,0.5-3);
+% alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
 
 % scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,0.999,1.0000],[0,1/3,2/3,1],...
 %                                    [1.0000,0.9950],[0,1]);
@@ -71,7 +71,7 @@ alpham = @(i,j) f1a(j) + f2a(j) + 0*i;
 %                                    [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
 
 scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,1.0,1.0,0.999,1.0000],[0,1/3,15/32,17/32,2/3,1],...
-                                   [1.0000,1.0000,0.996],[0,0.1,1]);
+                                   [1.0000,1.0000,0.98],[0,0.1,1]);
 alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],...
                                    [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
 
@@ -106,7 +106,7 @@ tic;
                                       AR_LE = AR_LE, ...
                                       AR_TE = AR_TE, ...
                                       n_extrude_layers=0, ...
-                                      n_radial_passes=2,...
+                                      n_radial_passes=1,...
                                       scjmax = scjmax, ...
                                       mu = mu, ...
                                       muim = muim, ...
@@ -127,6 +127,8 @@ spline_y = spapi({5,5},{linspace(0,1,imax),linspace(0,1,jmax)},y);
 
 ni = 1/4;
 nj = 1/4;
+% ni = 8;
+% nj = 8;
 x2 = fnval(spline_x,{linspace(0,1,(imax-1)*ni+1),linspace(0,1,(jmax-1)*nj+1)});
 y2 = fnval(spline_y,{linspace(0,1,(imax-1)*ni+1),linspace(0,1,(jmax-1)*nj+1)});
 

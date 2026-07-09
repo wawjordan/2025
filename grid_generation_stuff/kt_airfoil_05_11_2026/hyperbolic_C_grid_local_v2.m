@@ -152,20 +152,20 @@ end
 for n = 1:n_radial_passes
     fprintf('pass %d / %d\n',n,2)
     for j = max(2,2+n_extrude_layers):jmax
-        % [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
-        %                                mu, muim, alpham(:,j), scale(:,j), ...
-        %                                r_space(:,j), r_space(:,j-1) );
-        xjm1 = x(:,j-1);
-        yjm1 = y(:,j-1);
-        alpham_ = alpham(:,j);
-        scale_  = scale(:,j);
-        rj      = r_space(:,j);
-        rjm1    = r_space(:,j-1);
-        [xj, yj] = march_grid_fast_mex( imax, jmax, xjm1, yjm1, ...
-                                       mu_, muim_, alpham_, scale_, ...
-                                       rj, rjm1 );
-        x(:,j) = xj;
-        y(:,j) = yj;
+        [x(:,j), y(:,j)] = march_grid( jmax, x(:,j-1), y(:,j-1), ...
+                                       mu, muim, alpham(:,j), scale(:,j), ...
+                                       r_space(:,j), r_space(:,j-1) );
+        % xjm1 = x(:,j-1);
+        % yjm1 = y(:,j-1);
+        % alpham_ = alpham(:,j);
+        % scale_  = scale(:,j);
+        % rj      = r_space(:,j);
+        % rjm1    = r_space(:,j-1);
+        % [xj, yj] = march_grid_fast_mex( imax, jmax, xjm1, yjm1, ...
+        %                                mu_, muim_, alpham_, scale_, ...
+        %                                rj, rjm1 );
+        % x(:,j) = xj;
+        % y(:,j) = yj;
         fprintf('step %d / %d\n',j-1,jmax-1)
     end
 
@@ -486,11 +486,11 @@ end
 
 %% Compute BC
 i = 1;
-rhs(2*(i-1)+1) = 0;
+% rhs(2*(i-1)+1) = 0;
 rhs(2*(i-1)+2) = 0;
 
 i = imax;
-rhs(2*(i-1)+1) = 0;
+% rhs(2*(i-1)+1) = 0;
 rhs(2*(i-1)+2) = 0;
 
 end

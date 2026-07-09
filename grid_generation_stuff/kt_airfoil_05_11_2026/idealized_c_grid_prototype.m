@@ -13,9 +13,9 @@ clc;
 t = linspace(0,1,1001);
 
 % [val,dval,ddval] = combined(t, t0,  t1,  s,  s2,  N,    r )
-[val,dval,ddval] = combined(  t,  0, 0.2, 1, 1.2, 33, 1.05 );
+% [val,dval,ddval] = combined(  t,  0, 0.2, 1, 1.2, 33, 1.05 );
 
-plot(t,dval)
+% plot(t,dval)
 % plot(t,ddval)
 
 r0 = 1;

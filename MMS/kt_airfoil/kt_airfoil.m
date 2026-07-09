@@ -229,7 +229,7 @@ classdef kt_airfoil
             xn = 1/this.n;
             zeta = -this.l*( (z_m./z_p).^xn + 1) ./ ( (z_m./z_p).^xn - 1);
         end
-        
+
         function dzeta_dz = diff_zeta_from_z(this,z)
             % derivative of the inverse transform ( d/dz [zeta(z)] )
             %
@@ -260,13 +260,13 @@ classdef kt_airfoil
             x = real(z);
             y = imag(z);
         end
-        function [x,y] = output_airfoil_coords1(this,N,F)
+        function [x,y,theta] = output_airfoil_coords1(this,N,F)
             t = this.arc_length_param2(linspace(0,1,N),F);
             % t = reparam_fun(1,@(t)this.z_from_zeta(this.zeta_from_theta(2*pi*t)),F,N,0,1);
             theta = 2*pi*t;
             [x,y] = output_airfoil_coords_theta(this,theta);
         end
-        function [x,y] = output_airfoil_coords2(this,N,F)
+        function [x,y,theta] = output_airfoil_coords2(this,N,F)
             t = linspace(0,1,N);
             theta = 2*pi*this.arc_length_param(F(t));
             [x,y] = output_airfoil_coords_theta(this,theta);
