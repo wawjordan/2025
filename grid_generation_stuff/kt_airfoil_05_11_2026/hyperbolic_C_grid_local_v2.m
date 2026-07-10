@@ -56,6 +56,20 @@ end
 x = zeros(imax,jmax);
 y = zeros(imax,jmax);
 
+[TE_slope,TE_loc] = set_TE_slope( x_airfoil, y_airfoil );
+
+%% Create ETAMIN Boundary
+[ x1, y1 ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, ...
+                           n_wake_pts, TE_slope=TE_slope, TE_loc=TE_loc, ...
+                           fx=fx_wake, fy=fy_wake );
+x(:,1) = x1;
+y(:,1) = y1;
+
+if (jmax==1)
+    return
+end
+
+
 if isa(alpham,'function_handle')
     [I,J] = ndgrid(1:imax,1:jmax);
     alpham = alpham(I,J);
@@ -69,15 +83,6 @@ if isa(scjmax,'function_handle')
 elseif isscalar(scjmax)
     scjmax = scjmax*ones(imax,jmax);
 end
-
-[TE_slope,TE_loc] = set_TE_slope( x_airfoil, y_airfoil );
-
-%% Create ETAMIN Boundary
-[ x1, y1 ] = wake_cut_pts( x_airfoil, y_airfoil, boundary_distance, ...
-                           n_wake_pts, TE_slope=TE_slope, TE_loc=TE_loc, ...
-                           fx=fx_wake, fy=fy_wake );
-x(:,1) = x1;
-y(:,1) = y1;
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23

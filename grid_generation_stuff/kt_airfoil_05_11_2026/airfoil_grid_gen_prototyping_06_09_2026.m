@@ -86,15 +86,20 @@ hold on
 plot(x_airfoil,y_airfoil,'r.-');
 axis equal
 
-% phiTE0 = airfoil.phi_from_xy(airfoil.xTE,airfoil.yTE);
-% find phi for boundary at boundary_distance away
-% y_p = fzero( @(y) airfoil.phi_x_from_y(phiTE0,y,0).^2 + y.^2 - boundary_distance^2, boundary_distance );
-% x_p = airfoil.phi_x_from_y(phiTE0,y_p,0);
-% phiTEp = airfoil.phi_from_xy(airfoil.xTE,airfoil.yTE);
-% tx = linspace(0,500,10001);
+x1 = (airfoil.xTE-airfoil.xLE)/airfoil.chord;
+y1 = airfoil.yTE/airfoil.chord;
+[xfun,yfun] = potential_grid_line_v1(airfoil,x1,y1);
+psi_bnd = fzero(@(psi)yfun(psi)-boundary_distance,4*boundary_distance);
+tpsi = linspace(-1,1,101);
+plot(xfun(tpsi),yfun(tpsi));
+% find phi for Trailing edge
+% phiTE0 = airfoil.phi_from_xy( x1,y1);
 % ty = linspace(-500,500,10001);
+% plot(airfoil.phi_x_from_y(phiTE0,ty,0),ty,'b')
+% xlim([-1,2])
+
+tx = linspace(0,500,10001);
 % plot(tx,airfoil.psi_y_from_x(500*airfoil.chord,tx,-0.1),'g')
-% plot(airfoil.phi_x_from_y(2.22,ty,0),ty,'b')
 % plot(airfoil.phi_x_from_y(500*airfoil.chord,ty,0),ty,'b')
 
 

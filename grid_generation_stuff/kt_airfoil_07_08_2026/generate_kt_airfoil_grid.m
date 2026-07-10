@@ -54,13 +54,16 @@ OUT.base_grid.AR_LE      = AR_LE;
 OUT.base_grid.AR_TE      = AR_TE;
 OUT.base_grid.delta_LE   = delta_LE;
 OUT.base_grid.delta_TE   = delta_TE;
+OUT.base_grid.boundary_distance = boundary_distance;
 OUT.base_grid.x_airfoil  = x_airfoil;
 OUT.base_grid.y_airfoil  = y_airfoil;
 OUT.base_grid.x          = x;
 OUT.base_grid.y          = y;
 OUT.base_grid.theta      = theta;
+if (jmax>1)
 OUT.xs = spapi({spline_order,spline_order},{linspace(0,1,imax),linspace(0,1,jmax)},x);
 OUT.ys = spapi({spline_order,spline_order},{linspace(0,1,imax),linspace(0,1,jmax)},y);
+end
 OUT.xi_min  = 0;
 OUT.xi_max  = 1;
 OUT.eta_min = 0;

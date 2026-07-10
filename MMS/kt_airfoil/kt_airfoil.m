@@ -183,6 +183,16 @@ classdef kt_airfoil
             % map to cylinder in complex plane
             zeta = this.a*exp(1i*(theta-this.beta)) + this.mu;
         end
+        function z = z_from_theta_r(this,theta,r)
+            z = this.z_from_zeta(r.*exp(1i*(theta-this.beta)) + this.mu);
+            z = (z - this.zLE)/this.chord;
+        end
+        function [theta,r] = theta_from_zeta(this,zeta)
+            zeta_ = zeta-this.mu;
+            r = abs(zeta-this.mu);
+            % theta = real(-1i*log(zeta_./r)+this.beta);
+            theta = atan2(imag(zeta_),real(zeta_))+this.beta;
+        end
         function dzeta_dtheta = diff_zeta_from_theta(this,theta)
             % derivative of cylinder mapping w.r.t. theta
             dzeta_dtheta = 1i*this.a*exp(1i*(theta-this.beta));
@@ -468,6 +478,11 @@ classdef kt_airfoil
             z = this.chord*z + this.zLE;
             psi = imag( this.F_cylinder( this.zeta_from_z(z) ) );
         end
+        function F = phi_psi_from_xy(this,x,y)
+            z = x+1i*y;
+            z = this.chord*z + this.zLE;
+            F = this.F_cylinder( this.zeta_from_z(z) );
+        end
         function phi = phi_from_xy(this,x,y)
             z = x+1i*y;
             z = this.chord*z + this.zLE;
@@ -482,6 +497,16 @@ classdef kt_airfoil
             options = optimset('TolFun',1e-15,'TolX',1e-17);
             obj_fun = @(x,y) this.phi_from_xy(x,y) - phi;
             x = arrayfun(@(y)fzero(@(x)obj_fun(x,y),x_guess,options),y);
+        end
+        function z = z_from_phi_psi(this,phi,psi)
+            F = phi + 1i*psi;
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            z = arrayfun( @(F) fsolve( @(z) F-this.F_cylinder( this.zeta_from_z(z) ), ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
+            % z = arrayfun( @(F) fsolve( @(z) F-this.F_cylinder( ...
+            %                    fsolve( @(zeta) z - this.z_from_zeta(zeta), ...
+            %                    ( 2*(imag(F)>=0) - 1 )*1i, options ) ), ...
+            %                    ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
+            z = (z - this.zLE)/this.chord;
         end
 %% velocity around cylinder
         function val = w_cylinder(this,zeta)

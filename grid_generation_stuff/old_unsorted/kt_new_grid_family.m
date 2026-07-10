@@ -56,9 +56,9 @@ inputs.spacing{2} = @linspace;
 fprintf('Generating fine grid...\n')
 GRID = kt_grid(N_r,N_theta,inputs);
 
-skip = 1;
-GRID.x = GRID.x(1:2^(skip-1)+1,:);
-GRID.y = GRID.y(1:2^(skip-1)+1,:);
+skip = 5;
+% GRID.x = GRID.x(1:2^(skip-1)+1,:);
+% GRID.y = GRID.y(1:2^(skip-1)+1,:);
 hold on;
 plot(GRID.x(1:2^(skip-1):end,1:2^(skip-1):end),GRID.y(1:2^(skip-1):end,1:2^(skip-1):end),'r');
 plot(GRID.x(1:2^(skip-1):end,1:2^(skip-1):end).',GRID.y(1:2^(skip-1):end,1:2^(skip-1):end).','r');
