@@ -487,6 +487,10 @@ classdef kt_airfoil
             z = x+1i*y;
             z = this.chord*z + this.zLE;
             phi = real( this.F_cylinder( this.zeta_from_z(z) ) );
+            % options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            % phi = arrayfun(@(z)real( this.F_cylinder( ...
+            %                      fsolve( @(zeta) z - this.z_from_zeta(zeta), ...
+            %                               2+2*((imag(z)>=0) - 1 )*1i, options ) ) ), z );
         end
         function y = psi_y_from_x(this,psi,x,y_guess)
             options = optimset('TolFun',1e-15,'TolX',1e-17);
@@ -507,6 +511,13 @@ classdef kt_airfoil
             %                    ( 2*(imag(F)>=0) - 1 )*1i, options ) ), ...
             %                    ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
             z = (z - this.zLE)/this.chord;
+        end
+        function r = r_from_psi_theta(this,psi,theta)
+            z1 = this.z_from_zeta( this.zeta_from_theta(theta));
+            z1 = (z1-this.zLE)/this.chord;
+            phi = this.phi_from_xy(real(z1),imag(z1));
+            z2 = this.z_from_phi_psi(phi,psi);
+            [~,r] = this.theta_from_zeta(this.zeta_from_z(this.chord*z2+this.zLE));
         end
 %% velocity around cylinder
         function val = w_cylinder(this,zeta)

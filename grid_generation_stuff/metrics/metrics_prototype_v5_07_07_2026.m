@@ -48,6 +48,8 @@ axis equal
 %% compute Jacobian at specified [xi,eta]
 A = quad_jacobian2(x_vec,y_vec,xi,eta);
 
+[~,~,~,rho] = parameters_from_jacobian(A);
+
 %% plot the cell in physical space, along with the basis (tangent) vectors
 plot([x_vec(:);x_vec(1)],[y_vec(:);y_vec(1)])
 [xp,yp] = quad_interp(x_vec,y_vec,xi,eta);
