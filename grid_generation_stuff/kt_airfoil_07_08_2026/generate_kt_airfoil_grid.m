@@ -21,7 +21,7 @@ scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,1.0,1.0,0.999,1.0000],[0,1/3,15
                                    [1.0000,1.0000,0.98],[0,0.1,1]);
 alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],...
                                    [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
-[x_airfoil,y_airfoil,theta,~,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
+[x_airfoil,y_airfoil,theta,theta_fun,~,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
 [x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
                                       n_wake_pts, jmax, ...
                                       boundary_distance=boundary_distance, ...
@@ -60,6 +60,7 @@ OUT.base_grid.y_airfoil  = y_airfoil;
 OUT.base_grid.x          = x;
 OUT.base_grid.y          = y;
 OUT.base_grid.theta      = theta;
+OUT.base_grid.theta_fun  = theta_fun;
 if (jmax>1)
 OUT.xs = spapi({spline_order,spline_order},{linspace(0,1,imax),linspace(0,1,jmax)},x);
 OUT.ys = spapi({spline_order,spline_order},{linspace(0,1,imax),linspace(0,1,jmax)},y);
@@ -77,7 +78,7 @@ f_j = @(j) smooth_ramps((j-1)/(jmax-1),j_breaks,j_vals);
 f = @(i,j) f_i(i).*f_j(j);
 end
 
-function [x,y,theta,F1,dF1,ddF1,fx_wake,fy_wake] = get_airfoil_coordinates( ...
+function [x,y,theta,theta_fun,F1,dF1,ddF1,fx_wake,fy_wake] = get_airfoil_coordinates( ...
                                              airfoil, ...
                                              n_body_pts, ...
                                              n_transition, ...
@@ -121,6 +122,11 @@ offset = ( (n_transition-1)/(n_body_pts-1) );
 % % [f,df,ddf] = hermite_blend_2_vinokur_asym(N,t0,d0,d1,off,refine)
 [x,y,theta] = airfoil.output_airfoil_coords1(n_body_pts,F1);
 
+f1 = @(theta) abs(airfoil.airfoil_differential_arc_length(theta));
+f1c = chebfun(f1,[0,2*pi],'splitting','on');
+s_c = cumsum(f1c)./sum(f1c,0,2*pi);
+theta_s = inv(s_c,'splitting','on');
+theta_fun = @(t) theta_s( F1(1-t) );
 % flip to match the clockwise convention
 x = flip(x);
 y = flip(y);

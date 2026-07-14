@@ -10,7 +10,7 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 
-folder = 'C:\Users\Will\Downloads\kt_for_transfer_07082026_AR_LE_TE_10';
+folder = 'C:\Users\Will\Downloads\kt_for_transfer_07132026_AR_1_1_d-01';
 out_folder = fullfile(folder,'\grids\');
 jobfmt = '_kt%0.4dx%0.4d';
 
@@ -29,11 +29,14 @@ airfoil_inputs.rho_ref = 1.0;
 airfoil_inputs.p_ref   = 100000.0;
 
 n_refine   = 2^4;
-n_body_pts = 129;
-n_wake_pts = 65;
+% n_body_pts = 129;
+% n_wake_pts = 65;
+% jmax_in    = 65;
+n_body_pts = 257;
+n_wake_pts = 129;
 jmax_in    = 129;
-AR_LE      =  10.0;
-AR_TE      =  10.0;
+AR_LE      =  1.0;
+AR_TE      =  1.0;
 delta_LE   = 0.1;
 delta_TE   = 0.1;
 spline_order = 5;
@@ -51,13 +54,19 @@ jmax = n_refine*(OUT.base_grid.jmax-1)+1;
 [GRID,i1,i2] = get_fine_grid(OUT,airfoil,imax,jmax);
 skip1 = levels(end) - 1;
 skip2 = max(0,skip1-2);
+% skip1 = 0;
+% skip2 = 0;
 hold on;
 plot(GRID.x(1:2^skip2:end,1:2^skip1:end),GRID.y(1:2^skip2:end,1:2^skip1:end),'r');
 plot(GRID.x(1:2^skip1:end,1:2^skip2:end).',GRID.y(1:2^skip1:end,1:2^skip2:end).','r');
+% plot(GRID.x(1:2^skip2:end,1:2^skip1:10),GRID.y(1:2^skip2:end,1:2^skip1:10),'r');
+% plot(GRID.x(1:2^skip1:end,1:2^skip2:10).',GRID.y(1:2^skip1:end,1:2^skip2:10).','r');
 axis equal
 xlim([-1,2])
 ylim([-1.5,1.5])
 
+xlim([0.9868    0.9950])
+ylim([-0.0036    0.0046])
 
 bc_id_list  = [-1,-1,201,-200,-200,-200];
 
@@ -121,12 +130,26 @@ else
 end
 GRID.x = fnval(OUT.xs,{xi_vec,eta_vec});
 GRID.y = fnval(OUT.ys,{xi_vec,eta_vec});
-theta = OUT.base_grid.theta;
-nt = numel(theta);
-tfun = @(t) interp1(linspace(0,1,nt),theta,t,"pchip");
+% enforce continuity (?)
+GRID.x(1:i1,1) = 0.5*( GRID.x(1:i1,1) + GRID.x(end:-1:i2,1) );
+GRID.x(end:-1:i2,1) = GRID.x(1:i1,1);
+
+GRID.y(1:i1,1) = 0.5*( GRID.y(1:i1,1) + GRID.y(end:-1:i2,1) );
+GRID.y(end:-1:i2,1) = GRID.y(1:i1,1);
+
+% theta = OUT.base_grid.theta;
+% nt = numel(theta);
+% tfun = @(t) interp1(linspace(0,1,nt),theta,t,"pchip");
+tfun = OUT.base_grid.theta_fun;
+
+% need to adjust theta slightly to make the points orthogonal
 fz = @(t) ( airfoil.airfoil_coords(tfun(t)) - airfoil.airfoil_coords(airfoil.thetaLE) )/airfoil.chord;
-for i = i1:i2
-    t = (i-i1)/(i2-i1);
+options = optimset('TolFun',1e-15,'TolX',1e-17);
+for i = i1+1:i2-1
+    t0 = (i-i1)/(i2-i1);
+    t = fzero( @(t) ( real(fz(t)) - GRID.x(i,2) ).*imag(airfoil.unit_normal_cmplx(tfun(t))) ...
+             - ( imag(fz(t)) - GRID.y(i,2) ).*real(airfoil.unit_normal_cmplx(tfun(t))), ...
+             t0, options);
     GRID.x(i,1) = real(fz(t));
     GRID.y(i,1) = imag(fz(t));
 end
