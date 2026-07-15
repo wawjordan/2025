@@ -39,116 +39,74 @@ classdef kt_airfoil
             this.a       = this.l*sqrt( (1+this.epsilon)^2 + this.kappa^2 );
             this.mu      = this.l*(-this.epsilon + this.kappa*1i);
             this.beta    = asin(this.l*this.kappa/this.a);
-            this         = this.get_airfoil_geometry();
+            this         = this.set_airfoil_geometry();
             if ( nargin > 3)
                 this.n_ref = n_ref;
             end
         end
-        function this = get_airfoil_geometry(this)
-            z_fun = @(s,theta)s*real(this.airfoil_coords(theta));
-            this.thetaLE = fminbnd(@(theta)z_fun( 1,theta),0,2*pi);
-            % not needed (I think)
-            % this.thetaTE = fminbnd(@(theta)z_fun(-1,theta),0,2*pi);
+%% Set airfoil geometry
+        function this = set_airfoil_geometry(this)
+            % angle at leading edge
+            this.thetaLE = fminbnd(@(theta)real(this.z_from_theta(theta)),0,2*pi);
             this.thetaTE = 0;
-            this.zLE = this.airfoil_coords(this.thetaLE);
-            this.zTE = this.airfoil_coords(this.thetaTE);
+            % NOTE: These are not scaled for unit chord
+            this.zLE = this.z_from_theta(this.thetaLE);
+            this.zTE = this.z_from_theta(this.thetaTE);
             this.chord = ( abs(this.zLE) + abs(this.zTE) );
             this.xLE   = real(this.zLE);
             this.yLE   = imag(this.zLE);
             this.xTE   = real(this.zTE);
             this.yTE   = imag(this.zTE);
-            c_fun = @(theta)-this.airfoil_curvature2(theta);
-            tol = 0.01;
-            [this.thetaCmax,~] = fminbnd(c_fun,0+tol,2*pi-tol);
-            this.thetaSP = pi;
+
+            % reference theta and z for use as a look-up table
             this.ref_t = linspace(0,2*pi,this.n_ref);
-            this.ref_z = this.airfoil_coords(this.ref_t);
+            this.ref_z = this.z_from_theta(this.ref_t);
+
+            % bounding box for airfoil
             this.bounds(1) = min( real(this.ref_z) ) - 0.1;
             this.bounds(2) = max( real(this.ref_z) ) + 0.1;
             this.bounds(3) = min( imag(this.ref_z) ) - 0.1;
             this.bounds(4) = max( imag(this.ref_z) ) + 0.1;
+
+            % maximum curvature (tolerance to keep away from TE singularity)
+            tol = 0.01;
+            c_fun = @(theta)-this.airfoil_curvature2(theta);
+            [this.thetaCmax,~] = fminbnd(c_fun,0+tol,2*pi-tol);
+            % leading edge stagnation point (changed in set_alpha)
+            this.thetaSP = pi;
         end
+%% Set angle of attack
         function this = set_alpha(this,alpha)
+            % angle of attack (specified in degrees)
             this.alpha = deg2rad(alpha);
+            % calculate leading edge stagnation point
             tol = 0.01;
             this.thetaSP = fminbnd( @(theta) (abs(this.w_cylinder(this.zeta_from_theta(theta)))).^2, 0+tol, 2*pi-tol );
         end
 %% Analytic Force Coefficients
         function val = CL(this)
+            % analytic lift coefficient
             val = 8*pi*(this.a/this.chord)*sin(this.alpha+this.beta);
         end
         function val = CD(~)
+            % analytic drag coefficient
             val = 0;
         end
         function val = CX(this)
+            % analytic axial force coefficient
             val = -this.CL * sin(this.alpha);
         end
         function val = CY(this)
+            % analytic normal force coefficient
             val = this.CL * cos(this.alpha);
         end
-%% Numerically integrated Force Coefficients
-        function [Cx,Cy] = integrate_cp_on_airfoil(this,t0,t1)
-            vals = this.integrate_fluxes_on_airfoil(t0,t1);
-            Cx = -vals(2)./(0.5*this.rhoinf*this.vinf^2*this.chord);
-            Cy = -vals(3)./(0.5*this.rhoinf*this.vinf^2*this.chord);
-        end
-        function [CL,CD] = get_CL_CD(this)
-            [Cx,Cy] = this.integrate_cp_on_airfoil(0,2*pi);
-            CL = Cy*cos(this.alpha) - Cx*sin(this.alpha);
-            CD = Cy*sin(this.alpha) + Cx*cos(this.alpha);
-        end
-        function Cp = get_averaged_cp_on_segment(this,x1,y1,x2,y2,scale,use_curv)
-            tol = 1e-8;
-            point1_on_surface = this.on_airfoil(x1,y1,scale,tol);
-            point2_on_surface = this.on_airfoil(x2,y2,scale,tol);
-            if ~( point1_on_surface || point2_on_surface )
-                fprintf('off surface\n');
-            end
-            on_surface = point1_on_surface ...
-                      && point2_on_surface ...
-                      && use_curv;
-            if on_surface
-                [t0,t1] = this.get_theta_from_z(x1,y1,x2,y2,scale);
-                pfun = @(theta) ( this.airfoil_pressure(this.zeta_from_theta(theta)) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
-                Cp_integral = airfoil_surface_integral(this,@(theta)pfun(theta),t0,t1)*sign(t1-t0);
-                area = abs(airfoil_surface_integral(this,@(theta)0*theta+1,t0,t1));
-                Cp = Cp_integral/area;
-            else
-                [z,dzdt,~] = this.line_param(x1,y1,x2,y2,scale);
-                pfun = @(t) ( this.airfoil_pressure(this.zeta_from_z(z(t))) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
-                dS   = @(t)abs(this.diff_z_from_zeta(z(t)).*dzdt(t));
-                Cp_integral = integral(@(t)pfun(t).*dS(t),0,1,"AbsTol",1e-14,'RelTol',1e-12);
-                % area = sqrt( (x2-x1).^2 + (y2-y1).^2);
-                area = integral(@(t)dS(t),0,1,"AbsTol",1e-14,'RelTol',1e-12);
-                Cp = Cp_integral/area;
-            end
-        end
-        function Cp = get_averaged_cp_on_airfoil(this,x,y,scale,use_curv)
-            N = length(x);
-            Cp = zeros(N-1,1);
-            for i = 1:N-1
-                Cp(i) = get_averaged_cp_on_segment(this,x(i),y(i),x(i+1),y(i+1),scale,use_curv);
-            end
-        end
-%% MMS source term
-        function src = calculate_source(this,x,y,scale,use_curv)
-            N = length(x);
-            src = zeros(5,1);
-            for i = 1:N
-                ip1 = mod(i,N)+1;
-                flux = this.get_flux_integrals(x(i),y(i),x(ip1),y(ip1),scale,use_curv);
-                src = src + flux;
-            end
-            vol = this.integrate_polygon_area(x,y,scale,use_curv);
-            src = src/vol;
-        end
-%% Plotting
+%% Plot airfoil
         function [h1,h2] = plot_airfoil(this,scale)
             if (scale)
-                zfun = @(theta) ( this.airfoil_coords(theta) - this.zLE ) ...
+                zfun = @(theta) ( this.z_from_theta(theta) - this.zLE ) ...
                                 ./this.chord;
             else
-                zfun = @(theta) this.airfoil_coords(theta);
+                zfun = @(theta) this.z_from_theta(theta);
             end
             h1 = fplot( @(theta) real(zfun(theta)), ...
                         @(theta) imag(zfun(theta)), [0,this.thetaLE] );
@@ -170,16 +128,16 @@ classdef kt_airfoil
             r = 1./K;
             [N1,N2,~] = this.unit_normal(theta);
             if scale
-                z = ( this.airfoil_coords(theta) - this.zLE )./this.chord;
+                z = ( this.z_from_theta(theta) - this.zLE )./this.chord;
             else
-                z = this.airfoil_coords(theta);
+                z = this.z_from_theta(theta);
             end
             x = real(z(:)) - r(:).*N1(:);
             y = imag(z(:)) - r(:).*N2(:);
         end
         function [h1,h2] = plot_cp(this)
             tol = 1e-12; % tolerance to avoid issues at trailing edge
-            xfun = @(theta) real( this.airfoil_coords(theta) - this.zLE ) ...
+            xfun = @(theta) real( this.z_from_theta(theta) - this.zLE ) ...
                             ./ this.chord;
             pfun = @(theta) ( this.airfoil_pressure( ...
                                    this.zeta_from_theta(theta) ) ...
@@ -190,6 +148,38 @@ classdef kt_airfoil
             hold on;
             h2 = fplot( @(theta) xfun(theta), ...
                         @(theta) pfun(theta), [this.thetaLE,2*pi-tol] );
+        end
+%% Scale and Shift
+        function z = scale_to_unit_chord(this,z)
+            % scale and shift the coordinate z to be on an airfoil with unit
+            % chord and LE at the origin
+            z = (z - this.zLE)/this.chord;
+        end
+        function z = scale_from_unit_chord(this,z)
+            % scale and shift the coordinate z from an airfoil with unit
+            % chord and LE at the origin to the original coordinates in the
+            % z = z(zeta(theta)) plane
+            z = z*this.chord + this.zLE;
+        end
+        
+        function z = z_from_theta(this,theta)
+            z = this.z_from_zeta( this.zeta_from_theta(theta) );
+        end
+        function [x,y] = output_airfoil_coords_theta(this,theta)
+            z = ( this.z_from_theta(theta) - this.z_from_theta(this.thetaLE) )./this.chord;
+            x = real(z);
+            y = imag(z);
+        end
+        function [x,y,theta] = output_airfoil_coords1(this,N,F)
+            t = this.arc_length_param2(linspace(0,1,N),F);
+            % t = reparam_fun(1,@(t)this.z_from_zeta(this.zeta_from_theta(2*pi*t)),F,N,0,1);
+            theta = 2*pi*t;
+            [x,y] = output_airfoil_coords_theta(this,theta);
+        end
+        function [x,y,theta] = output_airfoil_coords2(this,N,F)
+            t = linspace(0,1,N);
+            theta = 2*pi*this.arc_length_param(F(t));
+            [x,y] = output_airfoil_coords_theta(this,theta);
         end
 %% Cylinder Map
         function zeta = zeta_from_theta(this,theta)
@@ -300,25 +290,6 @@ classdef kt_airfoil
             d2zeta_dz2 = -(this.l.^3.*(8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) + 8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)) - 8.*this.l.^2.*z.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - ((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)))./((this.l.^2.*this.n.^2 - z.^2).^2.*(3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - 3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n) + ((z - this.l.*this.n)./(z + this.l.*this.n)).^(3./this.n) - 1));
         end
 %% Geometry
-        function z = airfoil_coords(this,theta)
-            z = this.z_from_zeta( this.zeta_from_theta(theta) );
-        end
-        function [x,y] = output_airfoil_coords_theta(this,theta)
-            z = ( this.airfoil_coords(theta) - this.airfoil_coords(this.thetaLE) )./this.chord;
-            x = real(z);
-            y = imag(z);
-        end
-        function [x,y,theta] = output_airfoil_coords1(this,N,F)
-            t = this.arc_length_param2(linspace(0,1,N),F);
-            % t = reparam_fun(1,@(t)this.z_from_zeta(this.zeta_from_theta(2*pi*t)),F,N,0,1);
-            theta = 2*pi*t;
-            [x,y] = output_airfoil_coords_theta(this,theta);
-        end
-        function [x,y,theta] = output_airfoil_coords2(this,N,F)
-            t = linspace(0,1,N);
-            theta = 2*pi*this.arc_length_param(F(t));
-            [x,y] = output_airfoil_coords_theta(this,theta);
-        end
         function N = unit_normal_cmplx(this,theta)
             N = 1i*this.diff_z_from_zeta( this.zeta_from_theta(theta) ) ...
                      .*this.diff_zeta_from_theta(theta);
@@ -417,7 +388,8 @@ classdef kt_airfoil
         function bool = on_airfoil(this,x,y,scale,tol)
             z = x + 1i*y;
             if (scale)
-                z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+                % z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+                z = this.scale_from_unit_chord(z);
             end
             zeta = this.zeta_from_z(z);
             zeta_dist = abs( zeta - this.mu );
@@ -430,8 +402,10 @@ classdef kt_airfoil
             z1 = x1 + 1i*y1;
             z2 = x2 + 1i*y2;
             if (scale)
-                z1 = z1.*this.chord + this.airfoil_coords(this.thetaLE);
-                z2 = z2.*this.chord + this.airfoil_coords(this.thetaLE);
+                % z1 = z1.*this.chord + this.airfoil_coords(this.thetaLE);
+                % z2 = z2.*this.chord + this.airfoil_coords(this.thetaLE);
+                z1 = this.scale_from_unit_chord(z1);
+                z2 = this.scale_from_unit_chord(z2);
             end
             zeta1 = this.zeta_from_z(z1);
             zeta2 = this.zeta_from_z(z2);
@@ -449,7 +423,7 @@ classdef kt_airfoil
             [t0,t1] = this.get_theta_from_z(x1,y1,x2,y2,scale);
             map_fun = @(t) (t1-t0)*t + t0;
             dmap_fun_dt = @(t) t*0 + (t1-t0);
-            z = @(t) this.airfoil_coords(map_fun(t));
+            z = @(t) this.z_from_theta(map_fun(t));
             
             dzdt = @(t) this.airfoil_differential_arc_length(map_fun(t)).*dmap_fun_dt(t);
             n = @(t) this.unit_normal_cmplx(map_fun(t));
@@ -458,8 +432,10 @@ classdef kt_airfoil
             z1 = x1 + 1i*y1;
             z2 = x2 + 1i*y2;
             if (scale)
-                z1 = z1.*this.chord + this.airfoil_coords(this.thetaLE);
-                z2 = z2.*this.chord + this.airfoil_coords(this.thetaLE);
+                % z1 = z1.*this.chord + this.airfoil_coords(this.thetaLE);
+                % z2 = z2.*this.chord + this.airfoil_coords(this.thetaLE);
+                z1 = this.scale_from_unit_chord(z1);
+                z2 = this.scale_from_unit_chord(z2);
             end
             dzdt = @(t) t*0 + (z2-z1);
             z = @(t) (z2-z1).*t + z1;
@@ -509,19 +485,15 @@ classdef kt_airfoil
             c2  = 2*1i*this.a*sin(this.alpha+this.beta)*log((zeta-this.mu)/ ( this.a*exp(1i*this.alpha) ) );
             c3  = this.a^2*exp(1i*this.alpha)./(zeta-this.mu);
             val = c1 + c2 + c3;
-            % val2 = this.F_cylinder2(zeta);
         end
+
         function psi = psi_from_xy(this,x,y)
-            z = x+1i*y;
-            z = this.chord*z + this.zLE;
+            z = this.scale_from_unit_chord(x+1i*y);
             psi = imag( this.F_cylinder( this.zeta_from_z(z) ) );
-            % psi = imag( this.F_cylinder( this.zeta_from_z_alt(z) ) );
         end
         function F = phi_psi_from_xy(this,x,y)
-            z = x+1i*y;
-            z = this.chord*z + this.zLE;
+            z = this.scale_from_unit_chord(x+1i*y);
             F = this.F_cylinder( this.zeta_from_z(z) );
-            % F = this.F_cylinder( this.zeta_from_z_alt(z) );
         end
         function phi = phi_from_xy(this,x,y)
             z = x+1i*y;
@@ -565,6 +537,10 @@ classdef kt_airfoil
             z2 = this.z_from_phi_psi(phi,psi);
             [~,r] = this.theta_from_zeta(this.zeta_from_z(this.chord*z2+this.zLE));
         end
+        % function [d,theta] = distance_from_xy(airfoil,x,y)
+        %     z = x + 1i*y;
+        %     dist = @(theta) abs(z-airfoil.)
+        % end
 %% velocity around cylinder
         function val = w_cylinder(this,zeta)
             c1  = exp(-1i*this.alpha);
@@ -645,7 +621,8 @@ classdef kt_airfoil
         function V = get_prim_variables(this,i,x,y,scale)
             z = x + 1i*y;
             if (scale)
-                z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+                % z = z.*this.chord + this.airfoil_coords(this.thetaLE);
+                z = this.scale_from_unit_chord(x+1i*y);
             end
             zeta = this.zeta_from_z(z);
             switch(i)
@@ -663,7 +640,108 @@ classdef kt_airfoil
                     error('only primitive variables 1-5 are supported')
             end
         end
-%% Conserved Variable Flux
+%% Space Derivatives
+        function val = dxvel_dx(this,z)
+            val = real(this.dw_airfoil_dz(z));
+        end
+        function val = dxvel_dy(this,z)
+            val = -imag(this.dw_airfoil_dz(z));
+        end
+        function val = dxvel_dz(~,z)
+            val = zeros(size(z));
+        end
+        function val = dyvel_dx(this,z)
+            val = this.dxvel_dy(z);
+        end
+        function val = dyvel_dy(this,z)
+            val = -this.dxvel_dx(z);
+        end
+        function val = dyvel_dz(~,z)
+            val = zeros(size(z));
+        end
+        function val = dzvel_dx(~,z)
+            val = zeros(size(z));
+        end
+        function val = dzvel_dy(~,z)
+            val = zeros(size(z));
+        end
+        function val = dzvel_dz(~,z)
+            val = zeros(size(z));
+        end
+        function val = dp_dx(this,z)
+            val = real(this.dp_airfoil_dz(z));
+        end
+        function val = dp_dy(this,z)
+            val = -imag(this.dp_airfoil_dz(z));
+        end
+        function val = dp_dz(~,z)
+            val = zeros(size(z));
+        end
+        function val = drho_dx(~,z)
+            val = zeros(size(z));
+        end
+        function val = drho_dy(~,z)
+            val = zeros(size(z));
+        end
+        function val = drho_dz(~,z)
+            val = zeros(size(z));
+        end
+        function dVdxi = get_prim_variable_derivatives(this,i,d,x,y,scale)
+            z = x + 1i*y;
+            factor = 1;
+            if (scale)
+                z = z.*this.chord + this.z_from_theta(this.thetaLE);
+                factor = this.chord;
+            end
+            switch(d)
+                case(1)
+                    switch(i)
+                        case(1)
+                            dVdxi = factor*this.drho_dx(z);
+                        case(2)
+                            dVdxi = factor*this.dxvel_dx(z);
+                        case(3)
+                            dVdxi = factor*this.dyvel_dx(z);
+                        case(4)
+                            dVdxi = factor*this.dzvel_dx(z);
+                        case(5)
+                            dVdxi = factor*this.dp_dx(z);
+                        otherwise
+                            error('only primitive variables 1-5 are supported')
+                    end
+                case(2)
+                    switch(i)
+                        case(1)
+                            dVdxi = factor*this.drho_dy(z);
+                        case(2)
+                            dVdxi = factor*this.dxvel_dy(z);
+                        case(3)
+                            dVdxi = factor*this.dyvel_dy(z);
+                        case(4)
+                            dVdxi = factor*this.dzvel_dy(z);
+                        case(5)
+                            dVdxi = factor*this.dp_dy(z);
+                        otherwise
+                            error('only primitive variables 1-5 are supported')
+                    end
+                case(3)
+                    switch(i)
+                        case(1)
+                            dVdxi = factor*this.drho_dz(z);
+                        case(2)
+                            dVdxi = factor*this.dxvel_dz(z);
+                        case(3)
+                            dVdxi = factor*this.dyvel_dz(z);
+                        case(4)
+                            dVdxi = factor*this.dzvel_dz(z);
+                        case(5)
+                            dVdxi = factor*this.dp_dz(z);
+                        otherwise
+                            error('only primitive variables 1-5 are supported')
+                    end
+            end
+        end
+        %% Conserved Variable Flux
         function F = mass_flux(this,zeta,N1,N2,~)
             w = this.w_airfoil(zeta);
             vn = real(w).*N1 - imag(w).*N2;
@@ -698,7 +776,7 @@ classdef kt_airfoil
             ht    = gxgm1*p./rho + 0.5*v2;
             F     = rho.*ht.*vn;
         end
-                function F = mass_flux_on_airfoil(this,theta)
+        function F = mass_flux_on_airfoil(this,theta)
             [N1,N2,N3] = this.unit_normal(theta);
             F = this.mass_flux(this.zeta_from_theta(theta),N1,N2,N3);
         end
@@ -753,106 +831,67 @@ classdef kt_airfoil
                 vals = vals/this.chord;
             end
         end
-%% Space Derivatives
-        function val = dxvel_dx(this,z)
-            val = real(this.dw_airfoil_dz(z));
+        %% Numerically integrated Force Coefficients
+        function [Cx,Cy] = integrate_cp_on_airfoil(this,t0,t1)
+            % integrates Cp from theta_0 to theta_1 on the surface, resolved
+            % onto coordinate axes
+            vals = this.integrate_fluxes_on_airfoil(t0,t1);
+            Cx = -vals(2)./(0.5*this.rhoinf*this.vinf^2*this.chord);
+            Cy = -vals(3)./(0.5*this.rhoinf*this.vinf^2*this.chord);
         end
-        function val = dxvel_dy(this,z)
-            val = -imag(this.dw_airfoil_dz(z));
+        function [CL,CD] = get_CL_CD(this)
+            % convert numerically integrate Cx,Cy to CL,CD
+            [Cx,Cy] = this.integrate_cp_on_airfoil(0,2*pi);
+            CL = Cy*cos(this.alpha) - Cx*sin(this.alpha);
+            CD = Cy*sin(this.alpha) + Cx*cos(this.alpha);
         end
-        function val = dxvel_dz(~,z)
-            val = zeros(size(z));
-        end
-        function val = dyvel_dx(this,z)
-            val = this.dxvel_dy(z);
-        end
-        function val = dyvel_dy(this,z)
-            val = -this.dxvel_dx(z);
-        end
-        function val = dyvel_dz(~,z)
-            val = zeros(size(z));
-        end
-        function val = dzvel_dx(~,z)
-            val = zeros(size(z));
-        end
-        function val = dzvel_dy(~,z)
-            val = zeros(size(z));
-        end
-        function val = dzvel_dz(~,z)
-            val = zeros(size(z));
-        end
-        function val = dp_dx(this,z)
-            val = real(this.dp_airfoil_dz(z));
-        end
-        function val = dp_dy(this,z)
-            val = -imag(this.dp_airfoil_dz(z));
-        end
-        function val = dp_dz(~,z)
-            val = zeros(size(z));
-        end
-        function val = drho_dx(~,z)
-            val = zeros(size(z));
-        end
-        function val = drho_dy(~,z)
-            val = zeros(size(z));
-        end
-        function val = drho_dz(~,z)
-            val = zeros(size(z));
-        end
-        function dVdxi = get_prim_variable_derivatives(this,i,d,x,y,scale)
-            z = x + 1i*y;
-            factor = 1;
-            if (scale)
-                z = z.*this.chord + this.airfoil_coords(this.thetaLE);
-                factor = this.chord;
+        function Cp = get_averaged_cp_on_segment(this,x1,y1,x2,y2,scale,use_curv)
+            % compute average Cp on a segment specified by start and end
+            % coordinates (used to get analytic results from a computational
+            % grid)
+            tol = 1e-8;
+            point1_on_surface = this.on_airfoil(x1,y1,scale,tol);
+            point2_on_surface = this.on_airfoil(x2,y2,scale,tol);
+            if ~( point1_on_surface || point2_on_surface )
+                fprintf('off surface\n');
             end
-            switch(d)
-                case(1)
-                    switch(i)
-                        case(1)
-                            dVdxi = factor*this.drho_dx(z);
-                        case(2)
-                            dVdxi = factor*this.dxvel_dx(z);
-                        case(3)
-                            dVdxi = factor*this.dyvel_dx(z);
-                        case(4)
-                            dVdxi = factor*this.dzvel_dx(z);
-                        case(5)
-                            dVdxi = factor*this.dp_dx(z);
-                        otherwise
-                            error('only primitive variables 1-5 are supported')
-                    end
-                case(2)
-                    switch(i)
-                        case(1)
-                            dVdxi = factor*this.drho_dy(z);
-                        case(2)
-                            dVdxi = factor*this.dxvel_dy(z);
-                        case(3)
-                            dVdxi = factor*this.dyvel_dy(z);
-                        case(4)
-                            dVdxi = factor*this.dzvel_dy(z);
-                        case(5)
-                            dVdxi = factor*this.dp_dy(z);
-                        otherwise
-                            error('only primitive variables 1-5 are supported')
-                    end
-                case(3)
-                    switch(i)
-                        case(1)
-                            dVdxi = factor*this.drho_dz(z);
-                        case(2)
-                            dVdxi = factor*this.dxvel_dz(z);
-                        case(3)
-                            dVdxi = factor*this.dyvel_dz(z);
-                        case(4)
-                            dVdxi = factor*this.dzvel_dz(z);
-                        case(5)
-                            dVdxi = factor*this.dp_dz(z);
-                        otherwise
-                            error('only primitive variables 1-5 are supported')
-                    end
+            on_surface = point1_on_surface ...
+                      && point2_on_surface ...
+                      && use_curv;
+            if on_surface
+                [t0,t1] = this.get_theta_from_z(x1,y1,x2,y2,scale);
+                pfun = @(theta) ( this.airfoil_pressure(this.zeta_from_theta(theta)) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
+                Cp_integral = airfoil_surface_integral(this,@(theta)pfun(theta),t0,t1)*sign(t1-t0);
+                area = abs(airfoil_surface_integral(this,@(theta)0*theta+1,t0,t1));
+                Cp = Cp_integral/area;
+            else
+                [z,dzdt,~] = this.line_param(x1,y1,x2,y2,scale);
+                pfun = @(t) ( this.airfoil_pressure(this.zeta_from_z(z(t))) - this.pinf )./(0.5*this.rhoinf*this.vinf^2);
+                dS   = @(t)abs(this.diff_z_from_zeta(z(t)).*dzdt(t));
+                Cp_integral = integral(@(t)pfun(t).*dS(t),0,1,"AbsTol",1e-14,'RelTol',1e-12);
+                % area = sqrt( (x2-x1).^2 + (y2-y1).^2);
+                area = integral(@(t)dS(t),0,1,"AbsTol",1e-14,'RelTol',1e-12);
+                Cp = Cp_integral/area;
             end
+        end
+        function Cp = get_averaged_cp_on_airfoil(this,x,y,scale,use_curv)
+            N = length(x);
+            Cp = zeros(N-1,1);
+            for i = 1:N-1
+                Cp(i) = get_averaged_cp_on_segment(this,x(i),y(i),x(i+1),y(i+1),scale,use_curv);
+            end
+        end
+%% MMS source term
+        function src = calculate_source(this,x,y,scale,use_curv)
+            N = length(x);
+            src = zeros(5,1);
+            for i = 1:N
+                ip1 = mod(i,N)+1;
+                flux = this.get_flux_integrals(x(i),y(i),x(ip1),y(ip1),scale,use_curv);
+                src = src + flux;
+            end
+            vol = this.integrate_polygon_area(x,y,scale,use_curv);
+            src = src/vol;
         end
     end
 end
