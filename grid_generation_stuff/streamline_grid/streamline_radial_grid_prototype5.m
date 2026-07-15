@@ -149,21 +149,111 @@ if ( n_layers_ode>0)
     plot(xtmp.',ytmp.','b')
 end
 
-%% leading edge
-for j = 2:n_layers_direct+n_layers_ode
-    h1 = sqrt( ( X(i2,j) - X(i2,j-1) )^2 + ( Y(i2,j) - Y(i2,j-1) )^2 );
-    h2 = sqrt( ( X(i3,j) - X(i3,j-1) )^2 + ( Y(i3,j) - Y(i3,j-1) )^2 );
-    h = linspace(h1,h2,n_middle);
-    % xtmp = X(i1:i2,j-1);
-    % ytmp = Y(i1:i2,j-1);
-    [X(i2:i3,j),Y(i2:i3,j)] = extrude_surface_pts(X(i2:i3,j-1),Y(i2:i3,j-1),1,n_middle,h);
+% for j = 2:j2
+%     dir = -1;
+%     x0 = X(i3,j);
+%     y0 = Y(i3,j);
+%     phim1 = airfoil.phi_from_xy(X(i3+1,j),y0);
+%     phi0 = airfoil.phi_from_xy(x0,y0);
+%     phi1 = airfoil.phi_from_xy(x0-1,y0);
+%     n_phi = ceil(abs(phi1-phi0)/abs(phi0-phim1));
+%     phivec = linspace(phi0,phi1,n_phi);
+%     [x,y,xsp,ysp] = ode_psi_extrude_streamline(airfoil,x0,y0,phivec,dir,spline_order);
+%     plot(x,y)
+%     plot(x0,y0,'rx')
+% 
+%     x0 = X(i2,j);
+%     y0 = Y(i2,j);
+%     phim1 = airfoil.phi_from_xy(X(i2-1,j),y0);
+%     phi0 = airfoil.phi_from_xy(x0,y0);
+%     phi1 = airfoil.phi_from_xy(x0-1,y0);
+%     n_phi = ceil(abs(phi1-phi0)/abs(phi0-phim1));
+%     phivec = linspace(phi0,phi1,n_phi);
+%     [x,y,xsp,ysp] = ode_psi_extrude_streamline(airfoil,x0,y0,phivec,dir,spline_order);
+%     plot(x,y)
+% end
+
+for j = 2:j2
+    dir = -1;
+    x0 = X(i3,j);
+    y0 = Y(i3,j);
+    xm1 = X(i3+1,j);
+    x1 = 0;
+    psi = airfoil.psi_from_xy(x0,y0);
+    n_x = ceil(abs(x1-x0)/abs(x0-xm1));
+    x = linspace(x0,x1,n_x);
+    y = airfoil.psi_y_from_x(psi,x,y0);
+    h = plot(x,y);
+
+    z_l = x(end) + 1i*y(end);
+    z_lm1 = x(end-1) + 1i*y(end-1);
+    [th_l,r_l] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z_l+airfoil.zLE));
+    [th_lm1,~] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z_lm1+airfoil.zLE));
+    
+
+    x0 = X(i2,j);
+    y0 = Y(i2,j);
+    xm1 = X(i2-1,j);
+    x1 = 0;
+    psi = airfoil.psi_from_xy(x0,y0);
+    n_x = ceil(abs(x1-x0)/abs(x0-xm1));
+    x = linspace(x0,x1,n_x);
+    y = airfoil.psi_y_from_x(psi,x,y0);
+    plot(x,y,'Color',h.Color)
+
+    z_u = x(end) + 1i*y(end);
+    [th_u,r_u] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z_u+airfoil.zLE));
+    th_u = mod(th_u,2*pi);
+    th_l = mod(th_l,2*pi);
+
+    th_mid = mod(airfoil.thetaCmax,2*pi);
+    z_mid = 0.5*(r_l+r_u)*airfoil.unit_normal_cmplx(th_mid);
+    [th_mid2,r_mid] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z_mid+airfoil.zLE));
+
+    n_th = 33;
+    th = linspace(th_u,th_l,n_th);
+    % r  = linspace(r_u,r_l,n_th);
+    thv = [th_l,th_mid,th_u];
+    rv  = [r_l,r_mid,r_u];
+    r = spline(thv,rv,th);
+    zth = airfoil.z_from_theta_r(th,r);
+    x = real(zth); y = imag(zth);
+    plot(x,y,'Color',h.Color)
 end
-j1 = 1+n_layers_direct;
-j2 =   n_layers_direct+n_layers_ode;
-xtmp = X(i2:i3,1:j2);
-ytmp = Y(i2:i3,1:j2);
-plot(xtmp,ytmp,'m')
-plot(xtmp.',ytmp.','m')
+
+
+% for j = 2:n_layers_direct+n_layers_ode
+%     h1 = sqrt( ( X(i2,j) - X(i2,j-1) )^2 + ( Y(i2,j) - Y(i2,j-1) )^2 );
+%     h2 = sqrt( ( X(i3,j) - X(i3,j-1) )^2 + ( Y(i3,j) - Y(i3,j-1) )^2 );
+%     h = linspace(h1,h2,n_middle);
+%     % xtmp = X(i1:i2,j-1);
+%     % ytmp = Y(i1:i2,j-1);
+%     [X(i2:i3,j),Y(i2:i3,j)] = extrude_surface_pts(X(i2:i3,j-1),Y(i2:i3,j-1),1,n_middle,h);
+% end
+% j1 = 1+n_layers_direct;
+% j2 =   n_layers_direct+n_layers_ode;
+% xtmp = X(i2:i3,1:j2);
+% ytmp = Y(i2:i3,1:j2);
+% plot(xtmp,ytmp,'m')
+% plot(xtmp.',ytmp.','m')
+
+
+%% leading edge
+% for j = 2:n_layers_direct+n_layers_ode
+%     h1 = sqrt( ( X(i2,j) - X(i2,j-1) )^2 + ( Y(i2,j) - Y(i2,j-1) )^2 );
+%     h2 = sqrt( ( X(i3,j) - X(i3,j-1) )^2 + ( Y(i3,j) - Y(i3,j-1) )^2 );
+%     h = linspace(h1,h2,n_middle);
+%     % xtmp = X(i1:i2,j-1);
+%     % ytmp = Y(i1:i2,j-1);
+%     [X(i2:i3,j),Y(i2:i3,j)] = extrude_surface_pts(X(i2:i3,j-1),Y(i2:i3,j-1),1,n_middle,h);
+% end
+% j1 = 1+n_layers_direct;
+% j2 =   n_layers_direct+n_layers_ode;
+% xtmp = X(i2:i3,1:j2);
+% ytmp = Y(i2:i3,1:j2);
+% plot(xtmp,ytmp,'m')
+% plot(xtmp.',ytmp.','m')
+
 
 if (n_wake_pts>1)
     j1 = 1;
@@ -349,6 +439,7 @@ y = zeros(ni,nj);
 for i = 1:ni
     x0 = xvec(i);
     y0 = yvec(i);
+    % factor of 1.1 to make sure we have enough range to interpolate
     [x_,y_,~,ys,~,~,~] = ode_phi_line(airfoil,x0,y0,1.1*psivec(end));
     zeta = ys(:,1) + 1i*ys(:,2);
     psi_ode = imag( airfoil.F_cylinder(zeta) );
@@ -357,6 +448,18 @@ for i = 1:ni
     ysp = spapi(spline_order,psi_ode,y_);
     y(i,:) = fnval(ysp,psivec);
 end
+end
+
+function [x,y,xsp,ysp] = ode_psi_extrude_streamline(airfoil,x,y,phivec,dir,spline_order)
+% numerically integrate streamlines and interpolate results with spline
+% factor of 1.1 to make sure we have enough range to interpolate
+[x_,y_,ts,ys,te,ye,ie] = ode_psi_line(airfoil,x,y,1.1*phivec(end),dir);
+zeta    = ys(:,1) + 1i*ys(:,2);
+phi_ode = real( airfoil.F_cylinder(zeta) );
+xsp = spapi(spline_order,phi_ode,x_);
+x   = fnval(xsp,phivec);
+ysp = spapi(spline_order,phi_ode,y_);
+y   = fnval(ysp,phivec);
 end
 
 function [x,y,ts,ys,te,ye,ie] = ode_phi_line(airfoil,x0,y0,psi1)
@@ -403,7 +506,53 @@ z = airfoil.z_from_zeta(zeta);
 z = (z-airfoil.zLE)/airfoil.chord;
 x = real(z);
 y = imag(z);
+end
 
+function [x,y,ts,ys,te,ye,ie] = ode_psi_line(airfoil,x0,y0,phi1,dir)
+% numerically integrate equipotential line
+% allows for adjusting the integration time automatically
+z0 = x0 + 1i*y0;
+z0 = z0*airfoil.chord + airfoil.zLE;
+zeta0 = airfoil.zeta_from_z(z0);
+psi0 = imag( airfoil.F_cylinder(zeta0) );
+z1 = airfoil.z_from_phi_psi(phi1,psi0);
+zeta1 = airfoil.zeta_from_z(z1);
+vmag0 = abs(airfoil.w_airfoil(zeta0));
+vmag1 = abs(airfoil.w_airfoil(zeta1));
+
+% very rough guess for the integration time
+tstop = 2*abs(z1-z0)/abs(vmag1-vmag0);
+% s     = sign(psi1);
+s = dir;
+tspan = s*[0,tstop];
+ys0 = [real(zeta0), imag(zeta0)];
+[ts,ys,te,ye,ie] = ode_psi_line_step(airfoil,ys0,tspan,phi1);
+
+found = false;
+maxiter = 10;
+iter = 1;
+while (~found)
+    if iter>maxiter
+        error('failed to converge')
+    end  
+    if ~(isempty(ie))
+        found = true;
+    else
+        zeta_e = ys(end,1) + 1i*ys(end,2);
+        ze = airfoil.z_from_zeta(zeta_e);
+        ze = (ze-airfoil.zLE)/airfoil.chord;
+        dist_ratio = abs(ze-z0)/abs(z1-z0);
+        dist_ratio = min(max(dist_ratio,1.1),3);
+        tspan = tspan*dist_ratio;
+        [ts,ys,te,ye,ie] = ode_psi_line_step(airfoil,ys0,tspan,phi1);
+    end
+    iter = iter+1;
+end
+zeta = ys(:,1) + 1i*ys(:,2);
+z = airfoil.z_from_zeta(zeta);
+z = (z-airfoil.zLE)/airfoil.chord;
+x = real(z);
+y = imag(z);
 end
 
 function [ts,ys,te,ye,ie] = ode_phi_line_step(airfoil,ys0,tspan,psi_stop)
@@ -431,6 +580,29 @@ function [ts,ys,te,ye,ie] = ode_phi_line_step(airfoil,ys0,tspan,psi_stop)
       direction  = 0;   % The zero can be approached from either direction
     end
 end
+
+function [ts,ys,te,ye,ie] = ode_psi_line_step(airfoil,ys0,tspan,phi_stop)
+    options = odeset('RelTol',1e-10,'AbsTol',1e-12,'NormControl','on');
+    options = odeset(options,'Events',@(t,y)psiEventFcn(t,y,airfoil,phi_stop));
+    [ts,ys,te,ye,ie] = ode23s(@(t,y) psi_integrate(t,y,airfoil), tspan, ys0, options);
+
+    function dydt = psi_integrate(~,y,airfoil)
+        zeta = y(1) + 1i*y(2);
+        w = airfoil.w_cylinder(zeta);
+        dydt = zeros(2,1);
+        dydt(1) = real(w);
+        dydt(2) =-imag(w);
+    end
+
+    function [position,isterminal,direction] = psiEventFcn(~,y,airfoil,phi_target)
+      z = airfoil.z_from_zeta(y(1)+1i*y(2));
+      z = (z - airfoil.zLE)/airfoil.chord;
+      position   = airfoil.phi_from_xy(real(z),imag(z))-phi_target; % The value that we want to be zero
+      isterminal = 1;  % Halt integration 
+      direction  = 0;   % The zero can be approached from either direction
+    end
+end
+
 
 function airfoil = local_airfoil_generator(in)
 % epsilon = 0.1;
