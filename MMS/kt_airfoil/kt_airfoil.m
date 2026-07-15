@@ -543,6 +543,11 @@ classdef kt_airfoil
             obj_fun = @(x,y) this.phi_from_xy(x,y) - phi;
             x = arrayfun(@(y)fzero(@(x)obj_fun(x,y),x_guess,options),y);
         end
+        function zeta = zeta_from_potential(this,F,zeta_guess)
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            % options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','Iter');
+            zeta = arrayfun( @(F) fsolve( @(zeta) F-this.F_cylinder( zeta ), zeta_guess, options ), F );
+        end
         function z = z_from_phi_psi(this,phi,psi)
             F = phi + 1i*psi;
             options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
