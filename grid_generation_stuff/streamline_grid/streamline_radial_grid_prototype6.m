@@ -1,4 +1,4 @@
-%% streamline/radial_grid prototype 5 (07/14/2026)
+%% streamline/radial_grid prototype 6 (07/15/2026)
 clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 parent_dir_str = '2025';
@@ -28,9 +28,7 @@ n_body_pts        = 129;
 n_wake_pts        = 65;
 n_transition      = 1;
 jmax              = 129;
-n_layers_direct   = 5;
-% n_layers_ode      = jmax-n_layers_direct;
-n_layers_ode      = 15;
+n_layers          = 25;
 spline_order      = 5;
 
 AR_LE             = 1.0;
@@ -67,12 +65,9 @@ else
 end
 
 hold on
-plot(x_all,y_all,'r.-')
+plot(x_all,y_all,'k')
 axis equal
-
-% hold on
-% plot(x_airfoil,y_airfoil,'r.-')
-% axis equal
+plot(x_airfoil,y_airfoil,'r.-')
 
 % allocate
 X = zeros(imax,jmax);
@@ -88,12 +83,8 @@ psi_vec = my_geomspace(jmax,0,xmax=psi_FF,dx0=psi_1);
 r_vec = my_geomspace(jmax,0,xmax=boundary_distance,dx0=h_LE);
 
 % determine indices for transitioning between streamlines and radial
-% [~,idx_l] = min(abs(theta_airfoil-theta_l));
-% [~,idx_u] = min(abs(theta_airfoil-theta_u));
-x_transition = 0.2;
-idx_l = find(x_airfoil<x_transition,1,'first');
-idx_u = find(x_airfoil<x_transition,1,'last');
-
+[~,idx_l] = min(abs(theta_airfoil-theta_l));
+[~,idx_u] = min(abs(theta_airfoil-theta_u));
 
 i0 = 1;
 i1 = 1;
@@ -179,48 +170,6 @@ end
 %     [x,y,xsp,ysp] = ode_psi_extrude_streamline(airfoil,x0,y0,phivec,dir,spline_order);
 %     plot(x,y)
 % end
-
-for j = 2:j2
-    x0 = X(i2-1,j);
-    y0 = Y(i2-1,j);
-    z_lm1 = x0 + 1i*y0;
-    t_lm1 = airfoil.theta_from_zs(z_lm1);
-
-    x0 = X(i2,j);
-    y0 = Y(i2,j);
-    z_l = x0 + 1i*y0;
-    t_l = airfoil.theta_from_zs(z_l);
-    
-
-    x0 = X(i3,j);
-    y0 = Y(i3,j);
-    z_u = x0 + 1i*y0;
-    t_u = airfoil.theta_from_zs(z_u);
-
-    x0 = X(i3+1,j);
-    y0 = Y(i3+1,j);
-    z_up1 = x0 + 1i*y0;
-    t_up1 = airfoil.theta_from_zs(z_up1);
-
-    dt_l = abs(t_l-t_lm1)/abs(t_u-t_l);
-    dt_u = abs(t_up1-t_u)/abs(t_u-t_l);
-
-    zs = streamline_cap( airfoil, r_vec(j), z_l, z_u, n_middle );
-    plot(real(zs),imag(zs))
-    
-    f = vinokur_two_sided_spacing_fcn(n_middle,dt_l,dt_u,false);
-    [~,rsp,theta] = streamline_cap2( airfoil, r_vec(j), z_l, z_u, n_middle, spline_order,f);
-
-    t0 = linspace(0,1,n_middle).';
-    
-    theta = t_l + (t_u-t_l)*t0;
-    r = fnval(rsp,theta);
-    % t = centri_param([real(zs).';imag(zs).'],1);
-    t = f(linspace(0,1,n_middle).');
-    theta = t_l + (t_u-t_l)*t;
-    z2 = airfoil.z_from_theta_r(theta,r);
-    plot(real(zs),imag(zs),'b.-')
-end
 
 
 % for j = 2:j2
@@ -347,8 +296,7 @@ t0 = linspace(0,1,n_pts).';
 ti = (airfoil.thetaCmax-theta_l)/(theta_u-theta_l);
 % h = smooth_ramps(t0,[0,ti,1],[d_l,h_LE,d_u]);
 % h = d_l + (d_u-d_l)*t0;
-% h = h(:);
-p = polyfit([0,ti,1],[d_l,h_LE,d_u],2);
+p = polyfit([0,ti,1],[d_l,h_LE,d_u]);
 h = polyval(p,t0);
 theta = theta_l + (theta_u-theta_l)*t0;
 
@@ -360,55 +308,6 @@ zs = airfoil.zs_from_theta(theta) + h.*airfoil.unit_normal_cmplx(theta);
 % theta = theta_l + (theta_u-theta_l)*t;
 % zs = airfoil.zs_from_theta(theta) + h.*airfoil.unit_normal_cmplx(theta);
 end
-
-function [zs,rsp,theta] = streamline_cap2( airfoil, h_LE, z_l, z_u, n_pts, spline_order,F)
-[d_l,theta_l] = airfoil.distance_from_zs(z_l);
-[d_u,theta_u] = airfoil.distance_from_zs(z_u);
-t0 = linspace(0,1,n_pts).';
-ti = (airfoil.thetaCmax-theta_l)/(theta_u-theta_l);
-% h = smooth_ramps(t0,[0,ti,1],[d_l,h_LE,d_u]);
-% h = d_l + (d_u-d_l)*t0;
-% h = h(:);
-p = polyfit([0,ti,1],[d_l,h_LE,d_u],2);
-h = polyval(p,t0);
-theta = theta_l + (theta_u-theta_l)*t0;
-zs = airfoil.zs_from_theta(theta) + h.*airfoil.unit_normal_cmplx(theta);
-[theta1,r] = airfoil.theta_from_zs(zs);
-
-% theta = arc_length_param(zs,theta,spline_order,F);
-rsp = spapi(spline_order,theta1,r);
-
-    function ts = arc_length_param(zs,theta,spline_order,F)
-        xsp = spapi(spline_order,theta,real(zs));
-        ysp = spapi(spline_order,theta,imag(zs));
-        dxsp = fnder(xsp,1);
-        dysp = fnder(ysp,1);
-        options = optimset('TolFun',1e-15,'TolX',1e-17);
-        N = numel(theta);
-        t = (theta-theta(1))/(theta(N)-theta(1));
-        L_total = arc_length_calc(dxsp,dysp,theta(1),theta(N));
-        dL = ( theta(N) - theta(1) ) / L_total;
-        ts = zeros(N,1);
-        ts(1) = theta(1);
-        ts(N) = theta(N);
-        for i = 2:N-1
-            ftmp = @(tsi) (F(t(i))-F(t(i-1))) - dL * arc_length_calc(dxsp,dysp,ts(i-1),tsi);
-            ts(i) = fzero( @(tsi)ftmp(tsi),ts(i-1),options);
-        end
-        function S = arc_length_calc(dxsp,dysp,t0,t1)
-            S = integral(@(t) sqrt(fnval(dxsp,t).^2+fnval(dysp,t).^2),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
-        end
-    end
-end
-
- % function S = airfoil_arc_length(this,t0,t1)
- %            S = integral(@(t)diff_arc_length(this,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
- %            function dS = diff_arc_length(this,t)
- %                dS = 2*pi*abs(this.airfoil_differential_arc_length( 2*pi*t ));
- %                dS(isnan(dS)) = 0;
- %                dS(isinf(dS)) = 0;
- %            end
- %        end
 
 function [theta_u,theta_l,psi_1,psi_FF,phi_TE,h_LE,h_TE,delta_TE] = get_streamline_geometry( airfoil, delta_LE, AR_LE, AR_TE, boundary_distance )
 % given streamwise spacing at LE, target AR (streamwise/normal)

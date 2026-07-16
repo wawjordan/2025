@@ -150,70 +150,247 @@ classdef kt_airfoil
                         @(theta) pfun(theta), [this.thetaLE,2*pi-tol] );
         end
 %% Scale and Shift
+%% ( z --> zs )
         function z = scale_to_unit_chord(this,z)
             % scale and shift the coordinate z to be on an airfoil with unit
             % chord and LE at the origin
             z = (z - this.zLE)/this.chord;
         end
+%% ( zs --> z )
         function z = scale_from_unit_chord(this,z)
             % scale and shift the coordinate z from an airfoil with unit
             % chord and LE at the origin to the original coordinates in the
             % z = z(zeta(theta)) plane
             z = z*this.chord + this.zLE;
         end
-        
+%% Mappings
+%% zeta from theta ( theta --> zeta ) (on circle in complex plane)
+        function zeta = zeta_from_theta(this,theta)
+            % map to cylinder in complex plane
+            zeta = this.a*exp(1i*(theta-this.beta)) + this.mu;
+        end
+%% Karman Trefftz Map  ( zeta --> z )
+        function z = z_from_zeta(this,zeta)
+            zeta_p = (zeta+this.l).^this.n;
+            zeta_m = (zeta-this.l).^this.n;
+            z = this.n*this.l*( zeta_p + zeta_m )./( zeta_p - zeta_m );
+        end
+%% Scaled and Shifted KT Map ( zeta --> z --> zs )
+        function zs = zs_from_zeta(this,zeta)
+            zs = this.scale_to_unit_chord( this.z_from_zeta(zeta) );
+        end
+%% Inverse Karman Trefftz Map  ( z --> zeta )
+        function zeta = zeta_from_z(this,z)
+            % NOTE: this isn't always 1 to 1
+            z_p = (z+this.n*this.l);
+            z_m = (z-this.n*this.l);
+            xn = 1/this.n;
+            zeta = -this.l*( (z_m./z_p).^xn + 1) ./ ( (z_m./z_p).^xn - 1);
+        end
+%% Scaled and Shifted Inverse KT Map  ( zs --> z --> zeta )
+        function zeta = zeta_from_zs(this,zs)
+            zeta = this.zeta_from_z( this.scale_from_unit_chord(zs) );
+        end
+%% Numeric Inverse Karman Trefftz Map ( z --> zeta )
+        function zeta = zeta_from_z_num(this,z)
+            % NOTE: this isn't always robust
+            zeta = zeros(size(z));
+            mask = in_bounds(this,z);
+            zeta(~mask) = this.zeta_from_z(z(~mask));
+            zeta(mask)  = arrayfun( @(z) zeta_lu_from_theta(this,z), z(mask) );
+            function in = in_bounds(this,z)
+                in = ( ( real(z)>this.bounds(1) )|( real(z)<this.bounds(2) ) )...
+                    &( ( imag(z)>this.bounds(3) )|( imag(z)<this.bounds(4) ) );
+            end
+            function zeta = zeta_lu_from_theta(this,z)
+               % query look-up table for initial guess
+               [~,idx] = min(abs(this.ref_z - z));
+               % solve using initial guess
+               options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+               zeta = fsolve( @(zeta) z - this.z_from_zeta(zeta), ...
+                             this.zeta_from_theta( this.ref_t(idx) ), options );
+            end
+        end
+%% Numeric Scaled and Shifted Inverse KT Map ( zs --> z --> zeta )
+        function zeta = zeta_from_zs_num(this,zs)
+            zeta = this.zeta_from_z_num( this.scale_from_unit_chord(zs) );
+        end
+%% z from theta ( theta --> zeta --> z ) (on surface of airfoil)
         function z = z_from_theta(this,theta)
             z = this.z_from_zeta( this.zeta_from_theta(theta) );
         end
+%% zs from theta ( theta --> zeta --> z --> zs ) (on surface of scaled and shifted airfoil)
+        function zs = zs_from_theta(this,theta)
+            zs = this.scale_to_unit_chord( this.z_from_theta(theta) );
+        end
+%% zeta from theta and r ( [theta,r] --> zeta ) (exterior to circle in complex plane)
+        function zeta = zeta_from_theta_r(this,theta,r)
+            zeta = r.*exp(1i*(theta-this.beta)) + this.mu;
+        end
+%% z from theta and r ( [theta,r] --> zeta --> z ) (exterior to airfoil)
+        function z = z_from_theta_r(this,theta,r)
+            z = this.z_from_zeta( this.zeta_from_theta_r(theta,r));
+        end
+%% z from theta and r ( [theta,r] --> zeta --> z --> zs ) (exterior to scaled and shifted airfoil)
+        function z = zs_from_theta_r(this,theta,r)
+            z = this.scale_to_unit_chord( this.z_from_theta_r(theta,r) );
+        end
+%% theta from zeta ( zeta --> [theta,r] )
+        function [theta,r] = theta_from_zeta(this,zeta)
+            zeta_ = zeta-this.mu;
+            r = abs(zeta-this.mu);
+            % theta = real(-1i*log(zeta_./r)+this.beta);
+            theta = atan2(imag(zeta_),real(zeta_))+this.beta;
+            theta = mod(theta,2*pi);
+        end
+%% theta from z ( z --> zeta --> [theta,r] )
+        function [theta,r] = theta_from_z(this,z)
+            [theta,r] = this.theta_from_zeta( this.zeta_from_z(z) );
+        end
+%% theta from zs ( zs --> z --> zeta --> [theta,r] )
+        function [theta,r] = theta_from_zs(this,zs)
+            [theta,r] = this.theta_from_z( this.scale_from_unit_chord(zs) );
+        end
+
+%% Complex Potential
+        % function val = F_cylinder(this,zeta)
+        %     uinf = 1;
+        %     r    = this.a;
+        %     gam  = 4*pi*uinf*r*sin( this.alpha + this.beta);
+        %     eiam = exp(-1i*this.alpha);
+        %     eiap = exp( 1i*this.alpha);
+        %     z2  = zeta-this.mu;
+        %     val = uinf*z2*eiam + 1i*(gam/(2*pi))*log(z2/(r*eiap)) + (uinf*(r^2)*eiap)./z2;
+        % end
+%% F from zeta ( zeta --> F )
+        function F = F_cylinder(this,zeta)
+            c1  = exp(-1i*this.alpha).*(zeta-this.mu);
+            c2  = 2*1i*this.a*sin(this.alpha+this.beta)*log((zeta-this.mu)/ ( this.a*exp(1i*this.alpha) ) );
+            c3  = this.a^2*exp(1i*this.alpha)./(zeta-this.mu);
+            F = c1 + c2 + c3;
+        end
+%% psi from zeta ( zeta --> Im(F(zeta)) = psi )
+        function psi = psi_from_zeta(this,zeta)
+            psi = imag( this.F_cylinder( zeta ) );
+        end
+%% psi from z ( z --> zeta --> Im(F(zeta)) = psi )
+        function psi = psi_from_z(this,z)
+            psi = this.psi_from_zeta( this.zeta_from_z(z) );
+        end
+%% psi from zs ( zs --> z --> Im(F(zeta)) = psi )
+        function psi = psi_from_zs(this,zs)
+            psi = this.psi_from_z( this.scale_from_unit_chord(zs) );
+        end
+%% psi from [x,y] ( [x,y] --> zs --> z --> Im(F(zeta)) = psi )
+        function psi = psi_from_xy(this,x,y)
+            psi = this.psi_from_zs(x+1i*y);
+        end
+
+%% phi from zeta ( zeta --> Re(F(zeta)) = phi )
+        function phi = phi_from_zeta(this,zeta)
+            phi = real( this.F_cylinder( zeta ) );
+        end
+%% phi from z ( z --> zeta --> Re(F(zeta)) = phi )
+        function phi = phi_from_z(this,z)
+            phi = this.phi_from_zeta( this.zeta_from_z(z) );
+        end
+%% phi from zs ( zs --> z --> Re(F(zeta)) = phi )
+        function phi = phi_from_zs(this,zs)
+            phi = this.phi_from_z( this.scale_from_unit_chord(zs) );
+        end
+%% phi from [x,y] ( [x,y] --> zs --> z --> Re(F(zeta)) = phi )
+        function phi = phi_from_xy(this,x,y)
+            phi = this.phi_from_zs(x+1i*y);
+        end
+%% phi from [x,y] ( [x,y] --> zs --> z --> Re(F(zeta)) = phi ) (numeric)
+        function phi = phi_from_xy_num(this,x,y)
+            z = this.scale_from_unit_chord( x + 1i*y );
+            phi = arrayfun( @(z) this.phi_from_zeta( this.zeta_from_z_num(z) ), z );
+        end
+%% y from [x,psi,y_guess] ( solve psi(x,y) == psi for y )
+        function y = psi_y_from_x(this,psi,x,y_guess)
+            options = optimset('TolFun',1e-15,'TolX',1e-17);
+            obj_fun = @(x,y) this.psi_from_xy(x,y) - psi;
+            y = arrayfun(@(x)fzero(@(y)obj_fun(x,y),y_guess,options),x);
+        end
+%% x from [y,phi,x_guess] ( solve phi(x,y) == phi for x )
+        function x = phi_x_from_y(this,phi,y,x_guess)
+            options = optimset('TolFun',1e-15,'TolX',1e-17);
+            obj_fun = @(x,y) this.phi_from_xy(x,y) - phi;
+            x = arrayfun(@(y)fzero(@(x)obj_fun(x,y),x_guess,options),y);
+        end
+%% [x,y] --> zs --> z --> zeta --> F[phi + 1i*psi]
+        function F = phi_psi_from_xy(this,x,y)
+            z = this.scale_from_unit_chord(x+1i*y);
+            F = this.F_cylinder( this.zeta_from_z(z) );
+        end
+%% F --> zeta ( solve F(zeta) == F for zeta )
+        function zeta = zeta_from_potential(this,F,zeta_guess)
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            zeta = arrayfun( @(F) fsolve( @(zeta) F-this.F_cylinder( zeta ),...
+                                            zeta_guess, options ), F );
+        end
+%% [phi,psi] --> F --> zeta --> z --> zs
+        function z = z_from_phi_psi(this,phi,psi)
+            F = phi + 1i*psi;
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            z = arrayfun( @(F) fsolve( @(z) F-this.F_cylinder( ...
+                                     this.zeta_from_z_num(z) ), ...
+                                     ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
+            z = this.scale_to_unit_chord(z);
+        end
+%% [psi,theta] --> r
+        function r = r_from_psi_theta(this,psi,theta)
+            z1 = this.z_from_zeta( this.zeta_from_theta(theta));
+            z1 = (z1-this.zLE)/this.chord;
+            phi = this.phi_from_xy(real(z1),imag(z1));
+            z2 = this.z_from_phi_psi(phi,psi);
+            [~,r] = this.theta_from_zeta(this.zeta_from_z(this.chord*z2+this.zLE));
+        end
+%% minimum distance from airfoil
+        function [d,theta] = distance_from_zs(airfoil,zs)
+            theta0 = airfoil.theta_from_zs(zs);
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            dist = @(theta) abs(zs-airfoil.zs_from_theta(theta));
+            % theta = arrayfun( @(z) fminbnd( @(theta) dist(theta),1e-12,2*pi), zs );
+            theta = arrayfun( @(z) fminunc( @(theta) dist(theta),theta0,options), zs );
+            d = dist(theta);
+        end
+
+
+%% airfoil coordinates
         function [x,y] = output_airfoil_coords_theta(this,theta)
-            z = ( this.z_from_theta(theta) - this.z_from_theta(this.thetaLE) )./this.chord;
+            z = this.zs_from_theta( theta );
             x = real(z);
             y = imag(z);
         end
+%% airfoil coordinates ( parameterized w.r.t. function F ) (type 1)
         function [x,y,theta] = output_airfoil_coords1(this,N,F)
             t = this.arc_length_param2(linspace(0,1,N),F);
             % t = reparam_fun(1,@(t)this.z_from_zeta(this.zeta_from_theta(2*pi*t)),F,N,0,1);
             theta = 2*pi*t;
             [x,y] = output_airfoil_coords_theta(this,theta);
         end
+%% airfoil coordinates ( parameterized w.r.t. function F ) (type 2)
         function [x,y,theta] = output_airfoil_coords2(this,N,F)
             t = linspace(0,1,N);
             theta = 2*pi*this.arc_length_param(F(t));
             [x,y] = output_airfoil_coords_theta(this,theta);
         end
-%% Cylinder Map
-        function zeta = zeta_from_theta(this,theta)
-            % map to cylinder in complex plane
-            zeta = this.a*exp(1i*(theta-this.beta)) + this.mu;
-        end
-        function zeta = zeta_from_theta_r(this,theta,r)
-            zeta = r.*exp(1i*(theta-this.beta)) + this.mu;
-        end
-        function z = z_from_theta_r(this,theta,r)
-            z = this.z_from_zeta( this.zeta_from_theta_r(theta,r));
-            z = (z - this.zLE)/this.chord;
-        end
-        function [theta,r] = theta_from_zeta(this,zeta)
-            zeta_ = zeta-this.mu;
-            r = abs(zeta-this.mu);
-            % theta = real(-1i*log(zeta_./r)+this.beta);
-            theta = atan2(imag(zeta_),real(zeta_))+this.beta;
-        end
+        
+%% Mapping Derivatives
+
+%% d (zeta) / d (theta)
         function dzeta_dtheta = diff_zeta_from_theta(this,theta)
             % derivative of cylinder mapping w.r.t. theta
             dzeta_dtheta = 1i*this.a*exp(1i*(theta-this.beta));
         end
+%% d^2 (zeta) / d (theta)^2
         function d2zeta_dtheta2 = diff2_zeta_from_theta(this,theta)
             % 2nd derivative of cylinder mapping w.r.t. theta
             d2zeta_dtheta2 = -this.a*exp(1i*(theta-this.beta));
         end
-%% Transform
-        function z = z_from_zeta(this,zeta)
-            % Karman-Trefftz / Joukowsky transform ( zeta --> z )
-            zeta_p = (zeta+this.l).^this.n;
-            zeta_m = (zeta-this.l).^this.n;
-            z = this.n*this.l*( zeta_p + zeta_m )./( zeta_p - zeta_m );
-        end
+%% d (z) / d (zeta)
         function dz_dzeta = diff_z_from_zeta(this,zeta)
             % derivative of the transform w.r.t. zeta ( d/dzeta [z(zeta] )
             zeta_frac = ( (zeta - this.l)./(zeta + this.l) ).^this.n;
@@ -222,11 +399,8 @@ classdef kt_airfoil
             dz_dzeta(isnan(dz_dzeta)) = 0;
             dz_dzeta(isinf(dz_dzeta)) = 0;
         end
+%% d^2 (z) / d (zeta)^2
         function d2z_dzeta2 = diff2_z_from_zeta(this,zeta)
-            % 2nd derivative of the transform ( d^2/dzeta^2 [z(zeta)] )
-            % (8*l^2*n^2*(zeta + l)^n*(zeta - l)^n*(zeta*(zeta - l)^n - zeta*(zeta + l)^n + l*n*(zeta + l)^n + l*n*(zeta - l)^n))/(((l + zeta)^n - (- l + zeta)^n)^3*(l^2 - zeta^2)^2)
-            % (8*l^2*n^2*zeta_p*zeta_m*(zeta*zeta_m - zeta*zeta_p + l*n*zeta_p + l*n*zeta_m))/((zeta_p - zeta_m)^3*(l^2 - zeta^2)^2)
-            % (8*l^2*n^2*zeta_p*zeta_m*(zeta*zeta_m - zeta*zeta_p + l*n*zeta_p + l*n*zeta_m))
             zeta_p = (zeta+this.l).^this.n;
             zeta_m = (zeta-this.l).^this.n;
             factor = 8*(this.n*this.l)^2;
@@ -237,37 +411,10 @@ classdef kt_airfoil
             d2z_dzeta2(isnan(d2z_dzeta2)) = 0;
             d2z_dzeta2(isinf(d2z_dzeta2)) = 0;
         end
-%% Inverse Transform
-        function zeta = zeta_from_z(this,z)
-            % inverse Karman-Trefftz / Joukowsky transform ( z --> zeta )
-            z_p = (z+this.n*this.l);
-            z_m = (z-this.n*this.l);
-            xn = 1/this.n;
-            zeta = -this.l*( (z_m./z_p).^xn + 1) ./ ( (z_m./z_p).^xn - 1);
-        end
 
-        function zeta = zeta_from_z_alt(this,z)
-            % inverse Karman-Trefftz / Joukowsky transform ( z --> zeta )
-            zeta = zeros(size(z));
-            mask = in_bounds(this,z);
-            zeta(~mask) = this.zeta_from_z(z(~mask));
-            zeta(mask)  = arrayfun( @(z) zeta_lu_from_theta(this,z), z(mask) );
-            % if (abs(z)>2)
-            %     zeta = this.zeta_from_z(z);
-            % else
-            %     zeta = arrayfun( @(z) zeta_lu_from_theta(this,z), z );
-            % end
-            function in = in_bounds(this,z)
-                in = ( ( real(z)>this.bounds(1) )|( real(z)<this.bounds(2) ) )...
-                    &( ( imag(z)>this.bounds(3) )|( imag(z)<this.bounds(4) ) );
-            end
-            function zeta = zeta_lu_from_theta(this,z)
-               [~,idx] = min(abs(this.ref_z - z));
-               options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-               zeta = fsolve( @(zeta) z-this.z_from_zeta(zeta), this.zeta_from_theta( this.ref_t(idx) ), options );
-            end
-        end
+%% Inverse Mapping Derivatives
 
+%% d (zeta) / d(z)
         function dzeta_dz = diff_zeta_from_z(this,z)
             % derivative of the inverse transform ( d/dz [zeta(z)] )
             %
@@ -285,9 +432,19 @@ classdef kt_airfoil
                         ( (ln^2 - z.^2).*( (- (2*ln)./z_p + 1).^xn - 1 ).^2 );
         end
 
+%% d^2 (zeta) / d (z)^2
         function d2zeta_dz2 = diff2_zeta_from_z(this,z)
             % 2nd derivative of the inverse transform ( d^2/dz^2 [zeta(z)] )
-            d2zeta_dz2 = -(this.l.^3.*(8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) + 8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)) - 8.*this.l.^2.*z.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - ((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)))./((this.l.^2.*this.n.^2 - z.^2).^2.*(3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - 3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n) + ((z - this.l.*this.n)./(z + this.l.*this.n)).^(3./this.n) - 1));
+            % d2zeta_dz2 = -(this.l.^3.*(8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) + 8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)) - 8.*this.l.^2.*z.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - ((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)))./((this.l.^2.*this.n.^2 - z.^2).^2.*(3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) - 3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n) + ((z - this.l.*this.n)./(z + this.l.*this.n)).^(3./this.n) - 1));
+            d2zeta_dz2 = -( this.l.^3.*( ...
+                               8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) ...
+                             + 8.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n) ) ...
+                             - 8.*this.l.^2.*z.*(((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) ...
+                             - ((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n)) ) ...
+                             ./ ( (this.l.^2.*this.n.^2 - z.^2).^2 ...
+                                .*( 3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(1./this.n) ...
+                                  - 3.*((z - this.l.*this.n)./(z + this.l.*this.n)).^(2./this.n) ...
+                                  + ((z - this.l.*this.n)./(z + this.l.*this.n)).^(3./this.n) - 1));
         end
 %% Geometry
         function N = unit_normal_cmplx(this,theta)
@@ -339,18 +496,6 @@ classdef kt_airfoil
             rdotdot_rdotdot = real(dz2.*conj(dz2));
             K = sqrt(rdot_rdot.*rdotdot_rdotdot - rdot_rdotdot.^2)./(rdot_rdot).^(3/2);
         end
-        % function S = arc_length_streamline(this,psi,x0,x1,t0,t1)
-        %     S = integral(@(t)diff_arc_length(this,psi,x0,x1,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
-        %     function dS = diff_arc_length(this,psi,x0,x1,t)
-        %         x    = x0 + (x1-x0)*t;
-        %         z    = x + 1i*this.streamline_y(psi,x,0);
-        %         % z    = ( z - this.zLE )/this.chord;
-        %         z    = z*this.chord + this.zLE;
-        %         zeta = this.zeta_from_z(z);
-        %         dS = abs((x1-x0)*this.w_airfoil( zeta ));
-        %     end
-        % end
-
         function S = airfoil_arc_length(this,t0,t1)
             S = integral(@(t)diff_arc_length(this,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
             function dS = diff_arc_length(this,t)
@@ -470,77 +615,7 @@ classdef kt_airfoil
                            .*abs(this.airfoil_differential_arc_length(theta)),...
                            t0,t1,"AbsTol",1e-14,'RelTol',1e-12);
         end
-%% Complex Potential
-        % function val = F_cylinder(this,zeta)
-        %     uinf = 1;
-        %     r    = this.a;
-        %     gam  = 4*pi*uinf*r*sin( this.alpha + this.beta);
-        %     eiam = exp(-1i*this.alpha);
-        %     eiap = exp( 1i*this.alpha);
-        %     z2  = zeta-this.mu;
-        %     val = uinf*z2*eiam + 1i*(gam/(2*pi))*log(z2/(r*eiap)) + (uinf*(r^2)*eiap)./z2;
-        % end
-        function val = F_cylinder(this,zeta)
-            c1  = exp(-1i*this.alpha).*(zeta-this.mu);
-            c2  = 2*1i*this.a*sin(this.alpha+this.beta)*log((zeta-this.mu)/ ( this.a*exp(1i*this.alpha) ) );
-            c3  = this.a^2*exp(1i*this.alpha)./(zeta-this.mu);
-            val = c1 + c2 + c3;
-        end
 
-        function psi = psi_from_xy(this,x,y)
-            z = this.scale_from_unit_chord(x+1i*y);
-            psi = imag( this.F_cylinder( this.zeta_from_z(z) ) );
-        end
-        function F = phi_psi_from_xy(this,x,y)
-            z = this.scale_from_unit_chord(x+1i*y);
-            F = this.F_cylinder( this.zeta_from_z(z) );
-        end
-        function phi = phi_from_xy(this,x,y)
-            z = x+1i*y;
-            z = this.chord*z + this.zLE;
-            % options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-            % phi = arrayfun(@(z)real( this.F_cylinder( ...
-            %                      fsolve( @(zeta) z - this.z_from_zeta(zeta), ...
-            %                               2+2*((imag(z)>=0) - 1 )*1i, options ) ) ), z );
-            phi = real( this.F_cylinder( this.zeta_from_z(z) ) );
-            % phi = real( this.F_cylinder( this.zeta_from_z_alt(z) ) );
-        end
-        function y = psi_y_from_x(this,psi,x,y_guess)
-            options = optimset('TolFun',1e-15,'TolX',1e-17);
-            obj_fun = @(x,y) this.psi_from_xy(x,y) - psi;
-            y = arrayfun(@(x)fzero(@(y)obj_fun(x,y),y_guess,options),x);
-        end
-        function x = phi_x_from_y(this,phi,y,x_guess)
-            options = optimset('TolFun',1e-15,'TolX',1e-17);
-            obj_fun = @(x,y) this.phi_from_xy(x,y) - phi;
-            x = arrayfun(@(y)fzero(@(x)obj_fun(x,y),x_guess,options),y);
-        end
-        function zeta = zeta_from_potential(this,F,zeta_guess)
-            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-            % options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','Iter');
-            zeta = arrayfun( @(F) fsolve( @(zeta) F-this.F_cylinder( zeta ), zeta_guess, options ), F );
-        end
-        function z = z_from_phi_psi(this,phi,psi)
-            F = phi + 1i*psi;
-            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-            z = arrayfun( @(F) fsolve( @(z) F-this.F_cylinder( this.zeta_from_z_alt(z) ), ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
-            % z = arrayfun( @(F) fsolve( @(z) F-this.F_cylinder( ...
-            %                    fsolve( @(zeta) z - this.z_from_zeta(zeta), ...
-            %                    ( 2*(imag(F)>=0) - 1 )*1i, options ) ), ...
-            %                    ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
-            z = (z - this.zLE)/this.chord;
-        end
-        function r = r_from_psi_theta(this,psi,theta)
-            z1 = this.z_from_zeta( this.zeta_from_theta(theta));
-            z1 = (z1-this.zLE)/this.chord;
-            phi = this.phi_from_xy(real(z1),imag(z1));
-            z2 = this.z_from_phi_psi(phi,psi);
-            [~,r] = this.theta_from_zeta(this.zeta_from_z(this.chord*z2+this.zLE));
-        end
-        % function [d,theta] = distance_from_xy(airfoil,x,y)
-        %     z = x + 1i*y;
-        %     dist = @(theta) abs(z-airfoil.)
-        % end
 %% velocity around cylinder
         function val = w_cylinder(this,zeta)
             c1  = exp(-1i*this.alpha);
@@ -561,7 +636,9 @@ classdef kt_airfoil
             wtilde   = this.w_cylinder(zeta);
             val      = this.vinf*wtilde./dz_dzeta;
         end
-%% complex derivatives
+%% complex derivatives of velocity
+
+%% d (w) / d (zeta)
         function val = dw_airfoil_dzeta(this,zeta)
             wtilde     = this.w_cylinder(zeta);
             dwtilde    = this.dw_cylinder_dzeta(zeta);
@@ -570,18 +647,24 @@ classdef kt_airfoil
             val        = this.vinf*( dwtilde./dz_dzeta ...
                                    - (wtilde./dz_dzeta.^2).*d2z_dzeta2 );
         end
+
+%% d (w) / d (theta)
         function val = dw_airfoil_dtheta(this,theta)
             zeta         = this.zeta_from_theta(theta);
             dw_dzeta     = this.dw_airfoil_dzeta(this,zeta);
             dzeta_dtheta = this.diff_zeta_from_theta(theta);
             val          = dw_dzeta.*dzeta_dtheta;
         end
+
+%% d (w) / d (z)
         function val = dw_airfoil_dz(this,z)
             zeta     = this.zeta_from_z(z);
             dzeta_dz = this.diff_zeta_from_z(z);
             dw_dzeta = this.dw_airfoil_dzeta(zeta);
             val      = dw_dzeta.*dzeta_dz;
         end
+
+%% d (p) / d (z)
         function val = dp_airfoil_dz(this,z)
             zeta     = this.zeta_from_z(z);
             dzeta_dz = this.diff_zeta_from_z(z);
@@ -589,6 +672,7 @@ classdef kt_airfoil
             dp_dw    = -2*(1/2)*this.rhoinf*conj(this.w_airfoil(zeta));
             val      = dp_dw.*dw_dzeta.*dzeta_dz;
         end
+%% d (p) / d (theta) (on surface of airfoil)
         function val = dp_airfoil_dtheta(this,theta)
             zeta         = this.zeta_from_theta(theta);
             dzeta_dtheta = this.diff_zeta_from_theta(theta);
