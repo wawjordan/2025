@@ -357,6 +357,27 @@ classdef kt_airfoil
             d = dist(theta);
         end
 
+%% minimum distance between airfoil and streamline
+        function [d,zs_airfoil,zs_streamline,theta,x] = airfoil_streamline_distance(this,psi)
+            [theta,x,d] = arrayfun( @(psi) obj_fun_solve(this,psi), psi );
+            zs_airfoil = this.zs_from_theta(theta);
+            zs_streamline = x + 1i*this.psi_y_from_x(psi,x,d.*(2*(psi>=0)-1));
+            function [theta,x,d] = obj_fun_solve(this,psi)
+                x_guess = 0;
+                y_guess = this.psi_y_from_x(psi,x_guess,2*(psi>=0)-1);
+                theta_guess = this.theta_from_zs(0+1i*y_guess);
+                f1 = @(x,psi) this.psi_y_from_x(psi,x,y_guess);
+                f2 = @(theta) this.zs_from_theta(theta);
+                objfun = @(x,psi) abs(f1(x(1),psi) - f2(x(2))).^2;
+                options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+                x_opt = fminunc( @(x) objfun(x,psi),[x_guess,theta_guess], options );
+                theta = x_opt(2);
+                x     = x_opt(1);
+                d     = objfun(x_opt,psi);
+            end
+
+        end
+
 
 %% airfoil coordinates
         function [x,y] = output_airfoil_coords_theta(this,theta)
