@@ -66,13 +66,13 @@ else
     y_all = y_airfoil;
 end
 
-hold on
-plot(x_all,y_all,'r.-')
-axis equal
-
 % hold on
-% plot(x_airfoil,y_airfoil,'r.-')
+% plot(x_all,y_all,'r.-')
 % axis equal
+
+hold on
+plot(x_airfoil,y_airfoil,'r.-')
+axis equal
 
 % allocate
 X = zeros(imax,jmax);

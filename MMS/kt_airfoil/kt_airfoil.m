@@ -327,8 +327,8 @@ classdef kt_airfoil
 %% F --> zeta ( solve F(zeta) == F for zeta )
         function zeta = zeta_from_potential(this,F,zeta_guess)
             options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-            zeta = arrayfun( @(F) fsolve( @(zeta) F-this.F_cylinder( zeta ),...
-                                            zeta_guess, options ), F );
+            zeta = arrayfun( @(F,zeta_guess) fsolve( @(zeta) F-this.F_cylinder( zeta ),...
+                                            zeta_guess, options ), F, zeta_guess );
         end
 %% [phi,psi] --> F --> zeta --> z --> zs
         function z = z_from_phi_psi(this,phi,psi)
@@ -339,7 +339,54 @@ classdef kt_airfoil
                                      ( 2*(imag(F)>=0) - 1 )*1i, options ), F );
             z = this.scale_to_unit_chord(z);
         end
-%% [psi,theta] --> r
+%% [psi,theta] --> zeta  ( theta --> zeta0 --> F1 --> F1' --> zeta )
+        function zeta = zeta_from_psi_theta(this,psi,theta)
+            zeta0 = this.zeta_from_theta(theta);
+            F1    = this.F_cylinder(zeta0);
+            % zeta_guess = this.zeta_from_theta_r(theta,this.chord*abs(F1));
+            zeta_guess = zeta0;
+            F1p   = real(F1) + 1i*psi;
+            zeta = this.zeta_from_potential(F1p,zeta_guess);
+        end
+%% [psi,theta] --> z  ( theta --> zeta0 --> F1 --> F1' --> zeta --> z )
+        function z = z_from_psi_theta(this,psi,theta)
+            z = this.z_from_zeta( zeta_from_psi_theta(this,psi,theta) );
+        end
+%% [psi,theta] --> zs  ( theta --> zeta0 --> F1 --> F1' --> zeta --> z --> zs )
+        function zs = zs_from_psi_theta(this,psi,theta)
+            zs = this.scale_to_unit_chord( this.z_from_psi_theta(psi,theta) );
+        end
+        function [zsfun,theta0,theta1] = zs_from_psi_theta_spline(this,psi,N,offset)
+            if (psi>=0)
+                theta0 = offset;
+                theta1 = this.thetaLE-offset;
+            else
+                theta0 = this.thetaLE+offset;
+                theta1 = 2*pi-offset;
+            end
+            thetas = linspace(theta0,theta1,N);
+            zsfun = spline(thetas,this.zs_from_psi_theta(psi,thetas));
+        end
+
+%% [psi,theta] --> d
+        % use this to get the starting points for the numerical integration
+        function [d,theta_surface,theta_stream,z1,z2,dz2,ddz2] = locate_min_d(this,psi)
+            [zsfun,theta0,theta1] = this.zs_from_psi_theta_spline(psi,33,0.1);
+            f1 = @(t1,t2) fnval(zsfun,t2) - this.zs_from_theta(t1);
+            objfun = @(t) abs(f1(t(1),t(2))).^2;
+            t0 = (theta0+theta1)/2;
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            [t,d] = fmincon(@(t)objfun(t),[t0,t0],[],[],[],[],[theta0,theta0],[theta1,theta1],[],options);
+            d = sqrt(d);
+            theta_surface = t(1);
+            theta_stream = t(1);
+            z1 = this.zs_from_theta(t(1));
+            z2 = fnval(zsfun,t(2));
+            % dz1 = this.airfoil_differential_arc_length(t(1));
+            dz2 = fnval(fnder(zsfun,1),t(2));
+            ddz2 = fnval(fnder(zsfun,2),t(2));
+        end
+
         function r = r_from_psi_theta(this,psi,theta)
             z1 = this.z_from_zeta( this.zeta_from_theta(theta));
             z1 = (z1-this.zLE)/this.chord;
@@ -356,28 +403,6 @@ classdef kt_airfoil
             theta = arrayfun( @(z) fminunc( @(theta) dist(theta),theta0,options), zs );
             d = dist(theta);
         end
-
-%% minimum distance between airfoil and streamline
-        function [d,zs_airfoil,zs_streamline,theta,x] = airfoil_streamline_distance(this,psi)
-            [theta,x,d] = arrayfun( @(psi) obj_fun_solve(this,psi), psi );
-            zs_airfoil = this.zs_from_theta(theta);
-            zs_streamline = x + 1i*this.psi_y_from_x(psi,x,d.*(2*(psi>=0)-1));
-            function [theta,x,d] = obj_fun_solve(this,psi)
-                x_guess = 0;
-                y_guess = this.psi_y_from_x(psi,x_guess,2*(psi>=0)-1);
-                theta_guess = this.theta_from_zs(0+1i*y_guess);
-                f1 = @(x,psi) this.psi_y_from_x(psi,x,y_guess);
-                f2 = @(theta) this.zs_from_theta(theta);
-                objfun = @(x,psi) abs(f1(x(1),psi) - f2(x(2))).^2;
-                options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-                x_opt = fminunc( @(x) objfun(x,psi),[x_guess,theta_guess], options );
-                theta = x_opt(2);
-                x     = x_opt(1);
-                d     = objfun(x_opt,psi);
-            end
-
-        end
-
 
 %% airfoil coordinates
         function [x,y] = output_airfoil_coords_theta(this,theta)
