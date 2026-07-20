@@ -42,7 +42,7 @@ alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],.
 % plot(x(1:s:end,1:s:end),y(1:s:end,1:s:end),'k');
 % plot(x(1:s:end,1:s:end).',y(1:s:end,1:s:end).','k');
 % axis equal
-
+OUT.airfoil_inputs = airfoil_inputs;
 OUT.base_grid = struct();
 OUT.base_grid.n_body_pts = n_body_pts;
 OUT.base_grid.n_wake_pts = n_wake_pts;
@@ -54,6 +54,7 @@ OUT.base_grid.AR_LE      = AR_LE;
 OUT.base_grid.AR_TE      = AR_TE;
 OUT.base_grid.delta_LE   = delta_LE;
 OUT.base_grid.delta_TE   = delta_TE;
+OUT.spline_order         = spline_order;
 OUT.base_grid.boundary_distance = boundary_distance;
 OUT.base_grid.x_airfoil  = x_airfoil;
 OUT.base_grid.y_airfoil  = y_airfoil;
