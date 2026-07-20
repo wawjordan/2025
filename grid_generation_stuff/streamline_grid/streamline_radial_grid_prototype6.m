@@ -25,7 +25,7 @@ airfoil_inputs.p_ref   = 100000.0;
 
 boundary_distance = 500;
 n_body_pts        = 129;
-n_wake_pts        = 65;
+n_wake_pts        = 0;
 n_transition      = 1;
 jmax              = 129;
 n_layers          = 25;
@@ -35,6 +35,7 @@ AR_LE             = 1.0;
 AR_TE             = 1.0;
 delta_LE          = 0.01;
 airfoil = local_airfoil_generator(airfoil_inputs);
+delta_LE          = airfoil.airfoil_arc_length(0,1)/airfoil.chord/(n_body_pts-1);
 [ theta_u,theta_l, psi_1, psi_FF, phi_TE, h_LE, h_TE, delta_TE ] = get_streamline_geometry( ...
                                                             airfoil,  ...
                                                             delta_LE, ...
@@ -50,7 +51,7 @@ airfoil = local_airfoil_generator(airfoil_inputs);
 
 
 if n_wake_pts>1
-    [x_wake,y_wake,~] = get_wake_pts(airfoil,theta_airfoil,n_wake_pts,boundary_distance);
+    [x_wake,y_wake,phi_FF] = get_wake_pts(airfoil,theta_airfoil,n_wake_pts,boundary_distance);
     imax = 2*(n_wake_pts-1) + n_body_pts;
     itmp1 = n_wake_pts;
     itmp2 = n_wake_pts+n_body_pts-1;
@@ -58,6 +59,7 @@ if n_wake_pts>1
     y_all = [flip(y_wake(2:end));y_airfoil;y_wake(2:end)];
 else
     imax = n_body_pts;
+    phi_FF = phi_TE;
     itmp1 = 1;
     itmp2 = imax;
     x_all = x_airfoil;
@@ -81,233 +83,30 @@ psi_vec = my_geomspace(jmax,0,xmax=psi_FF,dx0=psi_1);
 
 % geometric spacing in r
 r_vec = my_geomspace(jmax,0,xmax=boundary_distance,dx0=h_LE);
+% t0 = (theta_airfoil-theta_airfoil(1))./(theta_airfoil(end)-theta_airfoil(1));
+t0 = linspace(0,1,imax);
+z0 = x_all+1i*y_all;
 
-% determine indices for transitioning between streamlines and radial
-[~,idx_l] = min(abs(theta_airfoil-theta_l));
-[~,idx_u] = min(abs(theta_airfoil-theta_u));
-
-i0 = 1;
-i1 = 1;
-i2 = (itmp1-1) + idx_l;
-i3 = (itmp1-1) + idx_u;
-i4 = imax;
-i5 = imax;
-
-if (n_wake_pts>1)
-    i1 = n_wake_pts;
-    i4 = imax+1-n_wake_pts;
+% create arc-length normalized interpolant of surface nodes
+fz = spline(t0,z0);
+dfz = spline(t0,abs(fnval(fnder(fz,1),t0)));
+dL = zeros(imax,1);
+for i = 2:imax
+    dL(i) = dL(i-1) + integral(@(t)fnval(dfz,t),t0(i-1),t0(i));
+end
+s = spline(dL/dL(end),t0);
+t = fnval(s,t0);
+for j = 2:5
+    [~,zsp] = airfoil.c_grid_streamline_spline(r_vec(j),psi_vec(j),phi_FF,z0);
+    z = fnval(zsp,F1(t0));
+    X(:,j) = real(z);
+    Y(:,j) = imag(z);
 end
 
-n_middle = idx_u - idx_l + 1;
-
-%% lower surface
-for j = 2:1+n_layers_direct
-    phi_tmp =  phi_airfoil(1:idx_l);
-    psi_tmp = -psi_vec(j);
-    z_tmp   = airfoil.z_from_phi_psi(phi_tmp,psi_tmp);
-    X(i1:i2,j) = real(z_tmp); Y(i1:i2,j) = imag(z_tmp);
-end
-
-xtmp = X(i1:i2,1:1+n_layers_direct);
-ytmp = Y(i1:i2,1:1+n_layers_direct);
-plot(xtmp,ytmp,'k')
-plot(xtmp.',ytmp.','k')
-xlim([-1,2])
-if ( n_layers_ode>0)
-    j1 = 1+n_layers_direct;
-    j2 =   n_layers_direct+n_layers_ode;
-    psi_tmp = -psi_vec(j1+1:j2);
-    [X(i1:i2,j1+1:j2),Y(i1:i2,j1+1:j2)] = ode_phi_extrude_mesh( airfoil, X(i1:i2,j1),Y(i1:i2,j1),psi_tmp,spline_order);
-    xtmp = X(i1:i2,j1:j2);
-    ytmp = Y(i1:i2,j1:j2);
-    plot(xtmp,ytmp,'b')
-    plot(xtmp.',ytmp.','b')
-end
-
-%% upper surface
-for j = 2:1+n_layers_direct
-    phi_tmp =  phi_airfoil(idx_u:end);
-    psi_tmp = +psi_vec(j);
-    z_tmp   = airfoil.z_from_phi_psi(phi_tmp,psi_tmp);
-    X(i3:i4,j) = real(z_tmp); Y(i3:i4,j) = imag(z_tmp);
-end
-xtmp = X(i3:i4,1:1+n_layers_direct);
-ytmp = Y(i3:i4,1:1+n_layers_direct);
-plot(xtmp,ytmp,'k')
-plot(xtmp.',ytmp.','k')
-
-if ( n_layers_ode>0)
-    j1 = 1+n_layers_direct;
-    j2 =   n_layers_direct+n_layers_ode;
-    psi_tmp = +psi_vec(j1+1:j2);
-    [X(i3:i4,j1+1:j2),Y(i3:i4,j1+1:j2)] = ode_phi_extrude_mesh( airfoil, X(i3:i4,j1),Y(i3:i4,j1),psi_tmp,spline_order);
-    xtmp = X(i3:i4,j1:j2);
-    ytmp = Y(i3:i4,j1:j2);
-    plot(xtmp,ytmp,'b')
-    plot(xtmp.',ytmp.','b')
-end
-
-% for j = 2:j2
-%     dir = -1;
-%     x0 = X(i3,j);
-%     y0 = Y(i3,j);
-%     phim1 = airfoil.phi_from_xy(X(i3+1,j),y0);
-%     phi0 = airfoil.phi_from_xy(x0,y0);
-%     phi1 = airfoil.phi_from_xy(x0-1,y0);
-%     n_phi = ceil(abs(phi1-phi0)/abs(phi0-phim1));
-%     phivec = linspace(phi0,phi1,n_phi);
-%     [x,y,xsp,ysp] = ode_psi_extrude_streamline(airfoil,x0,y0,phivec,dir,spline_order);
-%     plot(x,y)
-%     plot(x0,y0,'rx')
-% 
-%     x0 = X(i2,j);
-%     y0 = Y(i2,j);
-%     phim1 = airfoil.phi_from_xy(X(i2-1,j),y0);
-%     phi0 = airfoil.phi_from_xy(x0,y0);
-%     phi1 = airfoil.phi_from_xy(x0-1,y0);
-%     n_phi = ceil(abs(phi1-phi0)/abs(phi0-phim1));
-%     phivec = linspace(phi0,phi1,n_phi);
-%     [x,y,xsp,ysp] = ode_psi_extrude_streamline(airfoil,x0,y0,phivec,dir,spline_order);
-%     plot(x,y)
-% end
-
-
-% for j = 2:j2
-%     dir = -1;
-%     x_l = 0.1;
-%     x_u = 0.1;
-% 
-%     x0 = X(i2,j);
-%     y0 = Y(i2,j);
-%     xm1 = X(i2-1,j);
-%     psi_l = airfoil.psi_from_xy(x0,y0);
-%     n_x = ceil(abs(x_l-x0)/abs(x0-xm1));
-%     x = linspace(x0,x_l,n_x);
-%     y = airfoil.psi_y_from_x(psi_l,x,y0);
-%     h = plot(x,y);
-% 
-%     z_l = x(end) + 1i*y(end);
-% 
-%     x0 = X(i3,j);
-%     y0 = Y(i3,j);
-%     xm1 = X(i3+1,j);
-%     psi_u = airfoil.psi_from_xy(x0,y0);
-%     n_x = ceil(abs(x_u-x0)/abs(x0-xm1));
-%     x = linspace(x0,x_u,n_x);
-%     y = airfoil.psi_y_from_x(psi_u,x,y0);
-%     plot(x,y,'Color',h.Color)
-% 
-%     z_u = x(end) + 1i*y(end);
-% 
-%     n_th = 33;
-%     zs = streamline_cap( airfoil, r_vec(j), z_l, z_u, n_th );
-%     plot(real(zs),imag(zs),'Color',h.Color)
-% end
-
-
-% for j = 2:n_layers_direct+n_layers_ode
-%     h1 = sqrt( ( X(i2,j) - X(i2,j-1) )^2 + ( Y(i2,j) - Y(i2,j-1) )^2 );
-%     h2 = sqrt( ( X(i3,j) - X(i3,j-1) )^2 + ( Y(i3,j) - Y(i3,j-1) )^2 );
-%     h = linspace(h1,h2,n_middle);
-%     % xtmp = X(i1:i2,j-1);
-%     % ytmp = Y(i1:i2,j-1);
-%     [X(i2:i3,j),Y(i2:i3,j)] = extrude_surface_pts(X(i2:i3,j-1),Y(i2:i3,j-1),1,n_middle,h);
-% end
-% j1 = 1+n_layers_direct;
-% j2 =   n_layers_direct+n_layers_ode;
-% xtmp = X(i2:i3,1:j2);
-% ytmp = Y(i2:i3,1:j2);
-% plot(xtmp,ytmp,'m')
-% plot(xtmp.',ytmp.','m')
-
-
-%% leading edge
-% for j = 2:n_layers_direct+n_layers_ode
-%     h1 = sqrt( ( X(i2,j) - X(i2,j-1) )^2 + ( Y(i2,j) - Y(i2,j-1) )^2 );
-%     h2 = sqrt( ( X(i3,j) - X(i3,j-1) )^2 + ( Y(i3,j) - Y(i3,j-1) )^2 );
-%     h = linspace(h1,h2,n_middle);
-%     % xtmp = X(i1:i2,j-1);
-%     % ytmp = Y(i1:i2,j-1);
-%     [X(i2:i3,j),Y(i2:i3,j)] = extrude_surface_pts(X(i2:i3,j-1),Y(i2:i3,j-1),1,n_middle,h);
-% end
-% j1 = 1+n_layers_direct;
-% j2 =   n_layers_direct+n_layers_ode;
-% xtmp = X(i2:i3,1:j2);
-% ytmp = Y(i2:i3,1:j2);
-% plot(xtmp,ytmp,'m')
-% plot(xtmp.',ytmp.','m')
-
-
-if (n_wake_pts>1)
-    j1 = 1;
-    j2 = n_layers_direct+n_layers_ode;
-
-    psi_tmp = -psi_vec(j1+1:j2);
-    i1 = i1-1;
-    [X(i0:i1,j1+1:j2),Y(i0:i1,j1+1:j2)] = ode_phi_extrude_mesh( airfoil, X(i0:i1,j1),Y(i0:i1,j1),psi_tmp,spline_order);
-    i1 = i1+1;
-
-    j1 = j1+1;
-    psi_tmp = -psi_vec(j1+1:j2);
-    [X(i1:i1,j1+1:j2),Y(i1:i1,j1+1:j2)] = ode_phi_extrude_mesh( airfoil, X(i1:i1,j1),Y(i1:i1,j1),psi_tmp,spline_order);
-    j1 = j1-1;
-    xtmp = X(i0:i1,j1:j2);
-    ytmp = Y(i0:i1,j1:j2);
-    
-    plot(xtmp,ytmp,'b')
-    plot(xtmp.',ytmp.','b')
-
-
-    psi_tmp = +psi_vec(j1+1:j2);
-    i4 = i4+1;
-    [X(i4:i5,j1+1:j2),Y(i4:i5,j1+1:j2)] = ode_phi_extrude_mesh( airfoil, X(i4:i5,j1),Y(i4:i5,j1),psi_tmp,spline_order);
-    i4 = i4-1;
-
-    j1 = j1+1;
-    psi_tmp = +psi_vec(j1+1:j2);
-    [X(i4:i4,j1+1:j2),Y(i4:i4,j1+1:j2)] = ode_phi_extrude_mesh( airfoil, X(i4:i4,j1),Y(i4:i4,j1),psi_tmp,spline_order);
-    j1 = j1-1;
-
-    xtmp = X(i4:i5,j1:j2);
-    ytmp = Y(i4:i5,j1:j2);
-    plot(xtmp,ytmp,'b')
-    plot(xtmp.',ytmp.','b')
-end
-
-
-figure;
-xtmp = X(:,j1:j2);
-ytmp = Y(:,j1:j2);
 hold on
-plot(xtmp,ytmp,'k')
-plot(xtmp.',ytmp.','k')
-plot(x_airfoil,y_airfoil,'r.-')
+plot(X,Y,'k')
+plot(X.',Y.','k')
 axis equal
-xlim([-1,2])
-ylim([-1.5,1.5])
-
-j1;
-
-
-function zs = streamline_cap( airfoil, h_LE, z_l, z_u, n_pts )
-[d_l,theta_l] = airfoil.distance_from_zs(z_l);
-[d_u,theta_u] = airfoil.distance_from_zs(z_u);
-t0 = linspace(0,1,n_pts).';
-ti = (airfoil.thetaCmax-theta_l)/(theta_u-theta_l);
-% h = smooth_ramps(t0,[0,ti,1],[d_l,h_LE,d_u]);
-% h = d_l + (d_u-d_l)*t0;
-p = polyfit([0,ti,1],[d_l,h_LE,d_u]);
-h = polyval(p,t0);
-theta = theta_l + (theta_u-theta_l)*t0;
-
-zs = airfoil.zs_from_theta(theta) + h.*airfoil.unit_normal_cmplx(theta);
-% t = centri_param([real(zs).';imag(zs).'],1);
-% t = t/t(end);
-% h = smooth_ramps(t,[0,ti,1],[d_l,h_LE,d_u]);
-% h = h(:);
-% theta = theta_l + (theta_u-theta_l)*t;
-% zs = airfoil.zs_from_theta(theta) + h.*airfoil.unit_normal_cmplx(theta);
-end
 
 function [theta_u,theta_l,psi_1,psi_FF,phi_TE,h_LE,h_TE,delta_TE] = get_streamline_geometry( airfoil, delta_LE, AR_LE, AR_TE, boundary_distance )
 % given streamwise spacing at LE, target AR (streamwise/normal)

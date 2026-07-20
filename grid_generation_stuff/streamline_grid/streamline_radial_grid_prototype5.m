@@ -189,7 +189,7 @@ for j = 2:j2
     x0 = X(i2,j);
     y0 = Y(i2,j);
     z_l = x0 + 1i*y0;
-    dz_l = abs(z_l-z_lm1);
+    dz_l = z_l-z_lm1;
     
 
     x0 = X(i3,j);
@@ -201,12 +201,13 @@ for j = 2:j2
     y0 = Y(i3+1,j);
     z_up1 = x0 + 1i*y0;
 
-    dz_u = abs(z_up1-z_u);
+    dz_u = z_up1-z_u;
 
     zs = streamline_cap( airfoil, r_vec(j), z_l, z_u, n_middle );
     plot(real(zs),imag(zs))
     
-    [zs,rsp,theta] = streamline_cap2( airfoil, r_vec(j), z_l, z_u, dz_l, dz_u, n_middle);
+    % [zs,rsp,theta] = streamline_cap2( airfoil, r_vec(j), z_l, z_u, dz_l, dz_u, n_middle);
+    [zs,rsp,theta] = streamline_cap3( airfoil, r_vec(j), z_l, z_u, dz_l, dz_u, n_middle);
     X(i2:i3,j) = real(zs);
     Y(i2:i3,j) = imag(zs);
 end
@@ -360,15 +361,28 @@ function [zs,rsp,theta] = streamline_cap2( airfoil, h_LE, z_l, z_u, dz_l, dz_u, 
 [d_l,theta_l] = airfoil.distance_from_zs(z_l);
 [d_u,theta_u] = airfoil.distance_from_zs(z_u);
 
+[d_lm1,theta_lm1] = airfoil.distance_from_zs(z_l-dz_l);
+[d_up1,theta_up1] = airfoil.distance_from_zs(z_u+dz_u);
+
+
+drdtheta_l = (d_l-d_lm1)/(theta_l-theta_lm1);
+drdtheta_u = (d_up1-d_u)/(theta_up1-theta_u);
+
 % generate a polynomial interpolant of the offset distance in the zs plane
 % use linear spacing in theta as first guess
 t0 = linspace(0,1,n_pts).';
 p = polyfit([theta_l,airfoil.thetaCmax,theta_u],[d_l,h_LE,d_u],2);
+% sp = csape([  theta_l, airfoil.thetaLE, theta_u],...
+%         [0,       d_l,            h_LE,     d_u, 0],'clamped');
+
+sp = csape([  theta_l, airfoil.thetaLE, theta_u],...
+ [drdtheta_l,     d_l,            h_LE,     d_u, drdtheta_u],'clamped');
 
 % remember to add slope control
 % tangent vector at z is [u,v]
 
-fz = @(t) airfoil.zs_from_theta(t) + polyval(p,t).*airfoil.unit_normal_cmplx(t);
+% fz = @(t) airfoil.zs_from_theta(t) + polyval(p,t).*airfoil.unit_normal_cmplx(t);
+fz = @(t) airfoil.zs_from_theta(t) + fnval(sp,t).*airfoil.unit_normal_cmplx(t);
 
 % get corresponding linearly spaced thetas
 theta0 = theta_l + (theta_u-theta_l)*t0;
@@ -385,11 +399,162 @@ fz2 = @(theta) airfoil.zs_from_theta_r(theta,fnval(rsp,theta));
 
 [~,L] = reparam_complex_curve(fz2,@(t)t,n_pts,theta1(1),theta1(end));
 
-fs = vinokur_two_sided_spacing_fcn(n_pts,dz_l/L,dz_u/L,false);
+fs = vinokur_two_sided_spacing_fcn(n_pts,abs(dz_l)/L,abs(dz_u)/L,false);
 
 [theta,~] = reparam_complex_curve(fz2,fs,n_pts,theta1(1),theta1(end));
 zs = fz2(theta);
+
+% create arc-length normalized interpolant
+fz3 = spline(theta,zs);
+dfz3 = spline(theta,abs(fnval(fnder(fz3,1),theta)));
+dl = zeros(n_pts,1);
+for i = 2:n_pts
+    dl(i) = dl(i-1) + integral(@(t)fnval(dfz3,t),theta(i-1),theta(i));
 end
+s = spline(dl/dl(end),theta);
+zsp = spline(theta,fz(fnval(s,t0)));
+zs2 = fnval(zsp,theta);
+end
+
+
+
+
+
+function [zs,rsp,theta] = streamline_cap3( airfoil, h_LE, z_l, z_u, dz_l, dz_u, n_pts)
+
+% get the distance from the airfoil at z_l and z_u (and corresponding theta value on the airfoil)
+[d_l,theta_l] = airfoil.distance_from_zs(z_l);
+[d_u,theta_u] = airfoil.distance_from_zs(z_u);
+
+[d_lm1,theta_lm1] = airfoil.distance_from_zs(z_l-dz_l);
+[d_up1,theta_up1] = airfoil.distance_from_zs(z_u+dz_u);
+
+dtl = (theta_l-theta_lm1);
+dtu = (theta_up1-theta_u);
+
+drdtheta_l = (d_l-d_lm1)/dtl;
+drdtheta_u = (d_up1-d_u)/dtu;
+
+dtl = dtl/(theta_u-theta_l);
+dtu = dtu/(theta_u-theta_l);
+
+% generate a polynomial interpolant of the offset distance in the zs plane
+% use linear spacing in theta as first guess
+t0 = linspace(0,1,n_pts).';
+sp = csape([  theta_l, airfoil.thetaLE, theta_u],...
+ [drdtheta_l,     d_l,            h_LE,     d_u, drdtheta_u],'clamped');
+
+
+fz = @(t) airfoil.zs_from_theta(t) + fnval(sp,t).*airfoil.unit_normal_cmplx(t);
+
+% get corresponding thetas
+fs = vinokur_two_sided_spacing_fcn(n_pts,dtl,dtu,false);
+theta0 = theta_l + (theta_u-theta_l)*fs(t0);
+
+% evaluate the corresponding points on the curve and back out the corresponding thetas and radii
+[theta1,r] = airfoil.theta_from_zs(fz(theta0));
+[theta1(1),r(1)] = airfoil.theta_from_zs(z_l);
+[theta1(end),r(end)] = airfoil.theta_from_zs(z_u);
+
+% create spline for r(theta)
+rsp = spline(theta1,r);
+fz2 = @(theta) airfoil.zs_from_theta_r(theta,fnval(rsp,theta));
+
+
+[~,L] = reparam_complex_curve(fz2,@(t)t,n_pts,theta1(1),theta1(end));
+
+fs = vinokur_two_sided_spacing_fcn(n_pts,abs(dz_l)/L,abs(dz_u)/L,false);
+
+[theta,~] = reparam_complex_curve(fz2,fs,n_pts,theta1(1),theta1(end));
+zs = fz2(theta);
+
+% create arc-length normalized interpolant
+fz3 = spline(theta,zs);
+dfz3 = spline(theta,abs(fnval(fnder(fz3,1),theta)));
+dl = zeros(n_pts,1);
+for i = 2:n_pts
+    dl(i) = dl(i-1) + integral(@(t)fnval(dfz3,t),theta(i-1),theta(i));
+end
+s = spline(dl/dl(end),theta);
+zsp = spline(theta,fz(fnval(s,t0)));
+zs2 = fnval(zsp,theta);
+end
+
+
+
+function [zs,rsp,theta] = streamline_cap4( airfoil, h_LE, z_l, z_u, dz_l, dz_u, n_pts)
+
+% get the distance from the airfoil at z_l and z_u (and corresponding theta value on the airfoil)
+[d_l,theta_l] = airfoil.distance_from_zs(z_l);
+[d_u,theta_u] = airfoil.distance_from_zs(z_u);
+
+[theta1,r1] = airfoil.theta_from_zeta(airfoil.zeta_from_zs(z1));
+phi =  phi0(idx2:end);
+psi =  psi0(2:dj);
+z2 = airfoil.z_from_phi_psi(phi0(idx2),psi);
+plot(real(z2),imag(z2),'g')
+[theta2,r2] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z2+airfoil.zLE));
+
+
+theta = theta0(idx1:idx2);
+[THETA,R] =ndgrid(theta,r1);
+
+
+[d_lm1,theta_lm1] = airfoil.distance_from_zs(z_l-dz_l);
+[d_up1,theta_up1] = airfoil.distance_from_zs(z_u+dz_u);
+
+dtl = (theta_l-theta_lm1);
+dtu = (theta_up1-theta_u);
+
+drdtheta_l = (d_l-d_lm1)/dtl;
+drdtheta_u = (d_up1-d_u)/dtu;
+
+dtl = dtl/(theta_u-theta_l);
+dtu = dtu/(theta_u-theta_l);
+
+% generate a polynomial interpolant of the offset distance in the zs plane
+% use linear spacing in theta as first guess
+t0 = linspace(0,1,n_pts).';
+sp = csape([  theta_l, airfoil.thetaLE, theta_u],...
+ [drdtheta_l,     d_l,            h_LE,     d_u, drdtheta_u],'clamped');
+
+
+fz = @(t) airfoil.zs_from_theta(t) + fnval(sp,t).*airfoil.unit_normal_cmplx(t);
+
+% get corresponding thetas
+fs = vinokur_two_sided_spacing_fcn(n_pts,dtl,dtu,false);
+theta0 = theta_l + (theta_u-theta_l)*fs(t0);
+
+% evaluate the corresponding points on the curve and back out the corresponding thetas and radii
+[theta1,r] = airfoil.theta_from_zs(fz(theta0));
+[theta1(1),r(1)] = airfoil.theta_from_zs(z_l);
+[theta1(end),r(end)] = airfoil.theta_from_zs(z_u);
+
+% create spline for r(theta)
+rsp = spline(theta1,r);
+fz2 = @(theta) airfoil.zs_from_theta_r(theta,fnval(rsp,theta));
+
+
+[~,L] = reparam_complex_curve(fz2,@(t)t,n_pts,theta1(1),theta1(end));
+
+fs = vinokur_two_sided_spacing_fcn(n_pts,abs(dz_l)/L,abs(dz_u)/L,false);
+
+[theta,~] = reparam_complex_curve(fz2,fs,n_pts,theta1(1),theta1(end));
+zs = fz2(theta);
+
+% create arc-length normalized interpolant
+fz3 = spline(theta,zs);
+dfz3 = spline(theta,abs(fnval(fnder(fz3,1),theta)));
+dl = zeros(n_pts,1);
+for i = 2:n_pts
+    dl(i) = dl(i-1) + integral(@(t)fnval(dfz3,t),theta(i-1),theta(i));
+end
+s = spline(dl/dl(end),theta);
+zsp = spline(theta,fz(fnval(s,t0)));
+zs2 = fnval(zsp,theta);
+end
+
+
 
  % function S = airfoil_arc_length(this,t0,t1)
  %            S = integral(@(t)diff_arc_length(this,t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);

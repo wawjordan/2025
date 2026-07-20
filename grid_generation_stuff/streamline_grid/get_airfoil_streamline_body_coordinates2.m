@@ -9,15 +9,18 @@ function [x,y,theta,F1,psi_1,phi_TE,h_LE,h_TE] = get_airfoil_streamline_body_coo
 
 % approximate cell height at LE
 h_LE = delta_LE/AR_LE;
+z1 = airfoil.zs_from_theta( airfoil.thetaLE ) + h_LE*airfoil.unit_normal_cmplx( airfoil.thetaLE );
+
+% get corresponding radius in zeta plane
+[~,r1] = airfoil.theta_from_zs(z1);
 
 % compute the angle where phi=0
-% from here to the leading edge, we are assuming approximately constant cell height
-z1 = airfoil.z_from_phi_psi(0,0);
-[theta0,~] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z1+airfoil.zLE));
+z0 = airfoil.z_from_phi_psi(0,0);
+% [theta0,~] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z1+airfoil.zLE));
+[theta0,~] = airfoil.theta_from_zs(z0);
 
 % get the corresponding point
-z2 = airfoil.z_from_zeta(airfoil.zeta_from_theta(theta0));
-z2 = (z2-airfoil.zLE)/airfoil.chord + h_LE*airfoil.unit_normal_cmplx(theta0);
+z2 = airfoil.zs_from_theta_r(theta0,r1);
 
 % find the corresponding value of psi
 psi_1 = airfoil.psi_from_xy(real(z2),imag(z2));

@@ -369,23 +369,30 @@ classdef kt_airfoil
         end
 
 %% [psi,theta] --> d
-        % use this to get the starting points for the numerical integration
-        function [d,theta_surface,theta_stream,z1,z2,dz2,ddz2] = locate_min_d(this,psi)
-            [zsfun,theta0,theta1] = this.zs_from_psi_theta_spline(psi,33,0.1);
-            f1 = @(t1,t2) fnval(zsfun,t2) - this.zs_from_theta(t1);
-            objfun = @(t) abs(f1(t(1),t(2))).^2;
-            t0 = (theta0+theta1)/2;
-            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
-            [t,d] = fmincon(@(t)objfun(t),[t0,t0],[],[],[],[],[theta0,theta0],[theta1,theta1],[],options);
-            d = sqrt(d);
-            theta_surface = t(1);
-            theta_stream = t(1);
-            z1 = this.zs_from_theta(t(1));
-            z2 = fnval(zsfun,t(2));
-            % dz1 = this.airfoil_differential_arc_length(t(1));
-            dz2 = fnval(fnder(zsfun,1),t(2));
-            ddz2 = fnval(fnder(zsfun,2),t(2));
-        end
+        % function [theta,psi,zs] = get_psi_from_h_LE(this,h_LE,dir)
+        %     % start at leading edge, extrude boundary normal to the airfoil
+        %     % surface, and find the first point where the local velocity
+        %     % vector aligns with the surface tangent (i.e. dot(n,v)==0 )
+        %     fz = @(t) this.zs_from_theta(t) + h_LE.*this.unit_normal_cmplx(t);
+        %     w  = @(t) this. w_airfoil( this.zeta_from_zs( fz(t) ) );
+        %     objfun = @(t) real(w(t)).*real(this.unit_normal_cmplx(t)) + imag(w(t)).*imag(this.unit_normal_cmplx(t));
+        %     options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+        %     % theta_lo = this.thetaLE;
+        %     % if (dir == 1)
+        %     %     theta_hi = 0.1;
+        %     % else
+        %     %     theta_hi = 2*pi - 0.1;
+        %     % end
+        %     % theta = fzero( @(t) objfun(t), [theta_lo,theta_hi],options);
+        %     if (dir == 1)
+        %         theta0 = pi/2;
+        %     else
+        %         theta0 = 3*pi/2;
+        %     end
+        %     theta = fzero( @(t) objfun(t), theta0,options);
+        %     zs = fz(theta);
+        %     psi = this.psi_from_zs(zs);
+        % end
 
         function r = r_from_psi_theta(this,psi,theta)
             z1 = this.z_from_zeta( this.zeta_from_theta(theta));
@@ -697,7 +704,7 @@ classdef kt_airfoil
 %% d (w) / d (theta)
         function val = dw_airfoil_dtheta(this,theta)
             zeta         = this.zeta_from_theta(theta);
-            dw_dzeta     = this.dw_airfoil_dzeta(this,zeta);
+            dw_dzeta     = this.dw_airfoil_dzeta(zeta);
             dzeta_dtheta = this.diff_zeta_from_theta(theta);
             val          = dw_dzeta.*dzeta_dtheta;
         end
@@ -1022,6 +1029,164 @@ classdef kt_airfoil
             end
             vol = this.integrate_polygon_area(x,y,scale,use_curv);
             src = src/vol;
+        end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function [z,ts] = ode_psi_line(this,z0,phi1,dir)
+            % numerically integrate equipotential line
+            % allows for adjusting the integration time automatically
+            zeta0 = this.zeta_from_zs(z0);
+            F0    = this.F_cylinder(zeta0);
+            psi0  = imag(F0);
+            z1 = this.z_from_phi_psi(phi1,psi0);
+            zeta1 = this.zeta_from_z(z1);
+            vmag0 = abs(this.w_airfoil(zeta0));
+            vmag1 = abs(this.w_airfoil(zeta1));
+
+            % very rough guess for the integration time
+            tstop = 2*abs(z1-z0)/abs(vmag1-vmag0);
+            tspan = dir*[0,tstop];
+            ys0 = [real(zeta0), imag(zeta0)];
+            [ts,ys,te,~,ie] = ode_psi_line_step(this,ys0,tspan,phi1);
+
+            found = false;
+            maxiter = 10;
+            iter = 1;
+            while (~found)
+                if iter>maxiter
+                    error('failed to converge')
+                end
+                if ~(isempty(ie))
+                    found = true;
+                else
+                    zeta_e = ys(end,1) + 1i*ys(end,2);
+                    ze = this.zs_from_zeta(zeta_e);
+                    dist_ratio = abs(ze-z0)/abs(z1-z0);
+                    dist_ratio = min(max(dist_ratio,1.1),3);
+                    tspan = tspan*dist_ratio;
+                    [ts,ys,te,~,ie] = ode_psi_line_step(this,ys0,tspan,phi1);
+                end
+                iter = iter+1;
+            end
+
+            [ts,ys,~,~,~] = ode_psi_line_step(this,ys0,linspace(0,te(1),numel(ts)),phi1);
+            zeta = ys(:,1) + 1i*ys(:,2);
+            z = this.zs_from_zeta(zeta);
+        end
+
+        function [ts,ys,te,ye,ie] = ode_psi_line_step(airfoil,ys0,tspan,phi_stop)
+            options = odeset('RelTol',1e-10,'AbsTol',1e-12,'NormControl','on');
+            options = odeset(options,'Events',@(t,y)psiEventFcn(t,y,airfoil,phi_stop));
+            % [ts,ys,te,ye,ie] = ode23s(@(t,y) psi_integrate(t,y,airfoil), tspan, ys0, options);
+            [ts,ys,te,ye,ie] = ode113(@(t,y) psi_integrate(t,y,airfoil), tspan, ys0, options);
+
+            function dydt = psi_integrate(~,y,airfoil)
+                zeta = y(1) + 1i*y(2);
+                w = airfoil.w_cylinder(zeta);
+                dydt = zeros(2,1);
+                dydt(1) = real(w);
+                dydt(2) =-imag(w);
+            end
+
+            function [position,isterminal,direction] = psiEventFcn(~,y,airfoil,phi_target)
+                z = airfoil.zs_from_zeta(y(1)+1i*y(2));
+                position   = airfoil.phi_from_xy(real(z),imag(z))-phi_target; % The value that we want to be zero
+                isterminal = 1;  % Halt integration
+                direction  = 0;   % The zero can be approached from either direction
+            end
+        end
+        % use this to get the starting points for the numerical integration
+        function [d,theta_surface,theta_stream,z1,z2,dz2,ddz2] = locate_min_d(this,psi)
+            [zsfun,theta0,theta1] = this.zs_from_psi_theta_spline(psi,33,0.1);
+            f1 = @(t1,t2) fnval(zsfun,t2) - this.zs_from_theta(t1);
+            objfun = @(t) abs(f1(t(1),t(2))).^2;
+            t0 = (theta0+theta1)/2;
+            options = optimset('TolFun',1e-15,'TolX',1e-17,'Display','none');
+            [t,d] = fmincon(@(t)objfun(t),[t0,t0],[],[],[],[],[theta0,theta0],[theta1,theta1],[],options);
+            d = sqrt(d);
+            theta_surface = t(1);
+            theta_stream = t(1);
+            z1 = this.zs_from_theta(t(1));
+            z2 = fnval(zsfun,t(2));
+            % dz1 = this.airfoil_differential_arc_length(t(1));
+            dz2 = fnval(fnder(zsfun,1),t(2));
+            ddz2 = fnval(fnder(zsfun,2),t(2));
+        end
+
+        function [z,zsp] = c_grid_streamline_spline( this, radius, psi, phi1, z0 )
+
+            n_pts = numel(z0);
+
+            % get location where the streamline slope matches the slope of
+            % the coincident offset profile
+            [dist_upper,~,theta_stream_upper,~,z_start_upper,~,~] = this.locate_min_d(psi);
+            [dist_lower,~,theta_stream_lower,~,z_start_lower,~,~] = this.locate_min_d(-psi);
+
+            % integrate to obtain streamline in the downstream direction
+            z_upper_ode = this.ode_psi_line(z_start_upper,phi1,+1);
+            z_lower_ode = this.ode_psi_line(z_start_lower,phi1,+1);
+
+            % generate interpolant of the offset distance in the zs plane
+            % specify end slopes as zero to make sure the curves are
+            % approximately slope matched
+            sp = csape([  theta_stream_lower, this.thetaCmax, theta_stream_upper],...
+                       [0,        dist_lower,      radius,              dist_upper, 0],'clamped');
+            
+            t = linspace(0,1,n_pts).';
+            % get corresponding linearly spaced thetas
+            theta0 = theta_stream_lower + (theta_stream_upper-theta_stream_lower)*t;
+
+            % evaluate offset curve
+            z_arc = this.zs_from_theta(theta0) + fnval(sp,theta0).*this.unit_normal_cmplx(theta0);
+
+            % assemble all points
+            z_all = [ flip(z_lower_ode(2:end)); z_arc(:); z_upper_ode(2:end)];
+
+            % spline all points
+            n_total = numel(z_all);
+            t0 = linspace(0,1,n_total);
+            fz = spline(t0,z_all);
+
+            % create arc-length normalized interpolant
+            dfz = spline(t0,abs(fnval(fnder(fz,1),t0)));
+            dl = zeros(n_total,1);
+            for i = 2:n_total
+                dl(i) = dl(i-1) + integral(@(t)fnval(dfz,t),t0(i-1),t0(i));
+            end
+            s = spline(dl/dl(end),t0);
+            zsp = spline(t0,fnval(fz,fnval(s,t0)));
+            z = fnval(zsp,t);
+
+
+            % create spline for spacing function
+            % spacing is according to phi in the wake region until the
+            % critical theta, then spacing is azimuthal
+            % real(airfoil.F_cylinder( airfoil.zeta_from_zs( fnval(zsp,t) ) )), [0,0.5])
+
+            % location in t-space where phi==phi_lower
+            % (phi at theta_stream_lower)
+            % phi_lower = real( this.F_cylinder( this.zeta_from_zs(z_start_lower) ) );
+            % t_phi_lower = fzero( @(t) real(this.F_cylinder( this.zeta_from_zs( fnval(zsp,t) ) ) ) - phi_lower,[0,0.5] );
+
+            % location in t-space where phi==phi_upper
+            % (phi at theta_stream_upper)
+            % phi_upper = real( this.F_cylinder( this.zeta_from_zs(z_start_upper) ) );
+            % t_phi_upper = fzero( @(t) real(this.F_cylinder( this.zeta_from_zs( fnval(zsp,t) ) ) ) - phi_upper,[0.5,1] );
+
+            % t_lower = linspace(0,t_phi_lower,n_pts);
+            % t_lower_sp = spline( real(this.F_cylinder( this.zeta_from_zs( fnval(zsp,t_lower) ) ) ), t_lower);
+            % theta_lower = this.theta_from_zs( fnval(zsp,fnval( t_lower_sp, t_lower ) ) );
+
+            % t_phi_upper = fzero( @(t) real(this.F_cylinder( this.zeta_from_zs( fnval(zsp,t) ) ) ) - phi_upper,[0.5,1] );
+
+            % t_upper = linspace(t_phi_upper,1,n_pts);
+            % t_upper_sp = spline( real(this.F_cylinder( this.zeta_from_zs( fnval(zsp,t_upper) ) ) ), t_upper);
+            % 
+            % t_LE = fzero( @(t) this.theta_from_zs( fnval(zsp,t) ) - this.thetaLE,[t_phi_lower,t_phi_upper] );
+            % % z_arc = this.zs_from_theta(theta0) + fnval(sp,theta0).*this.unit_normal_cmplx(theta0);
+            % t_theta_lower = linspace(t_phi_lower,t_LE,n_pts);
+            % t_theta_lower_sp = spline( this.theta_from_zs( fnval(zsp,t_theta_lower) ), t_theta_lower );
+            % t_theta_upper = linspace(t_LE,t_phi_upper,n_pts);
+            % t_theta_upper_sp = spline( this.theta_from_zs( fnval(zsp,t_theta_upper) ), t_theta_upper );
         end
     end
 end

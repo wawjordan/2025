@@ -18,7 +18,7 @@ airfoil_inputs.vinf    = 75.0;
 airfoil_inputs.rhoinf  = 1.0;
 airfoil_inputs.pinf    = 100000.0;
 airfoil_inputs.gamma   = 1.4;
-airfoil_inputs.alpha   = 0; % (degrees)
+airfoil_inputs.alpha   = 10; % (degrees)
 airfoil_inputs.rho_ref = 1.0;
 airfoil_inputs.p_ref   = 100000.0;
 boundary_distance = 500;
@@ -36,7 +36,7 @@ airfoil = local_airfoil_generator(airfoil_inputs);
                                                          delta_LE,     ...
                                                          AR_LE, AR_TE );
 
-dj = 5;
+dj = 20;
 di = n_body_pts;
 
 hold on
@@ -68,8 +68,6 @@ X(:,1) = x;
 Y(:,1) = y;
 
 
-% [~,idx1] = min(abs(theta0-(airfoil.thetaSP+pi/2)));
-% [~,idx2] = min(abs(theta0-(airfoil.thetaSP-pi/2)));
 [~,idx1] = min(abs(theta0-(airfoil.thetaSP+pi/2)));
 [~,idx2] = min(abs(theta0-(airfoil.thetaSP-pi/2)));
 
@@ -86,9 +84,9 @@ X(1:idx1,2:dj) = X1; Y(1:idx1,2:dj) = Y1;
 plot(X1,Y1,'k')
 plot(X1.',Y1.','k')
 
-[Xlo,Ylo] = ode_phi_extrude_mesh(airfoil,X(1:idx1,dj),Y(1:idx1,dj),-psi0(dj+1:30),5);
-plot(Xlo,Ylo,'b')
-plot(Xlo.',Ylo.','b')
+% [Xlo,Ylo] = ode_phi_extrude_mesh(airfoil,X(1:idx1,dj),Y(1:idx1,dj),-psi0(dj+1:30),5);
+% plot(Xlo,Ylo,'b')
+% plot(Xlo.',Ylo.','b')
 
 
 % tic;
@@ -104,23 +102,23 @@ plot(Xlo.',Ylo.','b')
 %% leading edge
 z1 = airfoil.z_from_phi_psi(phi0(idx1),psi);
 plot(real(z1),imag(z1),'g')
-[theta1,r1] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z1+airfoil.zLE));
+[theta1,r1] = airfoil.theta_from_zeta(airfoil.zeta_from_zs(z1));
 phi =  phi0(idx2:end);
 psi =  psi0(2:dj);
 z2 = airfoil.z_from_phi_psi(phi0(idx2),psi);
 plot(real(z2),imag(z2),'g')
-[theta2,r2] = airfoil.theta_from_zeta(airfoil.zeta_from_z(airfoil.chord*z2+airfoil.zLE));
+[theta2,r2] = airfoil.theta_from_zeta(airfoil.zeta_from_zs(z2));
 
 
 theta = theta0(idx1:idx2);
 [THETA,R] =ndgrid(theta,r1);
-for j = 1:numel(r1)
-    R(:,j) = linspace(r1(j),r2(j),numel(theta));
-    for i = 1:numel(theta)
-        R(i,j) = airfoil.r_from_psi_theta(psi(j),theta(i));
-    end
-end
-Z2 = airfoil.z_from_theta_r(THETA,R);
+% for j = 1:numel(r1)
+%     R(:,j) = linspace(r1(j),r2(j),numel(theta));
+%     for i = 1:numel(theta)
+%         R(i,j) = airfoil.r_from_psi_theta(psi(j),theta(i));
+%     end
+% end
+Z2 = airfoil.zs_from_theta_r(THETA,R);
 X2 = real(Z2); Y2 = imag(Z2);
 X(idx1:idx2,2:dj) = X2; Y(idx1:idx2,2:dj) = Y2;
 plot(X2,Y2,'b')
