@@ -11,7 +11,7 @@ classdef transfinite_interpolant_2D
             % validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
             validReal        = @(x) isreal(x) && ~isnan(x) && ~isinf(x);
             validRealPoints  = @(x) all(arrayfun(@(x)validReal(x),x),"all") && isvector(x);
-            % validVec         = @(x) validRealPoints(x) && numel(x)==2;
+            validVec         = @(x) validRealPoints(x) && numel(x)==2;
             valid_fcn_handle = @(x) isa(x,'function_handle');
             valid_boundary_input = @(x) valid_fcn_handle(x) || validRealPoints(x);
             addOptional(p,'G1x' ,@(xi)                xi, valid_boundary_input);
@@ -22,6 +22,14 @@ classdef transfinite_interpolant_2D
             addOptional(p,'G3y' ,@(xi)   ones(size(xi)) , valid_boundary_input);
             addOptional(p,'G4x' ,@(eta) -ones(size(eta)), valid_boundary_input);
             addOptional(p,'G4y' ,@(eta)              eta, valid_boundary_input);
+            addOptional(p,'G1x_dom',[-1,1],validVec);
+            addOptional(p,'G1y_dom',[-1,1],validVec);
+            addOptional(p,'G2x_dom',[-1,1],validVec);
+            addOptional(p,'G2y_dom',[-1,1],validVec);
+            addOptional(p,'G3x_dom',[-1,1],validVec);
+            addOptional(p,'G3y_dom',[-1,1],validVec);
+            addOptional(p,'G4x_dom',[-1,1],validVec);
+            addOptional(p,'G4y_dom',[-1,1],validVec);
             parse(p,varargin{:});
             results = transfinite_interpolant_2D.check_boundaries(p);
             this.G{1,1} = results.G1x;
@@ -83,14 +91,21 @@ classdef transfinite_interpolant_2D
 
     end
     methods (Static)
-        function G = setup_boundaries(G)
+        function F = setup_boundaries(G,t_min,t_max)
             if isa(G,'function_handle')
+                F = @(xi) G( transfinite_interpolant_2D.inv_linear_map(xi,t_min,t_max) );
                 return
             else
                 t = linspace(-1,1,numel(G));
                 pp = csape(t,G);
-                G = @(x) fnval(pp,x);
+                F = @(x) fnval(pp,x);
             end
+        end
+        function xi = linear_map(t,t_min,t_max)
+            xi = 2*(t-t_min)/(t_max-t_min) - 1;
+        end
+        function t = inv_linear_map(xi,t_min,t_max)
+            t = t_min + (t_max-t_min)*(xi+1)/2;
         end
         function results = check_boundaries(p)
             results = structfun(@(x)transfinite_interpolant_2D.setup_boundaries(x),p.Results,'UniformOutput',false);
