@@ -15,48 +15,117 @@ levels = [1:6];
 n_levels = length(levels);
 airfoil_inputs = struct();
 airfoil_inputs.epsilon = 0.1;
-airfoil_inputs.kappa   = 0.0;
+airfoil_inputs.kappa   = 0.2;
 airfoil_inputs.tau     = deg2rad(10.0);
 airfoil_inputs.vinf    = 75.0;
 airfoil_inputs.rhoinf  = 1.0;
 airfoil_inputs.pinf    = 100000.0;
 airfoil_inputs.gamma   = 1.4;
-airfoil_inputs.alpha   = 5; % (degrees)
+airfoil_inputs.alpha   = -10; % (degrees)
 airfoil_inputs.rho_ref = 1.0;
 airfoil_inputs.p_ref   = 100000.0;
 
 n_refine   = 2^4;
 n_body_pts = 129;
-n_wake_pts = 65;
-jmax_in    = 65;
+n_wake_pts = 129;
+jmax_in    = 129;
 % n_body_pts = 257;
 % n_wake_pts = 129;
 % jmax_in    = 129;
 AR_LE      =  1.0;
 AR_TE      =  1.0;
-delta_LE   = 0.1;
-delta_TE   = 0.1;
+delta_LE   = 0.125;
+delta_TE   = 0.125;
 spline_order = 5;
 
-[OUT,airfoil] = generate_kt_airfoil_grid(airfoil_inputs,n_body_pts,n_wake_pts,jmax_in,AR_LE,AR_TE,delta_LE,delta_TE,spline_order);
+
+% n_body_pts = 65;
+% n_wake_pts = 65;
+% jmax_in    = 65;
+% F1 = transfinite_scalar_interpolant_2D( G1 = 1.0, ...
+%                                         G2 = @(t) smooth_ramps(t,[ 0.0, 0.25,  1.000 ], ...
+%                                                                  [ 1.0, 0.9999, 0.98 ]), ...
+%                                         G3 = 0.98,...
+%                                         G4 = @(t) smooth_ramps(t,[ 0.0,  0.25, 1.000 ], ...
+%                                                                  [ 1.0, 0.9999, 0.98 ]) );
+% F2 = transfinite_scalar_interpolant_2D( G1 = 0.5, ...
+%                                         G2 = @(t) smooth_ramps(t,[ 0.00, 0.25,  0.75, 1.0 ], ...
+%                                                                  [ 0.50, 2.00, 1.00, 0.5 ]), ...
+%                                         G3 = 0.5, ...
+%                                         G4 = @(t) smooth_ramps(t,[ 0.00,  0.25, 0.75, 1.0 ], ...
+%                                                                  [ 0.50, 2.00, 1.00, 0.5 ]) );
+
+n_body_pts = 129;
+n_wake_pts = 129;
+jmax_in    = 129;
+F1 = transfinite_scalar_interpolant_2D( G1 = 1.0, ...
+                                        G2 = @(t) smooth_ramps(t,[ 0.0, 0.25,  1.000 ], ...
+                                                                 [ 1.0, 0.9999, 0.98 ]), ...
+                                        G3 = 0.98,...
+                                        G4 = @(t) smooth_ramps(t,[ 0.0,  0.25, 1.000 ], ...
+                                                                 [ 1.0, 0.9999, 0.98 ]) );
+F2 = transfinite_scalar_interpolant_2D( G1 = 0.5, ...
+                                        G2 = @(t) smooth_ramps(t,[ 0.00, 0.25,  0.75, 1.0 ], ...
+                                                                 [ 0.50, 4.00, 4.00, 0.5 ]), ...
+                                        G3 = 0.5, ...
+                                        G4 = @(t) smooth_ramps(t,[ 0.00,  0.25, 0.75, 1.0 ], ...
+                                                                 [ 0.50, 4.00, 4.00, 0.5 ]) );
+% n_body_pts = 257;
+% n_wake_pts = 257;
+% jmax_in    = 257;
+% F1 = transfinite_scalar_interpolant_2D( G1 = 1.0, ...
+%                                         G2 = @(t) smooth_ramps(t,[ 0.0, 0.25,  1.000 ], ...
+%                                                                  [ 1.0, 0.9999, 0.99 ]), ...
+%                                         G3 = 0.99,...
+%                                         G4 = @(t) smooth_ramps(t,[ 0.0,  0.25, 1.000 ], ...
+%                                                                  [ 1.0, 0.9999, 0.99 ]) );
+% F2 = transfinite_scalar_interpolant_2D( G1 = 0.5, ...
+%                                         G2 = @(t) smooth_ramps(t,[ 0.00, 0.25,  0.75, 1.0 ], ...
+%                                                                  [ 0.50, 4.00, 4.00, 0.5 ]), ...
+%                                         G3 = 0.5, ...
+%                                         G4 = @(t) smooth_ramps(t,[ 0.00,  0.25, 0.75, 1.0 ], ...
+%                                                                  [ 0.50, 4.00, 4.00, 0.5 ]) );
+
+imax = n_body_pts + 2*(n_wake_pts-1);
+scjmax = @(i,j) F1.eval((i-1)/(imax-1),(j-1)/(jmax_in-1));
+alpham = @(i,j) F2.eval((i-1)/(imax-1),(j-1)/(jmax_in-1));
+[OUT,airfoil] = generate_kt_airfoil_grid_07_21_2026(airfoil_inputs,n_body_pts,n_wake_pts,jmax_in,AR_LE,AR_TE,delta_LE,delta_TE,spline_order,alpham,scjmax);
+
+
+% [OUT,airfoil] = generate_kt_airfoil_grid(airfoil_inputs,n_body_pts,n_wake_pts,jmax_in,AR_LE,AR_TE,delta_LE,delta_TE,spline_order);
 
 folder = 'C:\Users\wajordan\Downloads\kt_for_transfer_AR_1_1_TE_10_d-01_ALPHA_5';
 out_folder = fullfile(folder,'\grids\');
 jobfmt = '_kt%0.4dx%0.4d';
-save(['OUT_STRUCT_',dstr],"OUT");
+% save(['OUT_STRUCT_',dstr],"OUT");
 
+skip1 = 2;
+skip2 = 2;
 hold on
-plot(OUT.base_grid.x,OUT.base_grid.y,'k')
-plot(OUT.base_grid.x.',OUT.base_grid.y.','k')
+plot(OUT.base_grid.x(1:2^skip2:end,1:2^skip1:end),OUT.base_grid.y(1:2^skip2:end,1:2^skip1:end),'k')
+plot(OUT.base_grid.x(1:2^skip2:end,1:2^skip1:end).',OUT.base_grid.y(1:2^skip2:end,1:2^skip1:end).','k')
 axis equal
+
+
+figure()
+plot_edge_length_ratio(OUT.base_grid.x(1:2^skip2:end,1:2^skip1:end),OUT.base_grid.y(1:2^skip2:end,1:2^skip1:end),1,'jet',1);
+xlim([-1,2])
+ylim([-1.5,1.5])
+
+plot_edge_length_ratio(OUT.base_grid.x(1:2^skip2:end,1:2^skip1:end),OUT.base_grid.y(1:2^skip2:end,1:2^skip1:end),2,'jet',1);
+xlim([-1,2])
+ylim([-1.5,1.5])
+
+% L1 = edge_length_ratio_2D(x2,y2,1);
+% L2 = edge_length_ratio_2D(x2,y2,2);
+
 
 imax = n_refine*(OUT.base_grid.imax-1)+1;
 jmax = n_refine*(OUT.base_grid.jmax-1)+1;
 % imax = 311;
 % jmax = 111;
 [GRID,i1,i2] = get_fine_grid(OUT,airfoil,imax,jmax);
-skip1 = levels(end) - 1;
-skip2 = max(0,skip1-2);
+
 % skip1 = 0;
 % skip2 = 0;
 hold on;
@@ -105,6 +174,22 @@ for j = 1:n_levels
     additional_inputs{5} = [];
     additional_inputs{6} = [];
     SENSEI_BC_write(N,idx_list,bc_id_list,additional_inputs,[filename,'.bc'])
+end
+
+function hfig = plot_edge_length_ratio(x,y,dir,cmap,linewidth)
+hfig = figure();
+set(gca,'Color','k');
+colormap(cmap);
+L = edge_length_ratio_2D(x,y,dir);
+x = padarray(x,[1,1],nan,'both');
+y = padarray(y,[1,1],nan,'both');
+L = padarray(L,[1,1],nan,'both');
+hold on;
+patch(x,y,L,'edgecolor','interp','Marker','.','LineWidth',linewidth);
+patch(x.',y.',L.','edgecolor','interp','LineWidth',linewidth);
+axis equal
+colorbar;
+hold off
 end
 
 function [GRID,i1,i2] = get_fine_grid(OUT,airfoil,imax,jmax)

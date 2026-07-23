@@ -69,20 +69,32 @@ if (jmax==1)
     return
 end
 
-
+[I,J] = ndgrid(1:imax,1:jmax);
 if isa(alpham,'function_handle')
-    [I,J] = ndgrid(1:imax,1:jmax);
     alpham = alpham(I,J);
 elseif isscalar(alpham)
     alpham = alpham*ones(imax,jmax);
 end
 
 if isa(scjmax,'function_handle')
-    [I,J] = ndgrid(1:imax,1:jmax);
     scjmax = scjmax(I,J);
 elseif isscalar(scjmax)
     scjmax = scjmax*ones(imax,jmax);
 end
+
+if isa(mu,'function_handle')
+    mu = mu(I,J);
+elseif isscalar(mu)
+    mu = mu*ones(imax,jmax);
+end
+
+if isa(muim,'function_handle')
+    muim = muim(I,J);
+elseif isscalar(muim)
+    muim = muim*ones(imax,jmax);
+end
+
+
 
 %% Set Up Initial Radial Spacing
 % See: Kinsey and Barth - pg 23
@@ -140,18 +152,6 @@ end
 % plot(x(:,1:n_extrude_layers).',y(:,1:n_extrude_layers).','k')
 % axis equal
 % xlim([0.9,1.1])
-
-if ( isscalar(mu) )
-    mu_ = mu*ones(imax,1);
-else
-    mu_ = mu;
-end
-if ( isscalar(muim) )
-    muim_ = muim*ones(imax,1);
-else
-    muim_ = muim;
-end
-
 
 %% March Grid
 for n = 1:n_radial_passes

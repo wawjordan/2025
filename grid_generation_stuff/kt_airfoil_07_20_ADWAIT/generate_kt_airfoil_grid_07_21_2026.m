@@ -1,4 +1,4 @@
-function [OUT,airfoil] = generate_kt_airfoil_grid_07_21_2026(airfoil_inputs,n_body_pts,n_wake_pts,jmax,AR_LE,AR_TE,delta_LE,delta_TE,spline_order,alpham,scjmax)
+function [OUT,airfoil] = generate_kt_airfoil_grid_07_21_2026(airfoil_inputs,n_body_pts,n_wake_pts,jmax,AR_LE,AR_TE,delta_LE,delta_TE,spline_order,alpham,scjmax,mu,muim)
 % number of points off body
 % number of points on the body
 % number of points in wake
@@ -9,7 +9,7 @@ function [OUT,airfoil] = generate_kt_airfoil_grid_07_21_2026(airfoil_inputs,n_bo
 
 OUT = struct();
 airfoil = local_airfoil_generator(airfoil_inputs);
-n_transition = 1;   % number of transition points for surface spacing blending
+n_transition = ceil(n_body_pts/10);   % number of transition points for surface spacing blending
 imax = n_body_pts + 2*(n_wake_pts-1);
 i1 = n_wake_pts;
 i2 = n_wake_pts+n_body_pts-1;
@@ -17,10 +17,10 @@ wake_multiplier = 1;
 boundary_distance = 500;
 mu                = 0.1;             % 4th order explicit smoothing factor
 muim              = 0.5;             % Implicit smoothing factor
-scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,1.0,1.0,0.999,1.0000],[0,1/3,15/32,17/32,2/3,1],...
-                                   [1.0000,1.0000,0.98],[0,0.1,1]);
-alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],...
-                                   [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
+% scjmax = bivariate_ramps(imax,jmax,[1.0000,0.999,1.0,1.0,0.999,1.0000],[0,1/3,15/32,17/32,2/3,1],...
+%                                    [1.0000,1.0000,0.98],[0,0.1,1]);
+% alpham = bivariate_ramps(imax,jmax,[1.0000,2.0000,2.0000,1.0000],[0,3/8,5/8,1],...
+%                                    [0.5000,1.0000,2.0000,0.5000],[0,1/8,3/8,1]);
 [x_airfoil,y_airfoil,theta,theta_fun,~,~,~,~,fy_wake] = get_airfoil_coordinates(airfoil,n_body_pts,n_transition,AR_LE,AR_TE,delta_LE,delta_TE,n_wake_pts,boundary_distance);
 [x,y] = hyperbolic_C_grid_local_v2( x_airfoil, y_airfoil,                 ...
                                       n_wake_pts, jmax, ...
