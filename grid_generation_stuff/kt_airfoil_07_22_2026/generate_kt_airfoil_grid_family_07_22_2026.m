@@ -11,7 +11,11 @@ clear parent_dir_str path_idx path_parts
 clc;
 
 
-folder = 'C:\Users\wajordan\Downloads\kt_for_transfer_AR_1_1_TE_10_d-01_ALPHA_5';
+% folder = 'C:\Users\wajordan\Downloads\kt_AR_1_1_d-1-8_ALPHA_00';
+% folder = 'C:\Users\wajordan\Downloads\kt_AR_1_1_d-1-8_ALPHA_05';
+% folder = 'C:\Users\wajordan\Downloads\kt_TE10_AR_1_1_d-1-8_ALPHA_00';
+folder = 'C:\Users\wajordan\Downloads\kt_k0-1_TE10_AR_1_1_d-1-8_ALPHA_00';
+prefix='KT_e0-1_k0-1_t10_a00_';
 out_folder = fullfile(folder,'\grids\');
 jobfmt = '_kt%0.4dx%0.4d';
 
@@ -19,8 +23,8 @@ levels = 1:6;
 n_levels = length(levels);
 airfoil_inputs = struct();
 airfoil_inputs.epsilon = 0.1;
-airfoil_inputs.kappa   = 0.0;
-airfoil_inputs.tau     = 0.0; % deg2rad(10.0);
+airfoil_inputs.kappa   = 0.1;
+airfoil_inputs.tau     = deg2rad(10.0);
 airfoil_inputs.vinf    = 75.0;
 airfoil_inputs.rhoinf  = 1.0;
 airfoil_inputs.pinf    = 100000.0;
@@ -83,7 +87,7 @@ i2   = fine_grid.i2;
 
 
 dstr = char(datetime('now',"Format",'uuuu-MM-dd''_''HH-mm-ss'));
-% save(['OUT_STRUCT_',dstr],"OUT");
+save([prefix,'OUT_STRUCT_',dstr],"OUT");
 
 skip1 = 2;
 
@@ -94,7 +98,7 @@ plot( OUT.base_grid.x(1:2^skip1:end,1:2^skip1:end).',...
       OUT.base_grid.y(1:2^skip1:end,1:2^skip1:end).','k')
 axis equal
 
-skip2 = 8;
+skip2 = 3;
 hold on;
 plot( GRID.x(1:2^skip2:end,1:2^skip2:end), ...
       GRID.y(1:2^skip2:end,1:2^skip2:end),'r');
