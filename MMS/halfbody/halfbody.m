@@ -4,6 +4,8 @@ classdef halfbody
         sigx2pi(1,1)   double  = 0.0
         xstag(1,1)     double  = 0.0
         ymax(1,1)      double  = 0.0
+        theta_cp0(1,1) double = 1.97603146838258 % 0 = tan(t) - 2*(t-pi)
+        theta_cpmin(1,1) double = 1.09880571085138 % 0 = 1 + (2*(pi-t)^2-1)*cos(2*t) + 2*(pi-t)*sin(2*t)
         rhoinf(1,1)    double  = 1.0
         vinf(1,1)      double  = 1.0
         pinf(1,1)      double  = 1.0
@@ -24,39 +26,112 @@ classdef halfbody
             this.ymax  = this.sigx2pi*pi/this.vinf;
         end
         function y = y_from_theta(this,theta)
-            % theta = wrapTo2Pi(theta);
             y = (this.sigx2pi/this.vinf)*(pi-theta) * this.l;
         end
         function r = r_from_theta(this,theta)
-            % theta = wrapTo2Pi(theta);
+            r = this.l*(this.sigx2pi/this.vinf)*(pi-theta)./sin(theta);
+        end
+        function r = r_from_theta_safe(this,theta)
             tol = 1e-5;
             r0 = -this.xstag;
-            r1 = this.y_from_theta(pi-tol)./sin(pi-tol);
-
+            r1 = this.r_from_theta(pi-tol);
             theta(theta>pi) = 2*pi-theta(theta>pi);
             r = r0*ones(size(theta));
             mask = abs(pi-theta)>tol;
-            
-            r(mask) = this.y_from_theta(theta(mask))./sin(theta(mask));
+            r(mask) = this.r_from_theta(theta(mask));
             r(~mask) = r0 + (r1-r0)*(pi-theta(~mask))/tol;
         end
+        function drdtheta = diff_r_from_theta(this,theta)
+            c = this.l*(this.sigx2pi/this.vinf);
+            drdtheta = -c * ( (pi-theta).*cos(theta) + sin(theta) )./(sin(theta).^2);
+        end
+        function drdtheta = diff_r_from_theta_safe(this,theta)
+            tol = 1e-5;
+            r0 = -this.xstag;
+            r1 = this.r_from_theta(pi-tol);
+            theta(theta>pi) = 2*pi-theta(theta>pi);
+            drdtheta = zeros(size(theta));
+            mask = abs(pi-theta)>tol;
+            drdtheta(mask) = this.diff_r_from_theta(theta(mask));
+            drdtheta(~mask) = -(r1-r0)/tol;
+        end
+        function ds = diff_arc_length(this,theta)
+            r = this.r_from_theta_safe(theta);
+            drdtheta = this.diff_r_from_theta_safe(theta);
+            ds = sqrt( r.^2 + drdtheta.^2 );
+        end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function S = arc_length(this,t0,t1)
+            S = integral(@(t)this.diff_arc_length(t),t0,t1,"AbsTol",1e-15,'RelTol',1e-14);
+        end
+        function ts = arc_length_param(this,t,F)
+            options = optimset('TolFun',1e-15,'TolX',1e-17);
+            N = numel(t);
+            L_total = this.arc_length(t(1),t(N));
+            dL = ( t(N) - t(1) ) / L_total;
+            ts = zeros(N,1);
+            ts(1) = t(1);
+            ts(N) = t(N);
+            for i = 2:N-1
+                ftmp = @(tsi) F(t(i))-F(t(i-1)) - dL * this.arc_length(ts(i-1),tsi);
+                ts(i) = fzero( @(tsi)ftmp(tsi),ts(i-1),options);
+            end
+        end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         function x = x_from_theta(this,theta)
-            x = this.r_from_theta(theta).*cos(theta);
+            x = this.r_from_theta_safe(theta).*cos(theta);
         end
         function [theta] = theta_from_x(this,x)
             theta_0 = asin(this.ymax/x);
             theta = fzero(@(theta)this.x_from_theta(theta)-x,theta_0);
         end
         function [x,y] = surface_coords(this,theta)
-            r = this.r_from_theta(theta);
+            r = this.r_from_theta_safe(theta);
             x = r.*cos(theta);
             y = r.*sin(theta);
+        end
+        function [n1,n2] = unit_normal(this,theta)
+            nr =  this.r_from_theta_safe(theta);
+            nt = -this.diff_r_from_theta_safe(theta);
+            nt(theta>pi) = -nt(theta>pi);
+            n1 = cos(theta).*nr - sin(theta).*nt;
+            n2 = sin(theta).*nr + cos(theta).*nt;
+            mag = sqrt(n1.^2+n2.^2);
+            n1 = n1./mag;
+            n2 = n2./mag;
+        end
+        function [Fx,Fy] = forces(this,t0,t1)
+            Fx = this.surface_integral(@(theta)px_force(this,theta),t0,t1);
+            Fy = this.surface_integral(@(theta)py_force(this,theta),t0,t1);
+            function px = px_force(this,theta)
+                [px,~] = this.pressure_force(theta);
+            end
+            function py = py_force(this,theta)
+                [~,py] = this.pressure_force(theta);
+            end
+        end
+        function val = surface_integral(this,fun,t0,t1)
+            val = integral(@(theta)fun(theta) ...
+                           .*this.diff_arc_length(theta),...
+                           t0,t1,"AbsTol",1e-14,'RelTol',1e-12);
+        end
+        function [pnx,pny] = pressure_force(this,theta)
+            [nx,ny] = this.unit_normal(theta);
+            p = (this.pinf-this.surface_pressure(theta));
+            pnx = p.*nx;
+            pny = p.*ny;
         end
 %% Plot
         function [h1] = plot_halfbody(this,theta_min,varargin)
             h1 = fplot( @(theta)this.x_from_theta(theta), ...
                         @(theta)this.y_from_theta(theta), ...
                         [theta_min,2*pi-theta_min], varargin{:} );
+            set(gca,'DataAspectRatio',[1 1 1])
+        end
+        function [h1] = plot_halfbody_normals(this,theta,varargin)
+            [n1,n2] = this.unit_normal(theta);
+            [x,y]   = this.surface_coords(theta);
+            h1 = quiver(x,y,n1,n2,varargin{:});
             set(gca,'DataAspectRatio',[1 1 1])
         end
         function u = x_velocity(this,x,y)
@@ -70,27 +145,57 @@ classdef halfbody
             v = this.y_velocity(x,y);
             p  = this.pinf + (1/2)*this.rhoinf*( this.vinf^2 - (u.^2 + v.^2) );
         end
+        function p = surface_pressure(this,theta)
+            r = this.r_from_theta_safe(theta);
+            u =  this.vinf + this.sigx2pi*cos(theta)./r;
+            v = -this.sigx2pi*sin(theta)./r;
+            p  = this.pinf + (1/2)*this.rhoinf*( this.vinf^2 - (u.^2 + v.^2) );
+        end
         function rho = density(this,x,~)
             rho = this.rhoinf*ones(size(x));
         end
-        function GRID = extruded_grid(this,n_theta,n_r,boundary_distance,mu,AR)
-            % estimate theta_min
-            % theta_min1 = asin(this.ymax/boundary_distance);
+        function GRID = extruded_grid1(this,n_theta,n_r,boundary_distance,mu,AR)
             theta_min = this.theta_from_x(boundary_distance);
-
             theta_max = 2*pi-theta_min;
             GRID = struct();
             GRID.imax = n_theta;
             GRID.jmax = n_r;
             GRID.x = zeros(n_theta,n_r);
             GRID.y = zeros(n_theta,n_r);
-            % theta = linspace(theta_min,theta_max,n_theta);
             f = @(t) t;
             [theta,~,~] = halfbody.reparam_curve_xy(@(theta)this.surface_coords(theta),f,n_theta,theta_min,theta_max,mu);
             % generate surface points
             [GRID.x(:,1),GRID.y(:,1)] = this.surface_coords(theta);
             [~,~,h] = halfbody.extrude_surface_pts(GRID.x(:,1),GRID.y(:,1));
             h = h/AR;
+            [~,alpha,~] = halfbody.geomspace( n_r, abs(this.xstag), boundary_distance, h );
+            for j = 2:n_r
+                h = alpha*h;
+                [GRID.x(:,j),GRID.y(:,j)] = halfbody.extrude_surface_pts(GRID.x(:,j-1),GRID.y(:,j-1),h);
+            end
+        end
+        function GRID = extruded_grid2(this,n_theta,n_r,stag_spacing,boundary_distance,AR)
+            theta_min = this.theta_from_x(boundary_distance);
+            theta_max = 2*pi-theta_min;
+            GRID = struct();
+            GRID.imax = n_theta;
+            GRID.jmax = n_r;
+            GRID.x = zeros(n_theta,n_r);
+            GRID.y = zeros(n_theta,n_r);
+            % f = @(t) t;
+            L = this.arc_length(theta_min,theta_max);
+            h = stag_spacing/AR;
+            d0  = stag_spacing/L;
+            off = 0.05;%10*d0;
+            f  = hermite_blend_2_vinokur_one_sided(n_theta,d0,off,true);
+            f = @(theta) theta_min + (theta_max-theta_min)*f((theta-theta_min)/(theta_max-theta_min));
+            N2 = (n_theta-1)/2+1;
+            theta0 = linspace(theta_min,pi,N2);
+            theta = zeros(n_theta,1);
+            theta(1:N2) = this.arc_length_param(theta0,f);
+            theta(N2+1:end) = 2*pi-theta(N2-1:-1:1);
+            % generate surface points
+            [GRID.x(:,1),GRID.y(:,1)] = this.surface_coords(theta);
             [~,alpha,~] = halfbody.geomspace( n_r, abs(this.xstag), boundary_distance, h );
             for j = 2:n_r
                 h = alpha*h;
