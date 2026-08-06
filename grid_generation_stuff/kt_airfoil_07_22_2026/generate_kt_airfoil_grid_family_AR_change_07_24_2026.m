@@ -18,10 +18,10 @@ fine_grid_file = 'C:\Users\wajordan\Downloads\kt_AR_1_1_d-1-8_ALPHA_05\grids\_kt
 
 fine_grid = read_grd_file_to_struct(fine_grid_file);
 
-skip1 = 2;
+skip1 = 4;
 skip2 = 1;
 
-out_folder = fullfile(folder,'\grids_AR_1_2\');
+out_folder = fullfile(folder,'\grids_AR_1_4\');
 jobfmt = '_kt%0.4dx%0.4d';
 
 levels = 1:6;
