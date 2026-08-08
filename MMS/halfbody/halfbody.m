@@ -45,6 +45,26 @@ classdef halfbody
             c = this.l*(this.sigx2pi/this.vinf);
             drdtheta = -c * ( (pi-theta).*cos(theta) + sin(theta) )./(sin(theta).^2);
         end
+        function d2rdtheta2 = diff2_r_from_theta(this,theta)
+            c = this.l*(this.sigx2pi/this.vinf);
+            ct = cos(theta);
+            st = sin(theta);
+            d2rdtheta2 = 2*c*ct./st.^2 - c*(theta-pi)./st - 2*c*ct.^2.*(theta-pi)./st.^3;
+        end
+        function d2rdtheta2 = diff2_r_from_theta_safe(this,theta)
+            tol = 1e-5;
+            theta(theta>pi) = 2*pi-theta(theta>pi);
+            d2rdtheta2 = zeros(size(theta));
+            mask = abs(pi-theta)>tol;
+            d2rdtheta2(mask) = this.diff2_r_from_theta(theta(mask));
+            d2rdtheta2(~mask) = 0;
+        end
+        function rho = curvature(this,theta)
+            r   = this.r_from_theta_safe(theta);
+            dr  = this.diff_r_from_theta_safe(theta);
+            ddr = this.diff2_r_from_theta_safe(theta);
+            rho = abs( r.^2 + 2*dr.^2 - r.*ddr )./(r.^2 + dr.^2).^(3/2);
+        end
         function drdtheta = diff_r_from_theta_safe(this,theta)
             tol = 1e-5;
             r0 = -this.xstag;
