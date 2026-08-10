@@ -53,16 +53,18 @@ end
 nout = max(nargout,1) - 1;
 varargout = cell(nout);
 if (all(mask([3,4,5,6])))
-    [x,s{1},s{2},s{3}] = geomspace_1( (N-1)/Nrefine+1, xmin, xmax, r );
+    [~,s{1},s{2},s{3}] = geomspace_1( (N-1)/Nrefine+1, xmin, xmax, r );
 elseif (all(mask([1,3,4,6])))
-    [x,s{1},s{2},s{3}] = geomspace_2( (N-1)/Nrefine+1, xmin, dx0, r );
+    [~,s{1},s{2},s{3}] = geomspace_2( (N-1)/Nrefine+1, xmin, dx0, r );
 elseif (all(mask([1,2,3,6])))
-    [x,s{1},s{2},s{3}] = geomspace_3( (N-1)/Nrefine+1, xmin, dx0, dx1 );
+    [~,s{1},s{2},s{3}] = geomspace_3( (N-1)/Nrefine+1, xmin, dx0, dx1 );
 elseif (all(mask([1,3,5,6])))
-    [x,s{1},s{2},s{3}] = geomspace_4( (N-1)/Nrefine+1, xmin, xmax, dx0 );
+    [~,s{1},s{2},s{3}] = geomspace_4( (N-1)/Nrefine+1, xmin, xmax, dx0 );
 else
     error('invalid combination of input arguments')
 end
+
+x = s{3}(linspace(0,1,N));
 
 for k = 1:nout
     varargout{k} = s{k};
