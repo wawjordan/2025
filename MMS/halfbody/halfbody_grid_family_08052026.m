@@ -10,8 +10,8 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 
-folder = 'C:\Users\Will\Downloads\halfbody_test_AR_1';
-% folder = 'C:\Users\wajordan\Downloads\halfbody_test';
+% folder = 'C:\Users\Will\Downloads\halfbody_test_AR_1';
+folder = 'C:\Users\wajordan\Downloads\halfbody_test_AR_4_skip';
 prefix='hb';
 out_folder = fullfile(folder,'\grids\');
 jobfmt  = ['_',prefix,'%0.4dx%0.4d'];
@@ -37,12 +37,17 @@ jmax              = 2049;
 % imax              = 257;
 % jmax              = 129;
 
-GRID = body.extruded_grid2( imax, jmax, stag_spacing, boundary_distance, AR );
+skip1 = 4;
+skip2 = 1;
 
-skip1 = levels(end)-1;
-skip2 = levels(end)-1;
-x = GRID.x(1:2^skip1:end,1:2^skip2:end);
-y = GRID.y(1:2^skip1:end,1:2^skip2:end);
+GRID = body.extruded_grid2( imax, jmax, stag_spacing, boundary_distance, AR );
+Nfine = [GRID.imax,GRID.jmax];
+GRID = grid_subset_2D(GRID,{1:skip1:Nfine(1),1:skip2:Nfine(2)});
+
+s1 = levels(end)-1;
+s2 = levels(end)-1;
+x = GRID.x(1:2^s1:end-30,1:2^s2:end);
+y = GRID.y(1:2^s1:end-30,1:2^s2:end);
 hold on;
 plot( x,   y,  'k');
 plot( x.', y.','k');
