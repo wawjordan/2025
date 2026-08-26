@@ -32,7 +32,9 @@ x = [0,1,0,1,0,1,0,1].'-0.5;
 y = [0,0,1,1,0,0,1,1].'-0.5;
 z = [0,0,0,0,1,1,1,1].'-0.5;
 r1 = vector2vector(rand(3,1),rand(3,1));
-pts = r1*[x.';y.';z.'];
+% pts = r1*[x.';y.';z.'];
+pts = r1*[100*x.';2*y.';z.'];
+pts = pts + 0.5*rand(size(pts));
 x = pts(1,:).';
 y = pts(2,:).';
 z = pts(3,:).';
@@ -53,11 +55,16 @@ R3_ = get_rotation_matrix_vv(M,3);
 hold on
 plot3(pts(1,:),pts(2,:),pts(3,:),'k')
 plot3(pts(1,1),pts(2,1),pts(3,1),'ko')
-pts2 = R1.'*pts;
+% pts2 = R1.'*pts;
+% plot3(pts2(1,:),pts2(2,:),pts2(3,:),'r')
+% plot3(pts2(1,1),pts2(2,1),pts2(3,1),'ro')
+
+pts2 = M\pts;
 plot3(pts2(1,:),pts2(2,:),pts2(3,:),'r')
 plot3(pts2(1,1),pts2(2,1),pts2(3,1),'ro')
 
-pts3 = R1_.'*pts;
+% pts3 = R1_.'*pts;
+pts3 = R1.'*pts;
 plot3(pts3(1,1),pts3(2,1),pts3(3,1),'go')
 plot3(pts3(1,:),pts3(2,:),pts3(3,:),'g')
 axis equal
