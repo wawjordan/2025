@@ -11,11 +11,12 @@ clear parent_dir_str path_idx path_parts
 clc;
 n_dim  = 2;
 N      = 9;
-r      = 4;
+r      = 1;
+o      = 2;
 Ng     = r*(N-1)+1;
-n_quad = ceil( 0.5*(r + 1) );
+n_quad = ceil( 0.5*(o + 1) );
 % Ns     = 2;
-Ns     = ceil(1.5*nchoosek(n_dim+r,r));
+Ns     = ceil(1.5*nchoosek(n_dim+o,o));
 balanced = true;
 
 [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.0/(N-1));
@@ -32,6 +33,18 @@ blk = 1;
 idx = [6,6,1];
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
+
+[n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(2,n_quad,GRID,S);
+
+M = computational_transform_matrix(xi_vec,o);
+
+coefs = M\x_vec.';
+
+x_vals = eval_poly(coefs(:,1),xi_vec,o);
+y_vals = eval_poly(coefs(:,2),xi_vec,o);
+
+
+
 N_stencil = S.N;
 
 tiledlayout(1,2)
@@ -56,19 +69,12 @@ hold off;
 
 nexttile
 hold on
-[M1,M2,M3] = get_cell_jacobian(FGRID,GRID,blk,idx);
-M = M2;
+A = get_cell_jacobian(FGRID,GRID,blk,idx);
 N_stencil = S.N;
 for i = 2:N_stencil
-    plot_mapped_stencil_points_2D(M,FGRID,GRID,S,blk,idx,i,'r-');
+    plot_mapped_stencil_points_2D(A,FGRID,GRID,S,blk,idx,i,'r-');
 end
-plot_mapped_stencil_points_2D(M,FGRID,GRID,S,blk,idx,1,'b.-')
-
-% M = M3;
-% for i = 2:N_stencil
-%     plot_mapped_stencil_points_2D(M,FGRID,GRID,S,blk,idx,i,'b:');
-% end
-% plot_mapped_stencil_points_2D(M,FGRID,GRID,S,blk,idx,1,'b.-')
+plot_mapped_stencil_points_2D(A,FGRID,GRID,S,blk,idx,1,'b.-')
 
 axis equal
 hold off;
@@ -101,6 +107,44 @@ function stencil = make_stencil(GRID,blk,idx,n_stencil,balanced)
     stencil.N   = n_stencil;
 end
 
+function [n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(n_dim,n_quad,GRID,S)
+switch n_dim
+    case(1)
+        quad_ref = quad_t.create_quad_ref_1D(n_quad);
+    case(2)
+        quad_ref = quad_t.create_quad_ref_2D(n_quad);
+    case(3)
+        quad_ref = quad_t.create_quad_ref_3D(n_quad);
+    otherwise
+        error('dim must be 1-3')
+end
+n_nodes = quad_ref.n_quad * S.N;
+
+
+if ( nargout > 1)
+    xi_vec = zeros(n_dim,n_nodes);
+    cnt = 0;
+    for i = 1:S.N
+        off = 2.*(S.idx(:,i)-S.idx(:,1));
+        for q = 1:quad_ref.n_quad
+            cnt = cnt + 1;
+            xi_vec(1:n_dim,cnt) = off(1:n_dim) + quad_ref.quad_pts(1:n_dim,q);
+        end
+    end
+end
+
+if ( nargout > 2 )
+    x_vec = zeros(n_dim,n_nodes);
+    cnt = 0;
+    for i = 1:S.N
+        for q = 1:quad_ref.n_quad
+            cnt = cnt + 1;
+            x_vec(1:n_dim,cnt) = GRID.gblock(S.blk(i)).grid_vars.quad(S.idx(1,i),S.idx(2,i),S.idx(3,i)).quad_pts(1:n_dim,q);
+        end
+    end
+end
+end
+
 function plot_grid_2D_local(GRID,varargin)
 for blk = 1:GRID.nblocks
     plot(GRID.gblock(blk).x(:,:,1),GRID.gblock(blk).y(:,:,1),varargin{:});
@@ -124,7 +168,27 @@ end
 % 
 % end
 
-function [M1,M2,M3] = get_cell_jacobian(FGRID,GRID,blk,idx)
+% function [M1,M2,M3] = get_cell_jacobian(FGRID,GRID,blk,idx)
+% n_skip = GRID.nskip;
+% cell_idx = (idx-1).*n_skip+1;
+% [xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
+% xq = GRID.gblock(blk).grid_vars.cell_c(:,idx(1),idx(2),idx(3));
+% xtmp = xtmp - xq(1);
+% ytmp = ytmp - xq(2);
+% ztmp = ztmp - xq(3);
+% L = lagrange_interpolant(size(xtmp,1));
+% 
+% M1 = L.metrics(xtmp,ytmp,ztmp,[0;0;0]);
+% [M2,~] = L.base_vectors(xtmp,ytmp,ztmp,[0;0;0]);
+% M2 = 2*M2;
+% [xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(GRID.gblock(blk),idx,[1,1,1]);
+% xtmp = xtmp - xq(1);
+% ytmp = ytmp - xq(2);
+% ztmp = ztmp - xq(3);
+% M3 = hex_jacobian(xtmp(:),ytmp(:),ztmp(:),0.5,0.5,0.5);
+% % M2 = L.base_vectors(xtmp,ytmp,ztmp,xq);
+% end
+function M = get_cell_jacobian(FGRID,GRID,blk,idx)
 n_skip = GRID.nskip;
 cell_idx = (idx-1).*n_skip+1;
 [xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
@@ -133,16 +197,8 @@ xtmp = xtmp - xq(1);
 ytmp = ytmp - xq(2);
 ztmp = ztmp - xq(3);
 L = lagrange_interpolant(size(xtmp,1));
-
-M1 = L.metrics(xtmp,ytmp,ztmp,[0;0;0]);
-[M2,~] = L.base_vectors(xtmp,ytmp,ztmp,[0;0;0]);
-M2 = 2*M2;
-[xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(GRID.gblock(blk),idx,[1,1,1]);
-xtmp = xtmp - xq(1);
-ytmp = ytmp - xq(2);
-ztmp = ztmp - xq(3);
-M3 = hex_jacobian(xtmp(:),ytmp(:),ztmp(:),0.5,0.5,0.5);
-% M2 = L.base_vectors(xtmp,ytmp,ztmp,xq);
+[~,M] = L.base_vectors(xtmp,ytmp,ztmp,[0;0;0]);
+M = M.'/2;
 end
 
 function plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,i,npts,varargin)
@@ -183,7 +239,7 @@ xq = GRID.gblock(blk).grid_vars.cell_c(:,idx(1),idx(2),idx(3));
 xtmp = xtmp(:,:,1) - xq(1);
 ytmp = ytmp(:,:,1) - xq(2);
 ztmp = ztmp(:,:,1) - xq(3);
-pts = M\[xtmp(:).';ytmp(:).';ztmp(:).'];
+pts = M*[xtmp(:).';ytmp(:).';ztmp(:).'];
 X = reshape(pts(1,:),size(xtmp));
 Y = reshape(pts(2,:),size(ytmp));
 % z = reshape(pts(3,:),size(ztmp));
@@ -359,3 +415,105 @@ function z = zFunc3D(xi,eta,zeta)
 z = -0.03*sin(  2    *pi .* xi .* eta ) ...
   -  0.10*xi + 0.05*eta + 1.00*zeta;
 end
+
+function vals = eval_poly(coefs,nodevec,degree)
+n_dim = size(nodevec,1);
+n_nodes = size(nodevec,2);
+[exponents,~,~] = get_exponents( n_dim, degree );
+n_terms = size(exponents,2);
+b = ones(n_terms,1);
+vals = zeros(n_nodes,1);
+for i = 1:n_nodes
+    for j = 1:n_terms
+        b(j) = evaluate_monomial( n_dim, exponents,j,nodevec(:,i));
+    end
+    vals(i) = dot(coefs,b);
+end
+end
+
+
+function M = computational_transform_matrix(nodevec,degree)
+n_dim = size(nodevec,1);
+n_nodes = size(nodevec,2);
+[exponents,~,~] = get_exponents( n_dim, degree );
+n_terms = size(exponents,2);
+M = ones(n_nodes,n_terms);
+for j = 1:n_terms
+    for i = 1:n_nodes
+        M(i,j) = evaluate_monomial( n_dim, exponents,j,nodevec(:,i));
+    end
+end
+end
+
+function [val,coef] = evaluate_monomial( n_dim, exponents, term, x )
+val = 1.0;
+coef = 1;
+for d = 1:n_dim
+    for i = exponents(d,term):-1:1
+        val = val*x(d);
+        coef = coef * i;
+    end
+end
+end
+
+function [exponents,idx,diff_idx] = get_exponents( n_dim, degree )
+n_terms   = nchoosek( n_dim + degree, degree );
+exponents = zeros(n_dim,n_terms);
+idx       = zeros(degree+1,1);
+diff_idx  = zeros(n_dim,n_terms);
+cnt = 0;
+for curr_total_degree = 0:degree
+    nsub(1:n_dim) = curr_total_degree + 1;
+    N_full_terms = (curr_total_degree+1)^n_dim;
+    for j = 0:N_full_terms
+        tmp_exp = global2local(j+1,nsub)-1;
+        if ( sum(tmp_exp) == curr_total_degree )
+            cnt = cnt + 1;
+            exponents(:,cnt) = tmp_exp;
+        end
+    end
+    idx(curr_total_degree+1) = cnt;
+end
+diff_idx(1:n_dim,1:n_terms) = -1;
+if ( degree == 0 ); return; end
+for j = 1:idx(degree)
+    tmp_exp = exponents(:,j);
+    curr_total_degree = sum(tmp_exp);
+    cnt = 0;
+    for i = idx(curr_total_degree+1)+1:idx(curr_total_degree+2)
+        if ( sum( abs(exponents(:,i) - tmp_exp) ) == 1 )
+            cnt = cnt +1;
+            diff_idx(cnt,j) = i;
+        end
+    end
+end
+end
+
+function iSub = global2local(iG,nSub)
+nDims = numel(nSub);
+iSub = zeros(1,nDims);
+if (nDims==1)
+    iSub(1) = iG;
+    return
+end
+p = prod(nSub);
+iGtmp = iG;
+for i = nDims:-1:1
+    p = fix( p/nSub(i) );
+    iTmp = mod(iGtmp-1,p)+1;
+    iSub(i) = fix( (iGtmp-iTmp)/p ) + 1;
+    iGtmp = iTmp;
+end
+end
+
+% function iG = local2global(iSub,nSub)
+% iSub = iSub(:);
+% nSub = nSub(:);
+% nDims = numel(iSub);
+% p = 1;
+% iG = 1;
+% for i = 1:nDims
+%     iG = iG + ( iSub(i) - 1 )*p;
+%     p = p*nSub(i);
+% end
+% end
