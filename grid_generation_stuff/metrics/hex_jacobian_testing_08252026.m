@@ -219,6 +219,18 @@ R(3,2) = -sp*sb;
 R(1,3) = -st*sb -ct*cp*cb;
 R(2,3) = ct*sb - st*cp*cb;
 R(3,3) = sp*cb;
+
+% function val = vmag(v)
+% val = sqrt( sum(v.^2) );
+% end
+% 
+% function l = get_jac_length(M,dir)
+% l = vmag(M(:,dir));
+% end
+% 
+% function vec = get_jac_unit_vec(M,dir)
+% vec = M(:,dir)/get_jac_length(M,dir);
+% end
 end
 
 function R = get_rotation_matrix_vv(M,dir)

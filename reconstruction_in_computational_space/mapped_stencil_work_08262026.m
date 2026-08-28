@@ -12,15 +12,15 @@ clc;
 n_dim  = 2;
 N      = 9;
 r      = 1;
-o      = 2;
+o      = 4;
 Ng     = r*(N-1)+1;
 n_quad = ceil( 0.5*(o + 1) );
 % Ns     = 2;
 Ns     = ceil(1.5*nchoosek(n_dim+o,o));
 balanced = true;
 
-[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.0/(N-1));
-[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.0/(N-1));
+[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.1/(N-1));
+[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=2/(N-1));
 x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
 x2_map = @(x1,x2,n) x1 + (x2-x1)*fh2(linspace(0,1,n));
 
@@ -30,18 +30,26 @@ FGRID = grid_type(GRID); % fine grid
 GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
 
 blk = 1;
-idx = [6,6,1];
+idx = [5,5,1];
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
 
-[n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(2,n_quad,GRID,S);
+% [n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(2,n_quad,GRID,S);
+[n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S);
 
-M = computational_transform_matrix(xi_vec,o);
+[Aco,Acon] = get_cell_jacobian(FGRID,GRID,blk,idx);
 
-coefs = M\x_vec.';
+R = get_rotation_matrix(Aco);
 
-x_vals = eval_poly(coefs(:,1),xi_vec,o);
-y_vals = eval_poly(coefs(:,2),xi_vec,o);
+msk = false(n_nodes,1); msk(1:5) = true;
+[x_eval,x_coefs]   = fit_xi_to_x_map(2,Acon,xi_vec,x_vec,o,msk);
+
+[xi_eval1,~,c1] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,o,msk);
+[xi_eval2,~,c2] = fit_x_to_xi_map(2,R,xi_vec,x_vec,o,msk);
+% [xi_eval3,~,c3] = fit_x_to_xi_map(2,Acon,xi_vec,x_vec,o,msk);
+
+
+[xi_eval3,~,c4] = fit_x_to_xi_map(2,Acon,xi_vec,x_vec,o,msk);
 
 
 
@@ -51,8 +59,17 @@ tiledlayout(1,2)
 
 nexttile
 hold on
+plot(xi_eval1(1,:),xi_eval1(2,:),'b.')
+plot(xi_eval2(1,:),xi_eval2(2,:),'g.')
+plot(xi_eval3(1,:),xi_eval3(2,:),'k.')
+plot(xi_vec(1,:),xi_vec(2,:),'r.')
+
 plot_grid_2D_local(GRID,'k')
 plot_grid_2D_local(FGRID,'k:')
+
+plot(x_eval(1,:),x_eval(2,:),'b.')
+plot(x_vec(1,:),x_vec(2,:),'r.')
+
 for i = 2:N_stencil
     % plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,i,r+1,'r-')
     plot_unmapped_stencil_points_2D(FGRID,GRID,S,blk,i,'r-')
@@ -69,12 +86,15 @@ hold off;
 
 nexttile
 hold on
-A = get_cell_jacobian(FGRID,GRID,blk,idx);
 N_stencil = S.N;
+
+MM = Acon;
+% MM = R;
+
 for i = 2:N_stencil
-    plot_mapped_stencil_points_2D(A,FGRID,GRID,S,blk,idx,i,'r-');
+    plot_mapped_stencil_points_2D(MM,FGRID,GRID,S,blk,idx,i,'r-');
 end
-plot_mapped_stencil_points_2D(A,FGRID,GRID,S,blk,idx,1,'b.-')
+plot_mapped_stencil_points_2D(MM,FGRID,GRID,S,blk,idx,1,'b.-')
 
 axis equal
 hold off;
@@ -106,6 +126,26 @@ function stencil = make_stencil(GRID,blk,idx,n_stencil,balanced)
     stencil.idx = stencil_idx(2:4,:);
     stencil.N   = n_stencil;
 end
+
+function [n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S)
+n_nodes = S.N;
+
+if ( nargout > 1)
+    xi_vec = zeros(n_dim,n_nodes);
+    for i = 1:S.N
+        off = 2.*(S.idx(:,i)-S.idx(:,1));
+        xi_vec(1:n_dim,i) = off(1:n_dim);
+    end
+end
+
+if ( nargout > 2 )
+    x_vec = zeros(n_dim,n_nodes);
+    for i = 1:S.N
+        x_vec(1:n_dim,i) = GRID.gblock(S.blk(i)).grid_vars.cell_c(1:n_dim,S.idx(1,i),S.idx(2,i),S.idx(3,i));
+    end
+end
+end
+
 
 function [n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(n_dim,n_quad,GRID,S)
 switch n_dim
@@ -188,7 +228,7 @@ end
 % M3 = hex_jacobian(xtmp(:),ytmp(:),ztmp(:),0.5,0.5,0.5);
 % % M2 = L.base_vectors(xtmp,ytmp,ztmp,xq);
 % end
-function M = get_cell_jacobian(FGRID,GRID,blk,idx)
+function [Mco,Mcon] = get_cell_jacobian(FGRID,GRID,blk,idx)
 n_skip = GRID.nskip;
 cell_idx = (idx-1).*n_skip+1;
 [xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
@@ -197,8 +237,9 @@ xtmp = xtmp - xq(1);
 ytmp = ytmp - xq(2);
 ztmp = ztmp - xq(3);
 L = lagrange_interpolant(size(xtmp,1));
-[~,M] = L.base_vectors(xtmp,ytmp,ztmp,[0;0;0]);
-M = M.'/2;
+[Mco,Mcon] = L.base_vectors(xtmp,ytmp,ztmp,[0;0;0]);
+Mco  = Mco/2;
+Mcon = Mcon.'/2;
 end
 
 function plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,i,npts,varargin)
@@ -431,6 +472,47 @@ for i = 1:n_nodes
 end
 end
 
+function [x_eval,coefs] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,o,msk)
+x0 = x_vec(1:dim,1);
+A = A(1:dim,1:dim);
+xi_vec = xi_vec(1:dim,:);
+x_vec = x_vec(1:dim,:) - x0;
+
+M = computational_transform_matrix(xi_vec,o);
+% coefs = M\x_vec.';
+x_vec2 = A*x_vec;
+n_nodes = size(M,1);
+n_terms = size(M,2);
+x_eval_tmp = zeros(dim,n_nodes);
+coefs  = zeros(n_terms,dim);
+for d = 1:dim
+    coefs(:,d) = lsqcon_local(M(~msk,:),x_vec2(d,~msk),M(msk,:),x_vec2(d,msk));
+    x_eval_tmp(d,:) = eval_poly(coefs(:,d),xi_vec,o);
+end
+x_eval = A\x_eval_tmp + x0;
+end
+
+function [xi_eval,coefs,condM] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,o,msk)
+A = A(1:dim,1:dim);
+xi_vec = xi_vec(1:dim,:);
+x0 = x_vec(1:dim,1);
+
+x_vec = x_vec(1:dim,:) - x0;
+x_vec2 = A*x_vec;
+
+M = computational_transform_matrix(x_vec2,o);
+condM = cond(M);
+% coefs = M\xi_vec.';
+
+n_nodes = size(M,1);
+n_terms = size(M,2);
+xi_eval = zeros(dim,n_nodes);
+coefs  = zeros(n_terms,dim);
+for d = 1:dim
+    coefs(:,d) = lsqcon_local(M(~msk,:),xi_vec(d,~msk),M(msk,:),xi_vec(d,msk));
+    xi_eval(d,:) = eval_poly(coefs(:,d),x_vec2,o);
+end
+end
 
 function M = computational_transform_matrix(nodevec,degree)
 n_dim = size(nodevec,1);
@@ -517,3 +599,70 @@ end
 %     p = p*nSub(i);
 % end
 % end
+
+function x = lsqcon_local(A, b, B, d)
+% compute the QR factorization APb=Q[R,f;0,g]
+[Q,R,P] = qr(A);
+
+% n1 = size(A,2);
+f = Q \ b(:);
+
+% solve RP^Ty = f  for y
+y = R*P.'\f(:);
+
+% solve (P)(R^T)(K^T) = B^T  for K^T
+KT = P*R.' \ B.';
+
+% compute the minimum norm solution of Ku = d -  By
+u = KT.' \ (d(:) - B*y);
+
+% solve (R)(P^T)z = u  for z
+z = R*P.' \ u;
+
+% set x = y + z
+x = y + z;
+
+end
+
+function R = get_rotation_matrix(M)
+R = zeros(3,3);
+ct = M(1,1)/sqrt( M(1,1)^2 + M(2,1)^2 );
+st = M(2,1)/sqrt( M(1,1)^2 + M(2,1)^2 );
+
+l1  = vmag(M(:,1));
+cp = M(3,1)/l1;
+sp = sqrt( M(1,1)^2 + M(2,1)^2 )/l1;
+
+x1 = get_jac_unit_vec(M,1);
+x2 = get_jac_unit_vec(M,2);
+crx12 = cross( x1, x2 );
+cosphi12 = dot( x1, x2 );
+sinphi12 = vmag( crx12 );
+r2 = (x2 - cosphi12*x1)/sinphi12;
+r3 = crx12/sinphi12;
+aperp = [-st; +ct; 0];
+cb = dot(r2,aperp);
+sb = dot(r3,aperp);
+
+R(1,1) = ct*sp;
+R(2,1) = st*sp;
+R(3,1) = cp;
+R(1,2) = -st*cb + ct*cp*sb;
+R(2,2) = ct*cb + st*cp*sb;
+R(3,2) = -sp*sb;
+R(1,3) = -st*sb -ct*cp*cb;
+R(2,3) = ct*sb - st*cp*cb;
+R(3,3) = sp*cb;
+
+function val = vmag(v)
+val = sqrt( sum(v.^2) );
+end
+
+function l = get_jac_length(M,dir)
+l = vmag(M(:,dir));
+end
+
+function vec = get_jac_unit_vec(M,dir)
+vec = M(:,dir)/get_jac_length(M,dir);
+end
+end
