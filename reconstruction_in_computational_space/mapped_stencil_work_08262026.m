@@ -13,14 +13,17 @@ n_dim  = 2;
 N      = 9;
 r      = 1;
 o      = 4;
+go     = o;
 Ng     = r*(N-1)+1;
 n_quad = ceil( 0.5*(o + 1) );
 % Ns     = 2;
 Ns     = ceil(1.5*nchoosek(n_dim+o,o));
 balanced = true;
 
-[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.1/(N-1));
-[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=2/(N-1));
+% [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.01/(N-1));
+% [~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=2/(N-1));
+[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
+[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
 x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
 x2_map = @(x1,x2,n) x1 + (x2-x1)*fh2(linspace(0,1,n));
 
@@ -30,45 +33,86 @@ FGRID = grid_type(GRID); % fine grid
 GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
 
 blk = 1;
-idx = [5,5,1];
+idx = [1,1,1];
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
 
-% [n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(2,n_quad,GRID,S);
-[n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S);
+% I = calculate_inertia_tensor( GRID.gblock(S.blk(1)).grid_vars.quad( S.idx(1,1), S.idx(2,1), S.idx(3,1) ) );
+% [R0,~] = eig(I(1:2,1:2));
+% R = eye(3);
+% R(1:2,1:2) = R0;
 
 [Aco,Acon] = get_cell_jacobian(FGRID,GRID,blk,idx);
+R = get_rotation_matrix(Aco.');
 
-R = get_rotation_matrix(Aco);
+[n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S);
+x0 = x_vec(:,1);
 
-msk = false(n_nodes,1); msk(1:5) = true;
-[x_eval,x_coefs]   = fit_xi_to_x_map(2,Acon,xi_vec,x_vec,o,msk);
+[n_nodes_eval,xi_vec_eval,x_vec_eval] = get_stencil_quad_nodes(2,n_quad,GRID,S);
+n_nodes = n_nodes_eval;
+x_vec = x_vec_eval;
+xi_vec = xi_vec_eval;
+x0 = x_vec(:,1);
 
-[xi_eval1,~,c1] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,o,msk);
-[xi_eval2,~,c2] = fit_x_to_xi_map(2,R,xi_vec,x_vec,o,msk);
-% [xi_eval3,~,c3] = fit_x_to_xi_map(2,Acon,xi_vec,x_vec,o,msk);
+msk = false(n_nodes,1);
+% msk(1:1) = true;
+% msk(1:n_quad^2) = true;
 
+% fit x(xi)
+[x_coefs0,~,cx0] = fit_xi_to_x_map(2,eye(2),xi_vec,x_vec,go,msk);
+[x_coefs1,~,cx1] = fit_xi_to_x_map(2,     R,xi_vec,x_vec,go,msk);
+[x_coefs2,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,go,msk);
+x_eval0 = eval_xi_to_x_map(2,go,eye(2),x0,xi_vec_eval,x_coefs0);
+x_eval1 = eval_xi_to_x_map(2,go,     R,x0,xi_vec_eval,x_coefs1);
+x_eval2 = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs2);
 
-[xi_eval3,~,c4] = fit_x_to_xi_map(2,Acon,xi_vec,x_vec,o,msk);
-
-
+% fit xi(x)
+[xi_coefs0,~,c0] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,go,msk);
+[xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,go,msk);
+[xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,go,msk);
+xi_eval0 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,xi_coefs0);
+xi_eval1 = eval_x_to_xi_map(2,go,     R,x0,x_vec_eval,xi_coefs1);
+xi_eval2 = eval_x_to_xi_map(2,go,  Acon,x0,x_vec_eval,xi_coefs2);
 
 N_stencil = S.N;
 
-tiledlayout(1,2)
+tiledlayout(1,3)
 
 nexttile
 hold on
-plot(xi_eval1(1,:),xi_eval1(2,:),'b.')
-plot(xi_eval2(1,:),xi_eval2(2,:),'g.')
-plot(xi_eval3(1,:),xi_eval3(2,:),'k.')
-plot(xi_vec(1,:),xi_vec(2,:),'r.')
 
 plot_grid_2D_local(GRID,'k')
 plot_grid_2D_local(FGRID,'k:')
 
-plot(x_eval(1,:),x_eval(2,:),'b.')
-plot(x_vec(1,:),x_vec(2,:),'r.')
+for i = 1:N_stencil
+    cnt = (i-1)*n_quad^2;
+    tmp_x = reshape(x_vec_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    x1 = squeeze(tmp_x(1,:,:));
+    x2 = squeeze(tmp_x(2,:,:));
+    plot(x1,x2,'k.-')
+    plot(x1.',x2.','k.-')
+
+    tmp_x = reshape(x_eval0(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    x1 = squeeze(tmp_x(1,:,:));
+    x2 = squeeze(tmp_x(2,:,:));
+    plot(x1,x2,'r-')
+    plot(x1.',x2.','r-')
+
+    tmp_x = reshape(x_eval1(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    x1 = squeeze(tmp_x(1,:,:));
+    x2 = squeeze(tmp_x(2,:,:));
+    plot(x1,x2,'b-')
+    plot(x1.',x2.','b-')
+
+    tmp_x = reshape(x_eval2(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    x1 = squeeze(tmp_x(1,:,:));
+    x2 = squeeze(tmp_x(2,:,:));
+    plot(x1,x2,'g-')
+    plot(x1.',x2.','g-')
+end
+
+% plot(x_eval0(1,:),x_eval0(2,:),'bo')
+% plot(x_vec(1,:),x_vec(2,:),'r.')
 
 for i = 2:N_stencil
     % plot_cell_stencil_coords_2D(FGRID,GRID,S,blk,idx,i,r+1,'r-')
@@ -99,6 +143,38 @@ plot_mapped_stencil_points_2D(MM,FGRID,GRID,S,blk,idx,1,'b.-')
 axis equal
 hold off;
 
+
+nexttile
+hold on
+for i = 1:N_stencil
+    cnt = (i-1)*n_quad^2;
+    tmp_xi = reshape(xi_vec_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    xi1 = squeeze(tmp_xi(1,:,:));
+    xi2 = squeeze(tmp_xi(2,:,:));
+    plot(xi1,xi2,'k-')
+    plot(xi1.',xi2.','k-')
+
+    tmp_xi = reshape(xi_eval0(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    xi1 = squeeze(tmp_xi(1,:,:));
+    xi2 = squeeze(tmp_xi(2,:,:));
+    plot(xi1,xi2,'r-')
+    plot(xi1.',xi2.','r-')
+
+    tmp_xi = reshape(xi_eval1(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    xi1 = squeeze(tmp_xi(1,:,:));
+    xi2 = squeeze(tmp_xi(2,:,:));
+    plot(xi1,xi2,'b-')
+    plot(xi1.',xi2.','b-')
+
+    tmp_xi = reshape(xi_eval2(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    xi1 = squeeze(tmp_xi(1,:,:));
+    xi2 = squeeze(tmp_xi(2,:,:));
+    plot(xi1,xi2,'g-')
+    plot(xi1.',xi2.','g-')
+end
+
+axis equal
+hold off;
 
 
 
@@ -472,45 +548,60 @@ for i = 1:n_nodes
 end
 end
 
-function [x_eval,coefs] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,o,msk)
-x0 = x_vec(1:dim,1);
-A = A(1:dim,1:dim);
-xi_vec = xi_vec(1:dim,:);
-x_vec = x_vec(1:dim,:) - x0;
-
-M = computational_transform_matrix(xi_vec,o);
-% coefs = M\x_vec.';
-x_vec2 = A*x_vec;
-n_nodes = size(M,1);
-n_terms = size(M,2);
+function x_eval = eval_xi_to_x_map(dim,o,A,x0,xi_eval,coefs)
+xi_eval = xi_eval(1:dim,:);
+n_nodes = size(xi_eval,2);
+x0      = x0(1:dim);
+A       = A(1:dim,1:dim);
 x_eval_tmp = zeros(dim,n_nodes);
-coefs  = zeros(n_terms,dim);
 for d = 1:dim
-    coefs(:,d) = lsqcon_local(M(~msk,:),x_vec2(d,~msk),M(msk,:),x_vec2(d,msk));
-    x_eval_tmp(d,:) = eval_poly(coefs(:,d),xi_vec,o);
+    x_eval_tmp(d,:) = eval_poly(coefs(:,d),xi_eval,o);
 end
 x_eval = A\x_eval_tmp + x0;
 end
 
-function [xi_eval,coefs,condM] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,o,msk)
-A = A(1:dim,1:dim);
-xi_vec = xi_vec(1:dim,:);
-x0 = x_vec(1:dim,1);
-
-x_vec = x_vec(1:dim,:) - x0;
-x_vec2 = A*x_vec;
-
-M = computational_transform_matrix(x_vec2,o);
-condM = cond(M);
-% coefs = M\xi_vec.';
-
-n_nodes = size(M,1);
-n_terms = size(M,2);
+function xi_eval = eval_x_to_xi_map(dim,o,A,x0,x_eval,coefs)
+x_eval = x_eval(1:dim,:);
+n_nodes = size(x_eval,2);
+x0      = x0(1:dim);
+A       = A(1:dim,1:dim);
+x_eval = A*(x_eval-x0);
 xi_eval = zeros(dim,n_nodes);
+for d = 1:dim
+    xi_eval(d,:) = eval_poly(coefs(:,d),x_eval,o);
+end
+end
+
+function [coefs,M,condM] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,o,msk)
+x0     = x_vec(1:dim,1);
+x_vec  = x_vec(1:dim,:) - x0;
+xi_vec = xi_vec(1:dim,:);
+A      = A(1:dim,1:dim);
+M      = computational_transform_matrix(xi_vec,o);
+condM  = cond(M);
+x_vec2 = A*x_vec;
+% coefs = M\x_vec2.';
+n_terms = size(M,2);
+coefs  = zeros(n_terms,dim);
+for d = 1:dim
+    coefs(:,d) = lsqcon_local(M(~msk,:),x_vec2(d,~msk),M(msk,:),x_vec2(d,msk));
+end
+end
+
+function [coefs,M,condM] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,o,msk)
+x0     = x_vec(1:dim,1);
+x_vec  = x_vec(1:dim,:) - x0;
+xi_vec = xi_vec(1:dim,:);
+A      = A(1:dim,1:dim);
+
+x_vec2 = A*x_vec;
+M      = computational_transform_matrix(x_vec2,o);
+condM  = cond(M);
+% coefs = M\xi_vec.';
+n_terms = size(M,2);
 coefs  = zeros(n_terms,dim);
 for d = 1:dim
     coefs(:,d) = lsqcon_local(M(~msk,:),xi_vec(d,~msk),M(msk,:),xi_vec(d,msk));
-    xi_eval(d,:) = eval_poly(coefs(:,d),x_vec2,o);
 end
 end
 
@@ -664,5 +755,27 @@ end
 
 function vec = get_jac_unit_vec(M,dir)
 vec = M(:,dir)/get_jac_length(M,dir);
+end
+end
+
+function I = calculate_inertia_tensor( quad )
+I = zeros(3,3);
+xc = calculate_centroid( quad );
+x = quad.quad_pts(1,:) - xc(1);
+y = quad.quad_pts(2,:) - xc(2);
+z = quad.quad_pts(3,:) - xc(3);
+
+I(1,1) = quad.integrate( y.^2 + z.^2 );
+I(2,1) = -quad.integrate( x.*y );
+I(3,1) = -quad.integrate( x.*z );
+I(1,2) = I(2,1);
+I(2,2) = quad.integrate( x.^2 + z.^2 );
+I(3,2) = -quad.integrate( y.*z );
+I(1,3) = I(3,1);
+I(2,3) = I(3,2);
+I(3,3) = quad.integrate( x.^2 + y.^2 );
+function xc = calculate_centroid( quad )
+volume = quad.integrate(ones(1,quad.n_quad));
+xc     = quad.integrate(quad.quad_pts)/volume;
 end
 end
