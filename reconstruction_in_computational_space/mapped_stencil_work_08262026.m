@@ -11,7 +11,7 @@ clear parent_dir_str path_idx path_parts
 clc;
 n_dim  = 2;
 N      = 9;
-r      = 1;
+r      = 4;
 o      = 4;
 go     = o;
 Ng     = r*(N-1)+1;
@@ -20,8 +20,8 @@ n_quad = ceil( 0.5*(o + 1) );
 Ns     = ceil(1.5*nchoosek(n_dim+o,o));
 balanced = true;
 
-% [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.01/(N-1));
-% [~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=2/(N-1));
+% [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.1/(N-1));
+% [~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.1/(N-1));
 [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
 [~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
 x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
@@ -33,43 +33,57 @@ FGRID = grid_type(GRID); % fine grid
 GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
 
 blk = 1;
-idx = [1,1,1];
+idx = [8,8,1];
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
 
-% I = calculate_inertia_tensor( GRID.gblock(S.blk(1)).grid_vars.quad( S.idx(1,1), S.idx(2,1), S.idx(3,1) ) );
-% [R0,~] = eig(I(1:2,1:2));
-% R = eye(3);
-% R(1:2,1:2) = R0;
+I = calculate_inertia_tensor( GRID.gblock(S.blk(1)).grid_vars.quad( S.idx(1,1), S.idx(2,1), S.idx(3,1) ) );
+[R0,~] = eig(I(1:2,1:2));
+R = eye(3);
+R(1:2,1:2) = R0;
 
 [Aco,Acon] = get_cell_jacobian(FGRID,GRID,blk,idx);
+% Acon = Acon/max(abs(Acon),[],'all');
+
 R = get_rotation_matrix(Aco.');
 
 [n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S);
 x0 = x_vec(:,1);
-
+xi0 = xi_vec(:,1);
 [n_nodes_eval,xi_vec_eval,x_vec_eval] = get_stencil_quad_nodes(2,n_quad,GRID,S);
-n_nodes = n_nodes_eval;
-x_vec = x_vec_eval;
-xi_vec = xi_vec_eval;
+A_vec = get_stencil_quad_derivs(2,n_quad,FGRID,GRID,S);
+% n_nodes = n_nodes_eval;
+% x_vec = x_vec_eval;
+% xi_vec = xi_vec_eval;
+% x0 = x_vec(:,1);
+
+n_nodes = n_nodes_eval+1;
+x_vec = [x0,x_vec_eval];
+xi_vec = [xi0,xi_vec_eval];
 x0 = x_vec(:,1);
+
 
 msk = false(n_nodes,1);
 % msk(1:1) = true;
 % msk(1:n_quad^2) = true;
 
+scale = true;
+
 % fit x(xi)
-[x_coefs0,~,cx0] = fit_xi_to_x_map(2,eye(2),xi_vec,x_vec,go,msk);
-[x_coefs1,~,cx1] = fit_xi_to_x_map(2,     R,xi_vec,x_vec,go,msk);
-[x_coefs2,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,go,msk);
+[x_coefs0,~,cx0] = fit_xi_to_x_map(2,eye(2),xi_vec,x_vec,go,msk,scale);
+[x_coefs1,~,cx1] = fit_xi_to_x_map(2,     R,xi_vec,x_vec,go,msk,scale);
+[x_coefs2,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,go,msk,scale);
 x_eval0 = eval_xi_to_x_map(2,go,eye(2),x0,xi_vec_eval,x_coefs0);
 x_eval1 = eval_xi_to_x_map(2,go,     R,x0,xi_vec_eval,x_coefs1);
 x_eval2 = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs2);
 
 % fit xi(x)
-[xi_coefs0,~,c0] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,go,msk);
-[xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,go,msk);
-[xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,go,msk);
+[xi_coefs0,~,c0] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,go,msk,scale);
+[xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,go,msk,scale);
+[xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,go,msk,scale);
+
+% [coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,Acon,xi_vec,x_vec,A_vec,go,msk,scale);
+
 xi_eval0 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,xi_coefs0);
 xi_eval1 = eval_x_to_xi_map(2,go,     R,x0,x_vec_eval,xi_coefs1);
 xi_eval2 = eval_x_to_xi_map(2,go,  Acon,x0,x_vec_eval,xi_coefs2);
@@ -222,6 +236,13 @@ if ( nargout > 2 )
 end
 end
 
+function A_vec = get_stencil_centroid_derivs(n_dim,FGRID,GRID,S)
+n_nodes = S.N;
+A_vec = zeros(n_dim,n_dim,n_nodes);
+for i = 1:S.N
+    A_vec(:,:,i) = get_cell_jacobian(FGRID,GRID,S.blk(i),S.idx(:,i).',[0;0;0]).';
+end
+end
 
 function [n_nodes,xi_vec,x_vec] = get_stencil_quad_nodes(n_dim,n_quad,GRID,S)
 switch n_dim
@@ -257,6 +278,29 @@ if ( nargout > 2 )
             cnt = cnt + 1;
             x_vec(1:n_dim,cnt) = GRID.gblock(S.blk(i)).grid_vars.quad(S.idx(1,i),S.idx(2,i),S.idx(3,i)).quad_pts(1:n_dim,q);
         end
+    end
+end
+end
+
+function A_vec = get_stencil_quad_derivs(n_dim,n_quad,FGRID,GRID,S)
+switch n_dim
+    case(1)
+        quad_ref = quad_t.create_quad_ref_1D(n_quad);
+    case(2)
+        quad_ref = quad_t.create_quad_ref_2D(n_quad);
+    case(3)
+        quad_ref = quad_t.create_quad_ref_3D(n_quad);
+    otherwise
+        error('dim must be 1-3')
+end
+n_nodes = quad_ref.n_quad * S.N;
+A_vec = zeros(3,3,n_nodes);
+cnt = 0;
+for i = 1:S.N
+    for q = 1:quad_ref.n_quad
+        cnt = cnt + 1;
+        xi_vec = quad_ref.quad_pts(:,q);
+        A_vec(:,:,cnt) = get_cell_jacobian(FGRID,GRID,S.blk(i),S.idx(:,i).',xi_vec).';
     end
 end
 end
@@ -304,7 +348,10 @@ end
 % M3 = hex_jacobian(xtmp(:),ytmp(:),ztmp(:),0.5,0.5,0.5);
 % % M2 = L.base_vectors(xtmp,ytmp,ztmp,xq);
 % end
-function [Mco,Mcon] = get_cell_jacobian(FGRID,GRID,blk,idx)
+function [Mco,Mcon] = get_cell_jacobian(FGRID,GRID,blk,idx,xi)
+if (nargin<5)
+    xi = [0;0;0];
+end
 n_skip = GRID.nskip;
 cell_idx = (idx-1).*n_skip+1;
 [xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
@@ -313,7 +360,7 @@ xtmp = xtmp - xq(1);
 ytmp = ytmp - xq(2);
 ztmp = ztmp - xq(3);
 L = lagrange_interpolant(size(xtmp,1));
-[Mco,Mcon] = L.base_vectors(xtmp,ytmp,ztmp,[0;0;0]);
+[Mco,Mcon] = L.base_vectors(xtmp,ytmp,ztmp,xi(:));
 Mco  = Mco/2;
 Mcon = Mcon.'/2;
 end
@@ -572,12 +619,19 @@ for d = 1:dim
 end
 end
 
-function [coefs,M,condM] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,o,msk)
+function [coefs,M,condM,scale] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,o,msk,use_scale)
 x0     = x_vec(1:dim,1);
 x_vec  = x_vec(1:dim,:) - x0;
 xi_vec = xi_vec(1:dim,:);
 A      = A(1:dim,1:dim);
+
 M      = computational_transform_matrix(xi_vec,o);
+scale = ones(1,size(M,2));
+if (use_scale)
+    scale = sum( abs(M),1 );
+    scale = 1./scale;
+end
+M = M.*scale;
 condM  = cond(M);
 x_vec2 = A*x_vec;
 % coefs = M\x_vec2.';
@@ -585,10 +639,11 @@ n_terms = size(M,2);
 coefs  = zeros(n_terms,dim);
 for d = 1:dim
     coefs(:,d) = lsqcon_local(M(~msk,:),x_vec2(d,~msk),M(msk,:),x_vec2(d,msk));
+    coefs(:,d) = coefs(:,d).*scale.';
 end
 end
 
-function [coefs,M,condM] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,o,msk)
+function [coefs,M,condM,scale] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,o,msk,use_scale)
 x0     = x_vec(1:dim,1);
 x_vec  = x_vec(1:dim,:) - x0;
 xi_vec = xi_vec(1:dim,:);
@@ -596,14 +651,61 @@ A      = A(1:dim,1:dim);
 
 x_vec2 = A*x_vec;
 M      = computational_transform_matrix(x_vec2,o);
+scale = ones(1,size(M,2));
+if (use_scale)
+    scale = sum( abs(M),1 );
+    scale = 1./scale;
+end
+M = M.*scale;
 condM  = cond(M);
 % coefs = M\xi_vec.';
 n_terms = size(M,2);
 coefs  = zeros(n_terms,dim);
 for d = 1:dim
     coefs(:,d) = lsqcon_local(M(~msk,:),xi_vec(d,~msk),M(msk,:),xi_vec(d,msk));
+    coefs(:,d) = coefs(:,d).*scale.';
 end
 end
+
+function [coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(dim,A,xi_vec,x_vec,A_vec,o,msk,use_scale)
+x0     = x_vec(1:dim,1);
+x_vec  = x_vec(1:dim,:) - x0;
+xi_vec = xi_vec(1:dim,:);
+A      = A(1:dim,1:dim);
+A_vec  = A_vec(1:dim,1:dim,:);
+
+A_vec(:,:,1) = A\A_vec(:,:,1);
+
+n_diff_rows = size(A_vec,3)*dim;
+
+x_vec2 = A*x_vec;
+Md = gradient_constraint_rows(x_vec2(:,~msk),o);
+M1 = computational_transform_matrix(x_vec2,o);
+M = [Md;M1];
+scale = ones(1,size(M,2));
+if (use_scale)
+    scale = sum( abs(M),1 );
+    scale = 1./scale;
+end
+M = M.*scale;
+condM  = cond(M);
+Md = M(1:n_diff_rows,:);
+M1 = M(n_diff_rows+1:end,:);
+% coefs = M\xi_vec.';
+n_terms = size(M1,2);
+coefs  = zeros(n_terms,dim);
+Mcon = M(msk,:);
+Mlsq = [Md;M1(~msk,:)];
+for d = 1:dim
+    xcon = xi_vec(d,msk);
+    tmp = A_vec(:,d,:);
+    xlsq = [tmp(:);xi_vec(d,~msk).'];
+    coefs(:,d) = lsqcon_local(Mlsq,xlsq,Mcon,xcon);
+    coefs(:,d) = coefs(:,d).*scale.';
+end
+end
+
+
 
 function M = computational_transform_matrix(nodevec,degree)
 n_dim = size(nodevec,1);
@@ -618,6 +720,26 @@ for j = 1:n_terms
 end
 end
 
+function M = gradient_constraint_rows(nodevec,degree)
+n_dim = size(nodevec,1);
+n_nodes = size(nodevec,2);
+[exponents,~,diff_idx] = get_exponents( n_dim, degree );
+n_terms = size(exponents,2);
+M = ones(n_nodes*n_dim,n_terms);
+for j = 1:n_terms
+    cnt = 0;
+    for k = 1:n_nodes
+        for i = 1:n_dim
+            cnt = cnt + 1;
+            order = exponents(:,diff_idx(i,1));
+            [dval,dcoef,~] = evaluate_monomial_derivative( n_dim, exponents,j,nodevec,order);
+            M(cnt,j) = dval*dcoef;
+        end
+    end
+end
+end
+
+
 function [val,coef] = evaluate_monomial( n_dim, exponents, term, x )
 val = 1.0;
 coef = 1;
@@ -625,6 +747,27 @@ for d = 1:n_dim
     for i = exponents(d,term):-1:1
         val = val*x(d);
         coef = coef * i;
+    end
+end
+end
+
+function [dval,dcoef,coef] = evaluate_monomial_derivative( n_dim,     ...
+                                                           exponents, ...
+                                                           term,      ...
+                                                           x,         ...
+                                                           order )
+dval  = 0.0;
+dcoef = 1;
+coef  = 1;
+if ( any( exponents(:,term) - order(:) < 0 ) ); return; end
+dval = 1.0;
+for d = 1:n_dim
+    for i = exponents(d,term):-1:exponents(d,term)-order(d)+1
+        dcoef = dcoef * i;
+    end
+    for i = exponents(d,term)-order(d):-1:1
+        coef = coef * i;
+        dval = dval*x(d);
     end
 end
 end
