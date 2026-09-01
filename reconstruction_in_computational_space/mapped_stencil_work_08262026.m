@@ -11,8 +11,8 @@ clear parent_dir_str path_idx path_parts
 clc;
 n_dim  = 2;
 N      = 9;
-r      = 4;
-o      = 4;
+r      = 1;
+o      = 2;
 go     = o;
 Ng     = r*(N-1)+1;
 n_quad = ceil( 0.5*(o + 1) );
@@ -51,16 +51,17 @@ R = get_rotation_matrix(Aco.');
 x0 = x_vec(:,1);
 xi0 = xi_vec(:,1);
 [n_nodes_eval,xi_vec_eval,x_vec_eval] = get_stencil_quad_nodes(2,n_quad,GRID,S);
-A_vec = get_stencil_quad_derivs(2,n_quad,FGRID,GRID,S);
+% A_vec = get_stencil_quad_derivs(2,n_quad,FGRID,GRID,S);
+A_vec = get_stencil_centroid_derivs(FGRID,GRID,S);
 % n_nodes = n_nodes_eval;
 % x_vec = x_vec_eval;
 % xi_vec = xi_vec_eval;
 % x0 = x_vec(:,1);
 
-n_nodes = n_nodes_eval+1;
-x_vec = [x0,x_vec_eval];
-xi_vec = [xi0,xi_vec_eval];
-x0 = x_vec(:,1);
+% n_nodes = n_nodes_eval+1;
+% x_vec = [x0,x_vec_eval];
+% xi_vec = [xi0,xi_vec_eval];
+% x0 = x_vec(:,1);
 
 
 msk = false(n_nodes,1);
@@ -82,11 +83,13 @@ x_eval2 = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs2);
 [xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,go,msk,scale);
 [xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,go,msk,scale);
 
-% [coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,Acon,xi_vec,x_vec,A_vec,go,msk,scale);
+[coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,Acon,xi_vec,x_vec,A_vec,go,msk,scale);
 
 xi_eval0 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,xi_coefs0);
 xi_eval1 = eval_x_to_xi_map(2,go,     R,x0,x_vec_eval,xi_coefs1);
 xi_eval2 = eval_x_to_xi_map(2,go,  Acon,x0,x_vec_eval,xi_coefs2);
+
+xi_eval2 = eval_x_to_xi_map(2,go,  eye(2),x0,x_vec_eval,coefs);
 
 N_stencil = S.N;
 
@@ -236,10 +239,10 @@ if ( nargout > 2 )
 end
 end
 
-function A_vec = get_stencil_centroid_derivs(n_dim,FGRID,GRID,S)
-n_nodes = S.N;
-A_vec = zeros(n_dim,n_dim,n_nodes);
-for i = 1:S.N
+function A_vec = get_stencil_centroid_derivs(FGRID,GRID,S)
+n_nodes = 1;%S.N;
+A_vec = zeros(3,3,n_nodes);
+for i = 1:1%S.N
     A_vec(:,:,i) = get_cell_jacobian(FGRID,GRID,S.blk(i),S.idx(:,i).',[0;0;0]).';
 end
 end
@@ -674,12 +677,12 @@ xi_vec = xi_vec(1:dim,:);
 A      = A(1:dim,1:dim);
 A_vec  = A_vec(1:dim,1:dim,:);
 
-A_vec(:,:,1) = A\A_vec(:,:,1);
+A_vec(:,:,1) = A*(A_vec(:,:,1).');
 
 n_diff_rows = size(A_vec,3)*dim;
 
 x_vec2 = A*x_vec;
-Md = gradient_constraint_rows(x_vec2(:,~msk),o);
+Md = gradient_constraint_rows(x_vec2(:,1),o);
 M1 = computational_transform_matrix(x_vec2,o);
 M = [Md;M1];
 scale = ones(1,size(M,2));
