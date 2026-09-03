@@ -33,6 +33,8 @@ classdef ogive_geometry
             this.rho_ogv = (this.Rb^2+this.L0^2)/(2*this.Rb);
             this.x0      = this.L0 - sqrt( (this.Rb-this.Rn) ...
                                           *(this.L0^2/this.Rb - this.Rn) );
+            % x0      = this.L0 - sqrt( (this.rho_ogv-this.Rn)^2 ...
+            %                              - (this.Rb-this.rho_ogv)^2 );
             this.xt      = this.x0 - this.Rn ...
                                    * sqrt( 1 - (( this.L0^2 - this.Rb^2 ) ...
                                                /( this.L0^2 + this.Rb^2  ...
@@ -69,6 +71,15 @@ classdef ogive_geometry
             mask     = abs(theta)<=this.t_circ1;
             y(mask)  = this.ycc + this.Rn*sin(theta(mask));
             y(~mask) = this.yoc + this.rho_ogv*sin(theta(~mask));
+        end
+        function y = y_from_x( this, x )
+            y = ogive_geometry.y_val( this.rho_ogv, ...
+                                      this.L0,      ...
+                                      this.Rb,      ...
+                                      this.Rn,      ...
+                                      this.x0,      ...
+                                      this.xt,      ...
+                                      x );
         end
         function h = plot_ogive( this, varargin )
             h = fplot( @(theta) this.x_from_theta(theta), ...
@@ -115,6 +126,18 @@ classdef ogive_geometry
         end
     end
     methods (Static)
+        function y = y_val(rho_ogv,L0,Rb,Rn,x0,xt,x)
+            y = zeros(size(x));
+            mask = (x<=xt);
+            y(mask)  = ogive_geometry_old.y_circ(Rn,x0,x(mask));
+            y(~mask) = ogive_geometry_old.y_ogive(rho_ogv,L0,Rb,x(~mask));
+        end
+        function y = y_ogive(rho_ogv,L0,Rb,x)
+            y = sqrt(rho_ogv^2 - (L0-x).^2) + Rb - rho_ogv;
+        end
+        function y = y_circ(Rn,x0,x)
+            y = sqrt( Rn^2 - (x-x0).^2 );
+        end
         function s0 = vinokur_one_sided_set_spacing(N,d0,refine)
             dt = 1/(N-1);
             s =d0/dt;

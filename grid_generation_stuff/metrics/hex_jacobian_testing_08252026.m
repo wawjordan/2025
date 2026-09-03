@@ -64,7 +64,7 @@ plot3(pts2(1,:),pts2(2,:),pts2(3,:),'r')
 plot3(pts2(1,1),pts2(2,1),pts2(3,1),'ro')
 
 % pts3 = R1_.'*pts;
-pts3 = R1.'*pts;
+pts3 = R2.'*pts;
 plot3(pts3(1,1),pts3(2,1),pts3(3,1),'go')
 plot3(pts3(1,:),pts3(2,:),pts3(3,:),'g')
 axis equal

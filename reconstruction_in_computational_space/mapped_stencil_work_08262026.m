@@ -11,29 +11,29 @@ clear parent_dir_str path_idx path_parts
 clc;
 n_dim  = 2;
 N      = 9;
-r      = 1;
-o      = 2;
+r      = 4;
+o      = 4;
 go     = o;
 Ng     = r*(N-1)+1;
-n_quad = ceil( 0.5*(o + 1) );
+n_quad = max(2,ceil( 0.5*(o + 1) ));
 % Ns     = 2;
 Ns     = ceil(1.5*nchoosek(n_dim+o,o));
 balanced = true;
 
-% [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.1/(N-1));
-% [~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1.1/(N-1));
-[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
-[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
+[~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=0.01/(N-1));
+[~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=2/(N-1));
+% [~,~,~,fh1] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
+% [~,~,~,fh2] = my_geomspace_w_refine(Ng,r,0,xmax=1,dx0=1/(N-1));
 x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
 x2_map = @(x1,x2,n) x1 + (x2-x1)*fh2(linspace(0,1,n));
 
-GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
-% GRID = cart_grid(Ng,Ng); GRID.x = GRID.x/r; GRID.y = GRID.y/r;
+% GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
+GRID = cart_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map,theta=pi/3);
 FGRID = grid_type(GRID); % fine grid
 GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
 
 blk = 1;
-idx = [8,8,1];
+idx = [1,1,1];
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
 
@@ -42,30 +42,35 @@ I = calculate_inertia_tensor( GRID.gblock(S.blk(1)).grid_vars.quad( S.idx(1,1), 
 R = eye(3);
 R(1:2,1:2) = R0;
 
-[Aco,Acon] = get_cell_jacobian(FGRID,GRID,blk,idx);
+[Aco,Acon,Mjac] = get_cell_jacobian(FGRID,GRID,blk,idx);
 % Acon = Acon/max(abs(Acon),[],'all');
 
 R = get_rotation_matrix(Aco.');
+
+R1 = get_rotation_matrix(Mjac);
+R = [0,1,0;1,0,0;0,0,1]*R1;
 
 [n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S);
 x0 = x_vec(:,1);
 xi0 = xi_vec(:,1);
 [n_nodes_eval,xi_vec_eval,x_vec_eval] = get_stencil_quad_nodes(2,n_quad,GRID,S);
-% A_vec = get_stencil_quad_derivs(2,n_quad,FGRID,GRID,S);
-A_vec = get_stencil_centroid_derivs(FGRID,GRID,S);
+A_vec = get_stencil_quad_derivs(2,n_quad,FGRID,GRID,S);
+% A_vec = get_stencil_centroid_derivs(FGRID,GRID,S);
+% A_vec = A_vec(:,:,1:n_quad^2);
+A_vec = A_vec(:,:,1:1);
 % n_nodes = n_nodes_eval;
 % x_vec = x_vec_eval;
 % xi_vec = xi_vec_eval;
 % x0 = x_vec(:,1);
 
-% n_nodes = n_nodes_eval+1;
-% x_vec = [x0,x_vec_eval];
-% xi_vec = [xi0,xi_vec_eval];
-% x0 = x_vec(:,1);
+n_nodes = n_nodes_eval+1;
+x_vec = [x0,x_vec_eval];
+xi_vec = [xi0,xi_vec_eval];
+x0 = x_vec(:,1);
 
 
 msk = false(n_nodes,1);
-% msk(1:1) = true;
+msk(1:1) = true;
 % msk(1:n_quad^2) = true;
 
 scale = true;
@@ -83,13 +88,17 @@ x_eval2 = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs2);
 [xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,go,msk,scale);
 [xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,go,msk,scale);
 
-[coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,Acon,xi_vec,x_vec,A_vec,go,msk,scale);
-
 xi_eval0 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,xi_coefs0);
 xi_eval1 = eval_x_to_xi_map(2,go,     R,x0,x_vec_eval,xi_coefs1);
 xi_eval2 = eval_x_to_xi_map(2,go,  Acon,x0,x_vec_eval,xi_coefs2);
 
-xi_eval2 = eval_x_to_xi_map(2,go,  eye(2),x0,x_vec_eval,coefs);
+
+% [coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,eye(2),xi_vec,x_vec,Acon*2,go,msk,scale);
+% xi_eval2 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,coefs);
+
+% [coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,Acon,xi_vec,x_vec,Aco.'*8,go,msk,scale);
+[coefs,M,condM,scale] = fit_x_to_xi_map_w_deriv(2,Acon,xi_vec,x_vec,A_vec*8,go,msk,scale);
+xi_eval3 = eval_x_to_xi_map(2,go,Acon,x0,x_vec_eval,coefs);
 
 N_stencil = S.N;
 
@@ -168,26 +177,32 @@ for i = 1:N_stencil
     tmp_xi = reshape(xi_vec_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
     xi1 = squeeze(tmp_xi(1,:,:));
     xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'k-')
-    plot(xi1.',xi2.','k-')
+    plot(xi1,xi2,'k.-')
+    plot(xi1.',xi2.','k.-')
 
-    tmp_xi = reshape(xi_eval0(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
-    xi1 = squeeze(tmp_xi(1,:,:));
-    xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'r-')
-    plot(xi1.',xi2.','r-')
-
-    tmp_xi = reshape(xi_eval1(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
-    xi1 = squeeze(tmp_xi(1,:,:));
-    xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'b-')
-    plot(xi1.',xi2.','b-')
-
+    % tmp_xi = reshape(xi_eval0(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    % xi1 = squeeze(tmp_xi(1,:,:));
+    % xi2 = squeeze(tmp_xi(2,:,:));
+    % plot(xi1,xi2,'r.-')
+    % plot(xi1.',xi2.','r.-')
+    % 
+    % tmp_xi = reshape(xi_eval1(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    % xi1 = squeeze(tmp_xi(1,:,:));
+    % xi2 = squeeze(tmp_xi(2,:,:));
+    % plot(xi1,xi2,'b.-')
+    % plot(xi1.',xi2.','b.-')
+    % 
     tmp_xi = reshape(xi_eval2(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
     xi1 = squeeze(tmp_xi(1,:,:));
     xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'g-')
-    plot(xi1.',xi2.','g-')
+    plot(xi1,xi2,'g.-')
+    plot(xi1.',xi2.','g.-')
+
+    tmp_xi = reshape(xi_eval3(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    xi1 = squeeze(tmp_xi(1,:,:));
+    xi2 = squeeze(tmp_xi(2,:,:));
+    plot(xi1,xi2,'m.-')
+    plot(xi1.',xi2.','m.-')
 end
 
 axis equal
@@ -240,9 +255,9 @@ end
 end
 
 function A_vec = get_stencil_centroid_derivs(FGRID,GRID,S)
-n_nodes = 1;%S.N;
+n_nodes = S.N;
 A_vec = zeros(3,3,n_nodes);
-for i = 1:1%S.N
+for i = 1:S.N
     A_vec(:,:,i) = get_cell_jacobian(FGRID,GRID,S.blk(i),S.idx(:,i).',[0;0;0]).';
 end
 end
@@ -351,13 +366,14 @@ end
 % M3 = hex_jacobian(xtmp(:),ytmp(:),ztmp(:),0.5,0.5,0.5);
 % % M2 = L.base_vectors(xtmp,ytmp,ztmp,xq);
 % end
-function [Mco,Mcon] = get_cell_jacobian(FGRID,GRID,blk,idx,xi)
+function [Mco,Mcon,Mjac] = get_cell_jacobian(FGRID,GRID,blk,idx,xi)
 if (nargin<5)
     xi = [0;0;0];
 end
 n_skip = GRID.nskip;
 cell_idx = (idx-1).*n_skip+1;
 [xtmp,ytmp,ztmp] = GRID.gblock(blk).copy_gblock_nodes(FGRID.gblock(blk),cell_idx,n_skip);
+Mjac = hex_jacobian(xtmp(:),ytmp(:),ztmp(:), 0.5, 0.5, 0.5);
 xq = GRID.gblock(blk).grid_vars.cell_c(:,idx(1),idx(2),idx(3));
 xtmp = xtmp - xq(1);
 ytmp = ytmp - xq(2);
@@ -491,23 +507,63 @@ tmp = fun([xq1,xq2,xq3]);
 z = tmp(3);
 end
 
-function GRID = cart_grid(N_x,N_y,N_z)
+function GRID = cart_grid(N_x,N_y,varargin)
+p = inputParser;
+validScalarPosInt = @(x) mod(x,1)<10*eps(1) && isscalar(x) && (x > 0);
+validFunctionHandle = @(x) isa(x,'function_handle');
+addRequired(p,'N_x',validScalarPosInt);
+addRequired(p,'N_y',validScalarPosInt);
+addOptional(p,'N_z',nan,validScalarPosInt);
+addOptional(p,'x1_map',@(x1,x2,n)linspace(x1,x2,n),validFunctionHandle);
+addOptional(p,'x2_map',@(x1,x2,n)linspace(x1,x2,n),validFunctionHandle);
+addOptional(p,'x3_map',@(x1,x2,n)linspace(x1,x2,n),validFunctionHandle);
+addOptional(p,'theta',0,@(x)isscalar(x));
+parse(p,N_x,N_y,varargin{:});
+
+if (nargin(p.Results.x1_map)~=3)
+    error('incorrect number of input arguments for x1_map')
+end
+if (nargin(p.Results.x2_map)~=3)
+    error('incorrect number of input arguments for x2_map')
+end
+if (nargin(p.Results.x3_map)~=3)
+    error('incorrect number of input arguments for x3_map')
+end
+x1_map = p.Results.x1_map;
+x2_map = p.Results.x2_map;
+x3_map = p.Results.x3_map;
+theta  = p.Results.theta;
+
+xi_range   = [0, 1];
+eta_range  = [0, 1];
+zeta_range = [0, 1];
+
+N_x = p.Results.N_x;
+N_y = p.Results.N_y;
+N_z = p.Results.N_z;
+
+GRID.dim  = 2;
 GRID.imax = N_x;
 GRID.jmax = N_y;
-GRID.dim  = 2;
-   
-xi  = 0:N_x-1;
-eta = 0:N_y-1;
-
-if nargin == 3
+xi   = x1_map(xi_range(1),xi_range(2),N_x);
+eta  = x2_map(eta_range(1),eta_range(2),N_y);
+zeta = 0;
+if (~isnan(p.Results.N_z))
+    GRID.dim  = 3;
     GRID.kmax = N_z;
-    GRID.dim = 3;
-    zeta = 0:N_z-1;
-    [GRID.x,GRID.y,GRID.z] = ndgrid(xi,eta,zeta);
-else
-    [GRID.x,GRID.y] = ndgrid(xi,eta);
+    zeta  = x3_map(zeta_range(1),zeta_range(2),N_z);
 end
 
+[XI,ETA,ZETA] = ndgrid(xi,eta,zeta);
+if (abs(theta)>eps(1))
+    R = rotation_matrix_2D(theta);
+    [XI,ETA,ZETA] = arrayfun(@(xi,eta,zeta)apply_rotation(xi,eta,zeta,R),XI,ETA,ZETA);
+end
+GRID.x = XI;
+GRID.y = ETA;
+if GRID.dim == 3
+    GRID.z = ZETA;
+end
 end
 
 function GRID = curv_grid(N_x,N_y,varargin)
@@ -677,12 +733,16 @@ xi_vec = xi_vec(1:dim,:);
 A      = A(1:dim,1:dim);
 A_vec  = A_vec(1:dim,1:dim,:);
 
-A_vec(:,:,1) = A*(A_vec(:,:,1).');
+for i = 1:size(A_vec,3)
+    A_vec(:,:,i) = A*(A_vec(:,:,i).');
+end
 
-n_diff_rows = size(A_vec,3)*dim;
+n_grad = size(A_vec,3);
+n_diff_rows = n_grad*dim;
 
 x_vec2 = A*x_vec;
-Md = gradient_constraint_rows(x_vec2(:,1),o);
+% Md = gradient_constraint_rows(x_vec2(:,1),o);
+Md = gradient_constraint_rows(x_vec2(:,1:n_grad),o);
 M1 = computational_transform_matrix(x_vec2,o);
 M = [Md;M1];
 scale = ones(1,size(M,2));
@@ -697,7 +757,7 @@ M1 = M(n_diff_rows+1:end,:);
 % coefs = M\xi_vec.';
 n_terms = size(M1,2);
 coefs  = zeros(n_terms,dim);
-Mcon = M(msk,:);
+Mcon = M1(msk,:);
 Mlsq = [Md;M1(~msk,:)];
 for d = 1:dim
     xcon = xi_vec(d,msk);
@@ -859,6 +919,19 @@ z = R*P.' \ u;
 % set x = y + z
 x = y + z;
 
+end
+
+function R = rotation_matrix_2D(theta)
+R = [cos(theta),-sin(theta),0;...
+     sin(theta), cos(theta),0;...
+     0,0,1];
+end
+
+function [X,Y,Z] = apply_rotation(x,y,z,R)
+    tmp = R*[x;y;z];
+    X = tmp(1);
+    Y = tmp(2);
+    Z = tmp(3);
 end
 
 function R = get_rotation_matrix(M)
