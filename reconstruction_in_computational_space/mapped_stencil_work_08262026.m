@@ -28,12 +28,19 @@ x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
 x2_map = @(x1,x2,n) x1 + (x2-x1)*fh2(linspace(0,1,n));
 
 % GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
-GRID = cart_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map,theta=pi/3);
-FGRID = grid_type(GRID); % fine grid
-GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
+% GRID = cart_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map,theta=pi/3);
+% FGRID = grid_type(GRID); % fine grid
+% GRID = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
+
+file = 'C:\Users\wajordan\Desktop\git_MATLAB\2025\kt.grd';
+
+start_idx = [49,1,1];
+sz        = [N,N,1];
+[FGRID,GRID] = grid_from_file(file,start_idx,sz,r,n_quad);
+
 
 blk = 1;
-idx = [1,1,1];
+idx = [5,1,1];
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
 
@@ -53,6 +60,8 @@ R = [0,1,0;1,0,0;0,0,1]*R1;
 [n_nodes,xi_vec,x_vec] = get_stencil_centroid_nodes(n_dim,GRID,S);
 x0 = x_vec(:,1);
 xi0 = xi_vec(:,1);
+x01 = x0;
+xi01 = xi0;
 [n_nodes_eval,xi_vec_eval,x_vec_eval] = get_stencil_quad_nodes(2,n_quad,GRID,S);
 A_vec = get_stencil_quad_derivs(2,n_quad,FGRID,GRID,S);
 % A_vec = get_stencil_centroid_derivs(FGRID,GRID,S);
@@ -63,30 +72,34 @@ A_vec = A_vec(:,:,1:1);
 % xi_vec = xi_vec_eval;
 % x0 = x_vec(:,1);
 
-n_nodes = n_nodes_eval+1;
-x_vec = [x0,x_vec_eval];
-xi_vec = [xi0,xi_vec_eval];
-x0 = x_vec(:,1);
+% n_nodes = n_nodes_eval+1;
+% x_vec = [x0,x_vec_eval];
+% xi_vec = [xi0,xi_vec_eval];
+% x0 = x_vec(:,1);
 
 
 msk = false(n_nodes,1);
-msk(1:1) = true;
+% msk(1:1) = true;
 % msk(1:n_quad^2) = true;
 
 scale = true;
+gamma = 1;
+tol = 1.0e-12;
+% weight_vec = compute_weight_vec(x01,x_vec,gamma,tol);
+weight_vec = compute_weight_vec(xi01,xi_vec,gamma,tol);
 
 % fit x(xi)
-[x_coefs0,~,cx0] = fit_xi_to_x_map(2,eye(2),xi_vec,x_vec,go,msk,scale);
-[x_coefs1,~,cx1] = fit_xi_to_x_map(2,     R,xi_vec,x_vec,go,msk,scale);
-[x_coefs2,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,go,msk,scale);
+[x_coefs0,~,cx0] = fit_xi_to_x_map(2,eye(2),xi_vec,x_vec,weight_vec,go,msk,scale);
+[x_coefs1,~,cx1] = fit_xi_to_x_map(2,     R,xi_vec,x_vec,weight_vec,go,msk,scale);
+[x_coefs2,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,weight_vec,go,msk,scale);
 x_eval0 = eval_xi_to_x_map(2,go,eye(2),x0,xi_vec_eval,x_coefs0);
 x_eval1 = eval_xi_to_x_map(2,go,     R,x0,xi_vec_eval,x_coefs1);
 x_eval2 = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs2);
 
 % fit xi(x)
-[xi_coefs0,~,c0] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,go,msk,scale);
-[xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,go,msk,scale);
-[xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,go,msk,scale);
+[xi_coefs0,~,c0] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,weight_vec,go,msk,scale);
+[xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,weight_vec,go,msk,scale);
+[xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,weight_vec,go,msk,scale);
 
 xi_eval0 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,xi_coefs0);
 xi_eval1 = eval_x_to_xi_map(2,go,     R,x0,x_vec_eval,xi_coefs1);
@@ -214,6 +227,45 @@ hold off;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Local Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function w = compute_weight_vec(x0,x_vec,gamma,tol)
+% d = size(x_vec,1);
+n = size(x_vec,2);
+w = ones(n,1);
+for i = 1:n
+    w(i) = norm( x0 - x_vec(:,i) );
+end
+[mind,ind] = min(w);
+if (mind<tol)
+    mind = min(w((1:n)~=ind));
+    w(ind) = mind;
+end
+w = w/mind;
+w = 1./w.^gamma;
+end
+
+function [FGRID,GRID] = grid_from_file(file,start_idx,sz,r,n_quad)
+% (for single block only)
+grid  = read_grd_file_to_struct(file);
+end_idx   = start_idx + (sz-1)*r;
+grid.gblock.x = grid.gblock.x( start_idx(1):end_idx(1), ...
+                               start_idx(2):end_idx(2), ...
+                               start_idx(3):end_idx(3) );
+grid.gblock.y = grid.gblock.y( start_idx(1):end_idx(1), ...
+                               start_idx(2):end_idx(2), ...
+                               start_idx(3):end_idx(3) );
+grid.block.imax = sz(1);
+grid.block.jmax = sz(2);
+if (isfield(grid.gblock,'z'))
+    grid.gblock.z = grid.gblock.z( start_idx(1):end_idx(1), ...
+                                   start_idx(2):end_idx(2), ...
+                                   start_idx(3):end_idx(3) );
+    grid.block.kmax = sz(3);
+end
+FGRID = grid_type(grid); % fine grid
+GRID  = grid_type(grid,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
+end
+
 % function S = make_all_stencils(GRID,n_stencil,balanced)
 % S = struct();
 % for blk = 1:GRID.nblocks
@@ -678,13 +730,16 @@ for d = 1:dim
 end
 end
 
-function [coefs,M,condM,scale] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,o,msk,use_scale)
+function [coefs,M,condM,scale] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,weight_vec,o,msk,use_scale)
 x0     = x_vec(1:dim,1);
 x_vec  = x_vec(1:dim,:) - x0;
 xi_vec = xi_vec(1:dim,:);
 A      = A(1:dim,1:dim);
 
 M      = computational_transform_matrix(xi_vec,o);
+M = M.*weight_vec;
+
+
 scale = ones(1,size(M,2));
 if (use_scale)
     scale = sum( abs(M),1 );
@@ -693,6 +748,8 @@ end
 M = M.*scale;
 condM  = cond(M);
 x_vec2 = A*x_vec;
+x_vec2 = x_vec2.*(weight_vec.');
+
 % coefs = M\x_vec2.';
 n_terms = size(M,2);
 coefs  = zeros(n_terms,dim);
@@ -702,7 +759,7 @@ for d = 1:dim
 end
 end
 
-function [coefs,M,condM,scale] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,o,msk,use_scale)
+function [coefs,M,condM,scale] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,weight_vec,o,msk,use_scale)
 x0     = x_vec(1:dim,1);
 x_vec  = x_vec(1:dim,:) - x0;
 xi_vec = xi_vec(1:dim,:);
@@ -710,6 +767,8 @@ A      = A(1:dim,1:dim);
 
 x_vec2 = A*x_vec;
 M      = computational_transform_matrix(x_vec2,o);
+M = M.*weight_vec;
+xi_vec = xi_vec.*(weight_vec.');
 scale = ones(1,size(M,2));
 if (use_scale)
     scale = sum( abs(M),1 );
