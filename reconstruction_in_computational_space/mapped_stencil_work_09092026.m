@@ -10,8 +10,8 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 n_dim  = 2;
-N      = 17;
-r      = 2;
+N      = 11;
+r      = 1;
 o      = 4;
 go     = o;
 Ng     = r*(N-1)+1;
@@ -26,43 +26,41 @@ balanced = true;
 x1_map = @(x1,x2,n) x1 + (x2-x1)*fh1(linspace(0,1,n));
 x2_map = @(x1,x2,n) x1 + (x2-x1)*fh2(linspace(0,1,n));
 
-GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
+% GRID = curv_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map);
 % GRID  = cart_grid(Ng,Ng,x1_map=x1_map,x2_map=x2_map,theta=pi/3);
-FGRID = grid_type(GRID); % fine grid
-GRID  = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
-
-
-
-
+% FGRID = grid_type(GRID); % fine grid
+% GRID  = grid_type(GRID,agglomerate=true,calc_quads=true,nquad=n_quad,nskip=[r,r,1]);
 
 % file = 'C:\Users\wajordan\Desktop\git_MATLAB\2025\kt.grd';
-% file = 'C:\Users\Will\Documents\MATLAB\VT_Research\2025\kt.grd';
+file = 'C:\Users\Will\Documents\MATLAB\VT_Research\2025\kt.grd';
 % r      = 2;
 % start_idx = [57,1,1];
-% sz        = [N,N,1];
-% [FGRID,GRID] = grid_from_file(file,start_idx,sz,r,n_quad);
+r      = 1;
+start_idx = [60,1,1];
+sz        = [N,N,1];
+[FGRID,GRID] = grid_from_file(file,start_idx,sz,r,n_quad);
+
+ext_fun = @(x) 1.0 + x - x.^2 - x.^3 - x.^4;
+ext_fun = @(x) x(1) + x(2);
+
+REC = rec_t( GRID, n_dim, o, 1 );
+
+REC = REC.solve_rec( GRID, ext_fun );
 
 
 blk = 1;
-idx = [16,1,1];
-
+idx = [6,1,1];
 
 CGRID = cart_grid(Ng,Ng);
-CGRID.x = CGRID.x*(N-1) - 1 - idx(1);
-CGRID.y = CGRID.y*(N-1) - 1 - idx(2);
-CGRID  = grid_type(CGRID,agglomerate=true,calc_quads=false,nskip=[r,r,1]);
+CGRID.x = 2*CGRID.x*(N-1) - 2*(idx(1)-1) - 1;
+CGRID.y = 2*CGRID.y*(N-1) - 2*(idx(2)-1) - 1;
+FCGRID  = grid_type(CGRID);
+CGRID   = grid_type(CGRID,agglomerate=true,nskip=[r,r,1]);
 
 
 S = make_stencil(GRID,blk,idx,Ns,balanced);
 
-I = calculate_inertia_tensor( GRID.gblock(S.blk(1)).grid_vars.quad( S.idx(1,1), S.idx(2,1), S.idx(3,1) ) );
-[R0,~] = eig(I(1:2,1:2));
-R = eye(3);
-R(1:2,1:2) = R0;
-
 [Aco,Acon,Mjac] = get_cell_jacobian(FGRID,GRID,blk,idx);
-
-R = get_rotation_matrix(Aco.');
 
 % R1 = get_rotation_matrix(Mjac);
 % R = [0,1,0;1,0,0;0,0,1]*R1;
@@ -73,15 +71,13 @@ xi0 = xi_vec(:,1);
 x01 = x0;
 xi01 = xi0;
 [n_nodes_eval,xi_vec_eval,x_vec_eval] = get_stencil_quad_nodes(2,n_quad,GRID,S);
-n_nodes = n_nodes_eval;
-x_vec = x_vec_eval;
-xi_vec = xi_vec_eval;
-x0 = x_vec(:,1);
+% n_nodes = n_nodes_eval;
+% x_vec = x_vec_eval;
+% xi_vec = xi_vec_eval;
 
-% n_nodes = n_nodes_eval+1;
-% x_vec = [x0,x_vec_eval];
-% xi_vec = [xi0,xi_vec_eval];
-% x0 = x_vec(:,1);
+n_nodes = n_nodes_eval+1;
+x_vec = [x0,x_vec_eval];
+xi_vec = [xi0,xi_vec_eval];
 
 
 msk = false(n_nodes,1);
@@ -92,24 +88,17 @@ scale = true;
 gamma = 0;
 tol = 1.0e-12;
 weight_vec = compute_weight_vec(x01,x_vec,gamma,tol);
+% weight_vec(1) = 10;
+% weight_vec(2:1+n_quad^2) = 2;
 % weight_vec = compute_weight_vec(xi01,xi_vec,gamma,tol);
 
 % fit x(xi)
-[x_coefs0,~,cx0] = fit_xi_to_x_map(2,eye(2),xi_vec,x_vec,weight_vec,go,msk,scale);
-[x_coefs1,~,cx1] = fit_xi_to_x_map(2,     R,xi_vec,x_vec,weight_vec,go,msk,scale);
-[x_coefs2,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,weight_vec,go,msk,scale);
-x_eval0 = eval_xi_to_x_map(2,go,eye(2),x0,xi_vec_eval,x_coefs0);
-x_eval1 = eval_xi_to_x_map(2,go,     R,x0,xi_vec_eval,x_coefs1);
-x_eval2 = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs2);
+[x_coefs,~,cx2] = fit_xi_to_x_map(2,  Acon,xi_vec,x_vec,x0,weight_vec,go,msk,scale);
+x_eval = eval_xi_to_x_map(2,go,  Acon,x0,xi_vec_eval,x_coefs);
 
 % fit xi(x)
-[xi_coefs0,~,c0] = fit_x_to_xi_map(2,eye(2),xi_vec,x_vec,weight_vec,go,msk,scale);
-[xi_coefs1,~,c1] = fit_x_to_xi_map(2,     R,xi_vec,x_vec,weight_vec,go,msk,scale);
-[xi_coefs2,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,weight_vec,go,msk,scale);
-
-xi_eval0 = eval_x_to_xi_map(2,go,eye(2),x0,x_vec_eval,xi_coefs0);
-xi_eval1 = eval_x_to_xi_map(2,go,     R,x0,x_vec_eval,xi_coefs1);
-xi_eval2 = eval_x_to_xi_map(2,go,  Acon,x0,x_vec_eval,xi_coefs2);
+[xi_coefs,~,c2] = fit_x_to_xi_map(2,  Acon,xi_vec,x_vec,x0,weight_vec,go,msk,scale);
+xi_eval = eval_x_to_xi_map(2,go,  Acon,x0,x_vec_eval,xi_coefs);
 
 N_stencil = S.N;
 
@@ -139,17 +128,24 @@ end
 %% Figure 3: stencil w/ mapped quad points
 for i = 1:N_stencil
     cnt = (i-1)*n_quad^2;
-    tmp_x = reshape(x_eval2(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    tmp_x = reshape(x_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
     x1 = squeeze(tmp_x(1,:,:));
     x2 = squeeze(tmp_x(2,:,:));
     plot(x1,x2,'g.-')
     plot(x1.',x2.','g.-')
 end
 
-%% Figure 4: Stencil in computational space (quad pts)
+%% Figure 4: Stencil in computational space
 figure
 hold on
-plot_grid_2D_local(CGRID,r,'k');
+plot_grid_2D_local(FCGRID,r,'k');
+for i = 2:N_stencil
+    plot_unmapped_stencil_points_2D(FCGRID,CGRID,S,blk,i,'r','FaceAlpha',0.5)
+end
+plot_unmapped_stencil_points_2D(FCGRID,CGRID,S,blk,1,'b','FaceAlpha',0.5)
+axis equal
+
+%% Figure 5: Stencil in computational space (quad pts)
 for i = 1:N_stencil
     cnt = (i-1)*n_quad^2;
     tmp_xi = reshape(xi_vec_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
@@ -159,38 +155,18 @@ for i = 1:N_stencil
     plot(xi1.',xi2.','k.-')
 end
 
-
-nexttile
-hold on
+%% Figure 5: Stencil in computational space (mapped quad pts)
 for i = 1:N_stencil
     cnt = (i-1)*n_quad^2;
-    tmp_xi = reshape(xi_vec_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
-    xi1 = squeeze(tmp_xi(1,:,:));
-    xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'k.-','LineWidth',wid)
-    plot(xi1.',xi2.','k.-','LineWidth',wid)
-
-    tmp_xi = reshape(xi_eval0(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
-    xi1 = squeeze(tmp_xi(1,:,:));
-    xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'r.-')
-    plot(xi1.',xi2.','r.-')
-
-    tmp_xi = reshape(xi_eval1(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
-    xi1 = squeeze(tmp_xi(1,:,:));
-    xi2 = squeeze(tmp_xi(2,:,:));
-    plot(xi1,xi2,'b.-')
-    plot(xi1.',xi2.','b.-')
-
-    tmp_xi = reshape(xi_eval2(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
+    tmp_xi = reshape(xi_eval(:,cnt+1:cnt+n_quad^2),[2,n_quad,n_quad]);
     xi1 = squeeze(tmp_xi(1,:,:));
     xi2 = squeeze(tmp_xi(2,:,:));
     plot(xi1,xi2,'g.-')
     plot(xi1.',xi2.','g.-')
 end
 
-axis equal
-hold off;
+
+hold on;
 
 
 
@@ -350,7 +326,7 @@ Y = [y1(:);y2(:);y3(:);y4(:)];
 patch(X,Y,varargin{:})
 end
 
-function plot_mapped_stencil_points_2D(M,FGRID,GRID,S,blk,idx,i,varargin)
+function plot_mapped_stencil_points_2D(FGRID,GRID,S,blk,idx,i,varargin)
 n_skip = GRID.nskip;
 sidx = S.idx(:,i).';
 cell_idx = (sidx-1).*n_skip+1;
@@ -549,7 +525,7 @@ x_eval = A\x_eval_tmp + x0;
 end
 
 function xi_eval = eval_x_to_xi_map(dim,o,A,x0,x_eval,coefs)
-x_eval = x_eval(1:dim,:);
+x_eval  = x_eval(1:dim,:);
 n_nodes = size(x_eval,2);
 x0      = x0(1:dim);
 A       = A(1:dim,1:dim);
@@ -560,8 +536,7 @@ for d = 1:dim
 end
 end
 
-function [coefs,M,condM,scale] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,weight_vec,o,msk,use_scale)
-x0     = x_vec(1:dim,1);
+function [coefs,M,condM,scale] = fit_xi_to_x_map(dim,A,xi_vec,x_vec,x0,weight_vec,o,msk,use_scale)
 x_vec  = x_vec(1:dim,:) - x0;
 xi_vec = xi_vec(1:dim,:);
 A      = A(1:dim,1:dim);
@@ -589,8 +564,7 @@ for d = 1:dim
 end
 end
 
-function [coefs,M,condM,scale] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,weight_vec,o,msk,use_scale)
-x0     = x_vec(1:dim,1);
+function [coefs,M,condM,scale] = fit_x_to_xi_map(dim,A,xi_vec,x_vec,x0,weight_vec,o,msk,use_scale)
 x_vec  = x_vec(1:dim,:) - x0;
 xi_vec = xi_vec(1:dim,:);
 A      = A(1:dim,1:dim);
