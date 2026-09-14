@@ -2,6 +2,7 @@ function str = clean_fortran_sym(expr)
 prec_str = '_dp';
 max_chars = 75;
 constant_dict = {'3.141592653589793D0', 'pi', ...
+                 '0.0D0', 'zero' , ...
                  '1.0D0', 'one'  , ...
                  '2.0D0', 'two'  , ...
                  '3.0D0', 'three', ...
@@ -24,7 +25,7 @@ str = regexprep(str, '(\d+\.\d*|\.\d+|\d+)D([+-]?\d+)', ['$1e$2',prec_str]);
 str = regexprep(str, '(\d+)_(\d+)', '($1,$2)');
 str = regexprep(str, '([a-zA-Z])(\d+)', '$1($2)');
 % str = regexprep(str, '(?<!\*)\*(?!\*)', ' $& ');
-str = regexprep(str, '[=]', ' $& ');
+str = regexprep(str, '[+=]', ' $& ');
 str = regexprep(str, '(?<!\*)\*(?!\*)|(?<!-)(?<![eE])-(?!-)|(?<!-)-(?!-)(?!\d)', ' $& ');
 
 wrappedCell = textwrap({str}, max_chars);
