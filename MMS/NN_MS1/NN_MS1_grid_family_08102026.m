@@ -11,9 +11,9 @@ clear parent_dir_str path_idx path_parts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc;
 
-folder = 'C:\Users\Will\Downloads\ms1_grids';
-% folder = 'C:\Users\wajordan\Downloads\ms1_grids';
-prefix='ms1';
+% folder = 'C:\Users\Will\Downloads\ms1_grids';
+folder = 'C:\Users\wajordan\Downloads\ms1_grids';
+prefix='ms1_';
 out_folder = fullfile(folder,'\grids\');
 jobfmt  = ['_',prefix,'%0.4dx%0.4d'];
 
@@ -24,24 +24,31 @@ jmax     = 257;
 r_xi     = 0.9993; % 0.993 in paper - but that might be a typo because
 r_eta    = 1.0;
 a        = 0.05;
-N_skip   = 4;      % this will generate grids 4x finer than in the paper, 
-                   % but they should comprise the same grid family
-GRID     = ms1_grid(imax,jmax,N_skip,r_xi,r_eta,a);
-GRID2    = ms1_grid(imax,jmax,1,r_xi,r_eta,a);
+
+n_skip   = [4,4];
+GRID     = ms1_grid(imax,jmax,n_skip,r_xi,r_eta,a);
 
 skip1 = levels(end)-1;
 skip2 = levels(end)-1;
 x = GRID.x(1:2^skip1:end,1:2^skip2:end);
 y = GRID.y(1:2^skip1:end,1:2^skip2:end);
 hold on;
-plot( x,   y,  'k');
-plot( x.', y.','k');
-axis equal
-
-x = GRID2.x(1:2^skip1:end,1:2^skip2:end);
-y = GRID2.y(1:2^skip1:end,1:2^skip2:end);
 plot( x,   y,  'r');
 plot( x.', y.','r');
+axis equal
+
+% debug code to make sure you use the same grid distribution function
+% n_skip   = [1,1];
+% GRID     = ms1_grid(imax,jmax,n_skip,r_xi,r_eta,a);
+% 
+% skip1 = levels(end-2)-1;
+% skip2 = levels(end-2)-1;
+% x = GRID.x(1:2^skip1:end,1:2^skip2:end);
+% y = GRID.y(1:2^skip1:end,1:2^skip2:end);
+% hold on;
+% plot( x,   y,  'g--');
+% plot( x.', y.','g--');
+
 
 bc_id_list  = [201,-200,-200,-200];
 
@@ -74,24 +81,26 @@ for j = 1:n_levels
 end
 
 
-function GRID = ms1_grid(imax,jmax,N_refine,r_xi,r_eta,a)
+function GRID = ms1_grid(imax,jmax,n_refine,r_xi,r_eta,a)
 % undeformed initial domain
 xi_min = 0.5;
 xi_max = 1.0;
 eta_min = 0.0;
 eta_max = 0.5;
 
-% [xi0,~]  = my_geomspace(imax,xi_min,xmax=xi_max,r=r_xi);
-% [eta0,~] = my_geomspace(jmax,eta_min,xmax=eta_max,r=r_eta);
+f_xi  = my_geomspace_fcn(N=imax,xmin=xi_min,xmax=xi_max,r=r_xi);
+f_eta = my_geomspace_fcn(N=jmax,xmin=eta_min,xmax=eta_max,r=r_eta);
 
-[xi0,~]  = my_geomspace_w_refine(imax,N_refine,xi_min,xmax=xi_max,r=r_xi);
-[eta0,~] = my_geomspace_w_refine(jmax,N_refine,eta_min,xmax=eta_max,r=r_eta);
+n_xi = n_refine(1)*(imax-1)+1;
+n_eta = n_refine(2)*(jmax-1)+1;
+xi0 = f_xi( linspace(0,1,n_xi) );
+eta0 = f_eta( linspace(0,1,n_eta) );
 
 [XI,ETA]  =  ndgrid( xi0, eta0 );
 
 GRID = struct();
-GRID.imax = imax;
-GRID.jmax = jmax;
+GRID.imax = n_xi;
+GRID.jmax = n_eta;
 
 GRID.x = x_map(XI,ETA);
 GRID.y = y_map(XI,ETA,a);
