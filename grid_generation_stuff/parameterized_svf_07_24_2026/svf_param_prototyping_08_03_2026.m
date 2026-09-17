@@ -29,8 +29,10 @@ hold on
 % plot(GRID.x(1:2^n_ref:end,1:2^n_ref:end).',GRID.y(1:2^n_ref:end,1:2^n_ref:end).','k');
 % axis equal
 
-AR0 = AR_out;
-ARN = AR_out;
+% AR0 = AR_out;
+% ARN = AR_out;
+AR0 = 1;
+ARN = 0.1;
 [radius2,~,AR_out2] = get_stretched_radius_distribution(AR0,ARN,N_r,N_theta,pi/2,2,3);
 GRID2 = svf_grid(N_theta,radius2);
 plot(GRID2.x(1:2^n_ref:end,1:2^n_ref:end),  GRID2.y(1:2^n_ref:end,1:2^n_ref:end),  'r');
@@ -85,6 +87,7 @@ delta_r0 = (alpha0-1)*radius1;
 delta_rN = (1-1/alphaN)*radius2;
 delta_r  = radius2-radius1;
 fun = vinokur_two_sided_spacing_fcn( n_r, delta_rN/delta_r, delta_r0/delta_r,false);
+fun = @(t) t;
 r_fun = @(t) radius1 + delta_r*fun(t);
 r = r_fun(linspace(0,1,n_r));
 alpha = r(2:end)./r(1:end-1);
@@ -107,6 +110,7 @@ N_in = min_N:max_N;
 N_in = N_in( sz_check(N_in) );
 [N1,r1,AR] = get_radius_distribution(AR_target,N_refine,N_in,angle,radius1,radius2);
 tol = 1.0e-14;
+
 mask = sz_check(N1) & abs(radius2./radius1 - r1.^(N1-1))<tol;
 N_in = N_in(mask);
 N1   = N1(mask);
