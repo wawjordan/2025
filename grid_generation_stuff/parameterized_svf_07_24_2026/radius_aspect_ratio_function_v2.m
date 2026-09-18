@@ -1,4 +1,4 @@
-%% radius-aspect ratio function (09/17/2026)
+%% radius-aspect ratio function attempt 2 (09/18/2026)
 clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 parent_dir_str = '2025';
@@ -20,16 +20,19 @@ eta = x1/x0;
 dtheta = theta/(n_theta-1);
 
 % AR = @(t) 1-0.2*sin(pi*t);
-AR = @(t) 1+zeros(size(t));
-AR = @(t) 1 - 0.5*t.^2;
+AR = 1;
+y = (dtheta/2)*AR;
+alpha = (1 + y)./(1 - y);
+beta = log( eta )/log( alpha );
 
-y = @(t) (dtheta/2)*AR(t);
+% tau = @(t) log(1+t*(exp(1)-1));
+% tau = @(t) ( log( (eta-1)*t + 1 )/(beta*log(alpha)) );
 
-alpha = @(t) (1 + y(t))./(1 - y(t));
+tau = @(t) (t - cos(pi*t)+1)/3;
 
-beta = log( eta )/log( alpha(1) );
+tau = vinokur_two_sided_spacing_fcn( n_theta, 0.001, 0.001,false);
 
-xi = @(t) ( alpha(t).^(beta*t) - 1 )/( eta - 1 );
+xi = @(t) ( alpha.^(beta*tau(t)) - 1 )/( eta - 1 );
 
 x = @(t) (x1-x0)*xi(t) + x0;
 
@@ -43,9 +46,8 @@ r = x(t);
 
 alpha = r(2:end)./r(1:end-1);
 AR_out = ( (alpha-1)./(alpha+1) ) .* (2./dtheta);
-hold on
-plot(AR_out)
-plot(AR(t))
+% hold on
+% plot(AR_out)
 % plot(AR_out./AR(t(1:end-1)))
 
 [R,THETA] = ndgrid(r,linspace(0,theta,n_theta));
