@@ -11,10 +11,13 @@ clear parent_dir_str path_idx path_parts
 clc;
 dstr = char(datetime('now',"Format",'uuuu-MM-dd''_''HH-mm-ss'));
 
-folder = 'C:\Users\Will\Downloads\svf_for_transfer_AR_1000';
-prefix='hb';
+% folder = 'C:\Users\Will\Downloads\svf_for_transfer_AR_1000';
+folder = 'C:\Users\wajordan\Downloads\svf_for_transfer_AR_1000';
+prefix='svf';
 out_folder = fullfile(folder,'\grids\');
 jobfmt  = ['_',prefix,'%0.4dx%0.4d'];
+
+bc_only = true;
 
 r_factor    = 2;
 levels      = 1:6;
@@ -38,7 +41,7 @@ imax = (INFO.n_theta-1)*r + 1;
 jmax = (INFO.n_r    -1)*r + 1;
 GRID = generate_grid( imax, jmax, INFO.theta_fun, INFO.r_fun );
 
-bc_id_list  = [201,-200,201,-200];
+bc_id_list  = [201,201,-200,-200];
 
 Nfine = [GRID.imax,GRID.jmax];
 for j = 1:n_levels
@@ -48,7 +51,9 @@ for j = 1:n_levels
     foldername = [out_folder,sprintf(jobfmt,GRID2.imax,GRID2.jmax)];
     filename = [foldername,'\',prefix];
     status = mkdir(foldername);
-    P2D_grid_out(GRID2,[filename,'.grd'])
+    if ~bc_only
+        P2D_grid_out(GRID2,[filename,'.grd'])
+    end
     Ni(1) = 1;
     Ni(2) = (GRID.imax - 1)/s + 1;
     Nj(1) = 1;
@@ -72,7 +77,7 @@ GRID.imax = n_theta;
 GRID.jmax = n_r;
 r     = r_fun(     linspace(0,1,n_r    ) );
 theta = theta_fun( linspace(0,1,n_theta) );
-[R,THETA] = ndgrid(r,theta);
+[THETA,R] = ndgrid(theta,r);
 GRID.x = R.*cos(THETA);
 GRID.y = R.*sin(THETA);
 end
