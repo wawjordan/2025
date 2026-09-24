@@ -216,10 +216,22 @@ classdef halfbody
             theta(N2+1:end) = 2*pi-theta(N2-1:-1:1);
             % generate surface points
             [GRID.x(:,1),GRID.y(:,1)] = this.surface_coords(theta);
+            % enforce symmetry
+            GRID.y(N2,1) = 0;
+            GRID.y(N2+1:end,1) = 0.5*( GRID.y(N2+1:end,1) - GRID.y(N2-1:-1:1,1) );
+            GRID.y(N2-1:-1:1,1)   = -GRID.y(N2+1:end,1);
+            GRID.x(N2+1:end,1) = 0.5*( GRID.x(N2+1:end,1) + GRID.x(N2-1:-1:1,1) );
+            GRID.x(N2-1:-1:1,1)   =  GRID.x(N2+1:end,1);
             [~,alpha,~] = halfbody.geomspace( n_r, abs(this.xstag), boundary_distance, h );
             for j = 2:n_r
                 h = alpha*h;
                 [GRID.x(:,j),GRID.y(:,j)] = halfbody.extrude_surface_pts(GRID.x(:,j-1),GRID.y(:,j-1),h);
+                % enforce symmetry
+                GRID.y(N2,j) = 0;
+                GRID.y(N2+1:end,j) = 0.5*( GRID.y(N2+1:end,j) - GRID.y(N2-1:-1:1,j) );
+                GRID.y(N2-1:-1:1,j)   = -GRID.y(N2+1:end,j);
+                GRID.x(N2+1:end,j) = 0.5*( GRID.x(N2+1:end,j) + GRID.x(N2-1:-1:1,j) );
+                GRID.x(N2-1:-1:1,j)   =  GRID.x(N2+1:end,j);
             end
         end
         % function [mu,t,tc,L] = get_optimal_mu(f1,N,theta_min)

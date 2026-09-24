@@ -11,7 +11,7 @@ clear parent_dir_str path_idx path_parts
 clc;
 
 % folder = 'C:\Users\Will\Downloads\halfbody_test_AR_1';
-folder = 'C:\Users\wajordan\Downloads\halfbody_test_AR_4_skip';
+folder = 'C:\Users\wajordan\Downloads\halfbody_test_AR_1_sym';
 prefix='hb';
 out_folder = fullfile(folder,'\grids\');
 jobfmt  = ['_',prefix,'%0.4dx%0.4d'];
@@ -37,7 +37,7 @@ jmax              = 2049;
 % imax              = 257;
 % jmax              = 129;
 
-skip1 = 4;
+skip1 = 1;
 skip2 = 1;
 
 GRID = body.extruded_grid2( imax, jmax, stag_spacing, boundary_distance, AR );
