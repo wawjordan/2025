@@ -202,7 +202,6 @@ classdef halfbody
             GRID.jmax = n_r;
             GRID.x = zeros(n_theta,n_r);
             GRID.y = zeros(n_theta,n_r);
-            % f = @(t) t;
             L = this.arc_length(theta_min,theta_max);
             h = stag_spacing/AR;
             d0  = stag_spacing/L;
@@ -215,24 +214,21 @@ classdef halfbody
             theta(1:N2) = this.arc_length_param(theta0,f);
             theta(N2+1:end) = 2*pi-theta(N2-1:-1:1);
             % generate surface points
-            [GRID.x(:,1),GRID.y(:,1)] = this.surface_coords(theta);
+            [GRID.x(:,1),GRID.y(:,1)] = this.surface_coords(flip(theta));
             % enforce symmetry
             GRID.y(N2,1) = 0;
             GRID.y(N2+1:end,1) = 0.5*( GRID.y(N2+1:end,1) - GRID.y(N2-1:-1:1,1) );
-            GRID.y(N2-1:-1:1,1)   = -GRID.y(N2+1:end,1);
+            GRID.y(N2-1:-1:1,1) = -GRID.y(N2+1:end,1);
             GRID.x(N2+1:end,1) = 0.5*( GRID.x(N2+1:end,1) + GRID.x(N2-1:-1:1,1) );
-            GRID.x(N2-1:-1:1,1)   =  GRID.x(N2+1:end,1);
+            GRID.x(N2-1:-1:1,1) =  GRID.x(N2+1:end,1);
             [~,alpha,~] = halfbody.geomspace( n_r, abs(this.xstag), boundary_distance, h );
             for j = 2:n_r
                 h = alpha*h;
                 [GRID.x(:,j),GRID.y(:,j)] = halfbody.extrude_surface_pts(GRID.x(:,j-1),GRID.y(:,j-1),h);
-                % enforce symmetry
-                GRID.y(N2,j) = 0;
-                GRID.y(N2+1:end,j) = 0.5*( GRID.y(N2+1:end,j) - GRID.y(N2-1:-1:1,j) );
-                GRID.y(N2-1:-1:1,j)   = -GRID.y(N2+1:end,j);
-                GRID.x(N2+1:end,j) = 0.5*( GRID.x(N2+1:end,j) + GRID.x(N2-1:-1:1,j) );
-                GRID.x(N2-1:-1:1,j)   =  GRID.x(N2+1:end,j);
             end
+            % check
+            % max( abs( GRID.y(end:-1:N2,:)+GRID.y(1:N2,:) ),[], 'all')==0
+            % max( abs( GRID.x(end:-1:N2,:)-GRID.x(1:N2,:) ),[], 'all')==0
         end
         % function [mu,t,tc,L] = get_optimal_mu(f1,N,theta_min)
         %     [~,tc,L] = halfbody.reparam_curve_xy(@(theta)this.surface_coords(theta),f,n_theta,theta_min,theta_max,mu);
