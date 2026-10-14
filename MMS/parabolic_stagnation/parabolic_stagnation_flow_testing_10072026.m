@@ -15,8 +15,8 @@ in.rLE     = 1.0;
 in.rho_inf = 1.0;
 in.p_inf   = 100000.0;
 in.v_inf   = 68.0;
-in.stag_spacing=in.rLE/20;
-in.boundary_distance=500;
+in.stag_spacing=in.rLE/50;
+in.boundary_distance=500*in.rLE;
 in.AR = 1;
 in.imax=129;
 in.jmax=65;
@@ -31,24 +31,24 @@ GRID =  parab.extruded_grid( in.imax, ...
                          in.stag_spacing, ...
                          in.boundary_distance, ...
                          in.AR );
-% GRID2 = parab.parabolic_grid( in.imax, ...
-%                           in.jmax, ...
-%                           in.stag_spacing, ...
-%                           in.boundary_distance, ...
-%                           in.AR );
+GRID2 = parab.parabolic_grid( in.imax, ...
+                          in.jmax, ...
+                          in.stag_spacing, ...
+                          in.boundary_distance, ...
+                          in.AR );
 
 x1 = GRID.x(:,:);
 y1 = GRID.y(:,:);
 
-% x2 = GRID2.x(:,:);
-% y2 = GRID2.y(:,:);
+x2 = GRID2.x(:,:);
+y2 = GRID2.y(:,:);
 
-% hold on;
-% plot(x1,y1,'k');
-% plot(x1.',y1.','k');
-% plot(x2,y2,'r');
-% plot(x2.',y2.','r');
-% axis equal
+hold on;
+plot(x1,y1,'k');
+plot(x1.',y1.','k');
+plot(x2,y2,'r');
+plot(x2.',y2.','r');
+axis equal
 
 u   = parab.x_velocity(GRID.x,GRID.y);
 v   = parab.y_velocity(GRID.x,GRID.y);

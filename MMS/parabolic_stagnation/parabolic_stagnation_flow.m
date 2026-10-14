@@ -94,6 +94,17 @@ classdef parabolic_stagnation_flow
         function w = complex_velocity(this,zeta)
             w = this.v_inf * ( 1 - 1i*this.eta_0./zeta );
         end
+        % function dwdzeta = complex_velocity_derivative(this,zeta)
+        %     dwdzeta = this.v_inf * ( 1i*this.eta_0./zeta.^2 );
+        % end
+        % function d2wdzeta2 = complex_velocity_derivative2(this,zeta)
+        %     d2wdzeta2 = -this.v_inf * ( 2i*this.eta_0./zeta.^3 );
+        % end
+        % function dwdz = complex_velocity_z_derivative(this,z)
+        %     % z = 0.5*( zeta.^2 + this.r_LE );
+        %     % dwdzeta = this.v_inf * ( 1i*this.eta_0./zeta.^2 );
+        %     dwdz = this.v_inf * ( 1i*this.eta_0./zeta.^2 );
+        % end
         function u = x_velocity(this,x,y)
             u =  real( this.complex_velocity(this.zeta_from_z(x+1i*y)));
         end
@@ -105,7 +116,12 @@ classdef parabolic_stagnation_flow
             p  = this.p_inf + (1/2)*this.rho_inf*( this.v_inf^2 - abs(w).^2 );
         end
         function ut = surface_tangent_velocity(this,x)
-            ut = this.v_inf * sqrt( 2*x ./ ( 2*x + this.r_LE) );
+            % ut = this.v_inf * sqrt( 2*x ./ ( 2*x + this.r_LE) );
+            ut = this.v_inf * parabolic_stagnation_flow.surface_velocity( x, this.r_LE );
+        end
+        function dutdx = surface_tangent_velocity_diffx(this,x)
+            % ut = this.v_inf * sqrt( 2*x ./ ( 2*x + this.r_LE) );
+            dutdx = this.v_inf * parabolic_stagnation_flow.surface_velocity_diffx( x, this.r_LE );
         end
         % function ut = surface_tangent_velocity_2(this,x)
         %     y = this.y_from_x(x);
@@ -126,21 +142,49 @@ classdef parabolic_stagnation_flow
         end
         function s = arc_length(this,x)
             xi = sqrt(2*x);
-            s = 0.5*(xi.*sqrt(xi.^2+this.eta_0^2) + this.eta_0^2*asinh(xi/this.eta_0));
+            s = 0.5*( xi.*sqrt(xi.^2+this.eta_0^2) ...
+                    + this.eta_0^2*asinh(xi/this.eta_0) );
+        end
+        function s = weighted_arc_length(this,x,Fx)
+            fun = @(y) Fx(0.5*y.^2/this.r_LE).*sqrt( 1 + (y/this.r_LE).^2 );
+            s = arrayfun(@(x)integral(@(y)fun(y),0,sqrt(2*this.r_LE*x)),x);
         end
         function s = arc_length_segment(this,x0,x1)
             s = this.arc_length(x1) - this.arc_length(x0);
+        end
+        function s = weighted_arc_length_segment(this,x0,x1,Fx)
+            s = this.weighted_arc_length(x1,Fx) ...
+              - this.weighted_arc_length(x0,Fx);
+        end
+        function x = curvature_param_x(this,xmax,N)
+            phi0 = 0;
+            phi1 = atan( sqrt( 2*xmax/this.r_LE ) );
+            phi  = linspace(phi0,phi1,N).';
+            x = 0.5*this.r_LE*tan( phi ).^2;
         end
         function x = arc_length_param_x(this,x_max,N,F)
             options = optimset('TolFun',1e-15,'TolX',1e-17);
             x  = zeros(N,1);
             t  = linspace(0,1,N).';
             x(1) = 0;
-            x(N) = x_max; 
+            x(N) = x_max;
             L_total = this.arc_length(x_max);
             dL = (F(1)-F(0))/ L_total;
             for i = 2:N-1
                 ftmp = @(xsi) F(t(i))-F(t(i-1)) - dL * this.arc_length_segment(x(i-1),xsi);
+                x(i) = fzero( @(xsi)ftmp(xsi),[0,x_max],options);
+            end
+        end
+        function x = arc_length_param_x2(this,x_max,N,Fx)
+            options = optimset('TolFun',1e-15,'TolX',1e-17);
+            x  = zeros(N,1);
+            dt = 1/(N-1);
+            x(1) = 0;
+            x(N) = x_max; 
+            L_total = this.weighted_arc_length(x_max,Fx);
+            dL = 1 / L_total;
+            for i = 2:N-1
+                ftmp = @(xsi) dt - dL * this.weighted_arc_length_segment(x(i-1),xsi,Fx);
                 x(i) = fzero( @(xsi)ftmp(xsi),[0,x_max],options);
             end
         end
@@ -188,6 +232,11 @@ classdef parabolic_stagnation_flow
             N2 = (n_theta-1)/2+1;
             % generate surface points
             x = this.arc_length_param_x(boundary_distance,N2,f2);
+
+            % x1 = this.arc_length_param_x(boundary_distance,N2,@(t)t);
+            % x2 = this.arc_length_param_x2(boundary_distance,N2,@(x)2+0*x);
+            % x2 = this.arc_length_param_x2(boundary_distance,N2,@(x)abs(this.surface_tangent_velocity_diffx(x+eps(1))));
+            % x = this.curvature_param_x(boundary_distance,N2);
             y = this.y_from_x(x);
             z = x + 1i*y;
 
@@ -217,6 +266,19 @@ classdef parabolic_stagnation_flow
         end
     end
     methods (Static)
+        function u = surface_velocity(x,r)
+            u = sqrt( 2*x ./ ( 2*x + r ) );
+        end
+        function dudx = surface_velocity_diffx(x,r)
+            num  = r ./ ( 2*x + r ).^2;
+            den  = sqrt( 2*x ./ ( 2*x + r ) );
+            dudx = num ./ den;
+        end
+        function d2udx2 = surface_velocity_diffx2(x,r)
+            num    = ( r*( 8*x + r ) )./( 4*x .* ( 2*x + r ).^3 );
+            den    = sqrt( 2*x ./ ( 2*x + r ) );
+            d2udx2 = num ./ den;
+        end
         function ZETA = bilinear_remap_rectangle_cmplx(zeta1,zeta2,zeta3,zeta4,xi0,eta0)
             xi  = 2*(xi0-xi0(1))/(xi0(end)-xi0(1)) - 1;
             eta = 2*(eta0-eta0(1))/(eta0(end)-eta0(1)) - 1;
