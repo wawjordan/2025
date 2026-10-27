@@ -70,6 +70,9 @@ classdef parabolic_stagnation_flow
         function y = y_from_x(this,x)
             y = sqrt( 2*this.r_LE*x );
         end
+        function x = x_from_y(this,y)
+            x = (y.^2)/(2*this.r_LE);
+        end
         function r = r_from_x(this,x)
             y = this.y_from_x(x);
             r = sqrt( x.^2 +  y.^2 );
@@ -78,6 +81,63 @@ classdef parabolic_stagnation_flow
             r = this.r_from_theta(theta);
             x =  r.*cos(theta) + 0.5*this.r_LE;
             y =  r.*sin(theta);
+        end
+        function n = cmplx_normal(this,y)
+            r2 = this.r_LE^2;
+            nr = -sqrt(r2./(r2+y.^2));
+            ni =  sign(y).*sqrt(y.^2./(r2+y.^2));
+            n = complex(nr,ni);
+        end
+        function [Cx,Cy] = sensei_force_coefficents(this,xmax,half)
+            Fx = 2*this.half_axial_force(xmax);
+            Fy = 0;
+            if nargin == 3
+                if half==true
+                    Fx = Fx/2;
+                    Fy = this.half_normal_force(xmax);
+                end
+            end
+            factor1 = (this.rho_ref*this.a_ref^2)* ...
+                      ( this.l_ref/this.l_ref_grid )^2;
+            vmag_ref = this.v_inf * this.a_ref;
+            factor2 = ( 0.5 * this.rho_ref * vmag_ref^2 * this.l_ref );
+            Cx = Fx * factor1/factor2;
+            Cy = Fy * factor1/factor2;
+            
+        end
+        function Fx = half_axial_force(this,x)
+            % surface integral of pressure force resolved in x direction
+            % (quadrant 1)
+            qinf = 0.5*this.rho_inf*this.v_inf^2;
+            pinf = this.p_inf;
+            yxr = this.y_from_x(x)/this.r_LE;
+            r   = this.r_LE;
+            Fx = (pinf+qinf)*r*yxr ...
+               - qinf*r*( yxr - atan(yxr) );
+        end
+        function Fx = half_axial_force_numeric(this,x)
+            % numeric check
+            dFx = @(y) this.pressure(this.x_from_y(y),y) ...
+                     .*this.diff_arc_length_y(y) ...
+                     .*real(this.cmplx_normal(y));
+            Fx = integral(@(y)dFx(y),0,this.y_from_x(x));
+        end
+        function Fy = half_normal_force(this,x)
+            % surface integral of pressure force resolved in y direction
+            % (quadrant 1)
+            qinf = 0.5*this.rho_inf*this.v_inf^2;
+            pinf = this.p_inf;
+            yxr2 = (this.y_from_x(x)/this.r_LE).^2;
+            r   = this.r_LE;
+            Fy = 0.5*(pinf+qinf)*r*yxr2 ...
+               - 0.5*qinf*r*( yxr2 - log(yxr2+1) - 2*log(r) );
+        end
+        function Fy = half_normal_force_numeric(this,x)
+            % numeric check
+            dFy = @(y) this.pressure(this.x_from_y(y),y) ...
+                .*this.diff_arc_length_y(y) ...
+                .*imag(this.cmplx_normal(y));
+            Fy = integral(@(y)dFy(y),0,this.y_from_x(x));
         end
 %% Plot
         function [h1] = plot_surface_theta(this,theta_min,varargin)
@@ -139,6 +199,9 @@ classdef parabolic_stagnation_flow
         end
         function rho = density(this,x,~)
             rho = this.rho_inf*ones(size(x));
+        end
+        function ds = diff_arc_length_y(this,y)
+            ds = sqrt( 1 + (y/this.r_LE).^2 );
         end
         function s = arc_length(this,x)
             xi = sqrt(2*x);
