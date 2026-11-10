@@ -5,6 +5,9 @@ classdef parabolic_stagnation_flow
         rho_inf(1,1)     double = 1.0
         v_inf(1,1)       double = 68.0
         p_inf(1,1)       double = 100000.0
+        rho0(1,1)        double
+        p0(1,1)          double
+        h0(1,1)          double
         gamma(1,1)       double = 1.4
         rho_ref(1,1)     double = 1.0
         a_ref(1,1)       double = 340.0
@@ -30,14 +33,21 @@ classdef parabolic_stagnation_flow
             parse(p,varargin{:});
             this.rho_ref     = p.Results.rho_ref;
             this.a_ref       = p.Results.a_ref;
-            this.gamma       = p.Results.gamma;
-            this.p_inf       = p.Results.p_inf / (this.rho_ref * this.a_ref^2);
-            this.v_inf       = p.Results.v_inf / this.a_ref;
             this.l_ref       = p.Results.l_ref;
             this.l_ref_grid  = p.Results.l_ref_grid;
             L = this.l_ref / this.l_ref_grid;
             this.r_LE         = p.Results.rLE / L;
             this.eta_0        = sqrt( this.r_LE );
+            this.gamma       = p.Results.gamma;
+            this.rho_inf     = p.Results.rho_inf / this.rho_ref;
+            this.p_inf       = p.Results.p_inf / (this.rho_ref * this.a_ref^2);
+            this.v_inf       = p.Results.v_inf / this.a_ref;
+            m_inf = this.v_inf / sqrt(this.gamma*this.p_inf/this.rho_inf);
+            base = 1 + 0.5*(this.gamma - 1)*m_inf^2;
+            this.rho0 = this.rho_inf * base^( 1/(this.gamma-1) );
+            gxgm1 = ( this.gamma/(this.gamma-1) );
+            this.p0 = this.p_inf * base^gxgm1;
+            this.h0 = gxgm1*this.p0/this.rho0;
         end
         function z = z_from_zeta( this, zeta )
             z = 0.5*( zeta.^2 + this.r_LE );
@@ -103,7 +113,24 @@ classdef parabolic_stagnation_flow
             factor2 = ( 0.5 * this.rho_ref * vmag_ref^2 * this.l_ref );
             Cx = Fx * factor1/factor2;
             Cy = Fy * factor1/factor2;
-            
+        end
+        function [Cx,Cy] = sensei_force_coefficents_h(this,xmax,half)
+            Fx = 2*this.half_axial_force_numeric_h(xmax);
+            % Fx0 = 2*this.half_axial_force_h(xmax);
+            % Fx02 = 2*this.half_axial_force_h2(xmax);
+            Fy = 0;
+            if nargin == 3
+                if half==true
+                    Fx = Fx/2;
+                    Fy = this.half_normal_force_numeric_h(xmax);
+                end
+            end
+            factor1 = (this.rho_ref*this.a_ref^2)* ...
+                ( this.l_ref/this.l_ref_grid )^2;
+            vmag_ref = this.v_inf * this.a_ref;
+            factor2 = ( 0.5 * this.rho_ref * vmag_ref^2 * this.l_ref );
+            Cx = Fx * factor1/factor2;
+            Cy = Fy * factor1/factor2;
         end
         function Fx = half_axial_force(this,x)
             % surface integral of pressure force resolved in x direction
@@ -115,11 +142,54 @@ classdef parabolic_stagnation_flow
             Fx = (pinf+qinf)*r*yxr ...
                - qinf*r*( yxr - atan(yxr) );
         end
+        function Fx = half_axial_force_h(this,x)
+            % surface integral of pressure force resolved in x direction
+            % (quadrant 1)
+            a = (2*this.h0 - 1)/this.h0;
+            phi = (a*x + this.r_LE)./(2*x + this.r_LE);
+            A = 240*a^3;
+            B = 8*a^2*(161*a -232)*this.r_LE;
+            C = 4*a*(245*a^2 - 336*a - 128)*this.r_LE^2;
+            D = 2*(105*a^3 - 140*a^2 - 56*a - 48)*this.r_LE^3;
+            E = 210*sqrt(a/2)*a^2*(a-2)*this.r_LE;
+            F = 2*( 105*a^3 - 140*a^2 - 56*a - 48 ...
+                  - 105*a^2*(a-2)*sqrt(a/2)*atanh(sqrt(a/2)) )*this.r_LE;
+            Fx = - (this.p0/480)*( ...
+                ( (A*x.^3 + B*x^2 + C*x + D)./(a*x+this.r_LE).^2 ) ...
+                .*phi.^(5/2) - E*atanh(sqrt(a/2)*phi.^(-1/2)) - F );
+        end
+
+        function Fx = half_axial_force_h2(this,x)
+            % surface integral of pressure force resolved in x direction
+            % (quadrant 1)
+            a = (2*this.h0 - 1)/this.h0;
+            r = this.r_LE;
+            phi = (a*x + r)./(2*x + r);
+            iF = @(x) (1/480)*(phi.^(7/2)).*( ...
+                (1./(a*x+r).^3).*2.*(r+2*x).*( ...
+                   (120*a^3)*x.^3 ...
+                 + (2*a*(245*a^2 - 336*a -128)*r^2)*x ...
+                 + (4*a^2*(161*a-232)*r)*x.^2 ...
+                 + (105*a^3 - 140*a^2 -56*a -48)*r^3 ) ...
+               - (1./(a*x+r).^(7/2)).*( ...
+                 (105*sqrt(2)*(a-2)*a^(5/2)*r)*(r+2*x).^(7/2) ...
+                 .* atanh( (sqrt(a)/sqrt(2))*( sqrt(r+2*x)./sqrt(a*x+r) ) ) ...
+                 ) );
+            Fx = -this.p0 * ( iF(x) - iF(0) );
+        end
+
         function Fx = half_axial_force_numeric(this,x)
             % numeric check
             dFx = @(y) this.pressure(this.x_from_y(y),y) ...
                      .*this.diff_arc_length_y(y) ...
                      .*real(this.cmplx_normal(y));
+            Fx = integral(@(y)dFx(y),0,this.y_from_x(x));
+        end
+        function Fx = half_axial_force_numeric_h(this,x)
+            % numeric evaluation of integral for constant stag enth. case
+            dFx = @(y) this.pressure_h(this.x_from_y(y),y) ...
+                .*this.diff_arc_length_y(y) ...
+                .*real(this.cmplx_normal(y));
             Fx = integral(@(y)dFx(y),0,this.y_from_x(x));
         end
         function Fy = half_normal_force(this,x)
@@ -135,6 +205,13 @@ classdef parabolic_stagnation_flow
         function Fy = half_normal_force_numeric(this,x)
             % numeric check
             dFy = @(y) this.pressure(this.x_from_y(y),y) ...
+                .*this.diff_arc_length_y(y) ...
+                .*imag(this.cmplx_normal(y));
+            Fy = integral(@(y)dFy(y),0,this.y_from_x(x));
+        end
+        function Fy = half_normal_force_numeric_h(this,x)
+            % numeric check
+            dFy = @(y) this.pressure_h(this.x_from_y(y),y) ...
                 .*this.diff_arc_length_y(y) ...
                 .*imag(this.cmplx_normal(y));
             Fy = integral(@(y)dFy(y),0,this.y_from_x(x));
@@ -175,6 +252,10 @@ classdef parabolic_stagnation_flow
             w  = this.complex_velocity(this.zeta_from_z(x+1i*y));
             p  = this.p_inf + (1/2)*this.rho_inf*( this.v_inf^2 - abs(w).^2 );
         end
+        function p = pressure_h(this,x,y)
+            w  = this.complex_velocity(this.zeta_from_z(x+1i*y));
+            p  = this.p0 *( 1 - abs(w).^2/(2*this.h0) ).^( this.gamma/(this.gamma-1) );
+        end
         function ut = surface_tangent_velocity(this,x)
             % ut = this.v_inf * sqrt( 2*x ./ ( 2*x + this.r_LE) );
             ut = this.v_inf * parabolic_stagnation_flow.surface_velocity( x, this.r_LE );
@@ -199,6 +280,10 @@ classdef parabolic_stagnation_flow
         end
         function rho = density(this,x,~)
             rho = this.rho_inf*ones(size(x));
+        end
+        function rho = density_h(this,x,y)
+            w  = this.complex_velocity(this.zeta_from_z(x+1i*y));
+            rho = this.rho0 *( 1 - abs(w).^2/(2*this.h0) ).^( 1/(this.gamma-1) );
         end
         function ds = diff_arc_length_y(this,y)
             ds = sqrt( 1 + (y/this.r_LE).^2 );

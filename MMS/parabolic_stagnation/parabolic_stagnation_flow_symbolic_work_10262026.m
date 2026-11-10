@@ -12,8 +12,12 @@ clc;
 
 syms r b real positive
 syms y real
-% expr1 = 1 - b*(y.^2./(r.^2 + y.^2)).^(7/2) .* sqrt((r.^2)./(r.^2 + y.^2));
-% 
+
+expr1 = sqrt(1 - b*(y.^2./(r.^2 + y.^2)));
+expr2 = int(expr1,y);
+
+% expr1 = (1 - b*(y.^2./(r.^2 + y.^2))).^(7/2) .* sqrt((r.^2)./(r.^2 + y.^2));
+% % 
 % expr2 = (1/16)*sqrt((r.^2)./(r.^2 + y.^2)).* ...
 %        ( ( b*y.*sqrt((r.^2 + y.^2 - b*y.^2)./(r.^2 + y.^2)) ...
 %         .*( 3*(8*b^2 - 26*b + 29)*r.^4 ...
@@ -28,9 +32,5 @@ syms y real
 %          .*log( sqrt(1-b)*sqrt(r.^2 + y.^2) ...
 %               .*sqrt((r.^2 + y.^2 - b*y.^2)./(r.^2 + y.^2)) ...
 %               - b*y + y ) );
-% 
-% expr3 = simplify(diff(expr2),1000);
-
-
-
-function 
+% % 
+% expr3 = simplify(simplify(diff(expr2),1000)==expr1);

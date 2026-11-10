@@ -11,7 +11,7 @@ clear parent_dir_str path_idx path_parts
 clc;
 
 % folder = 'C:\Users\Will\Downloads\parabola_test_AR_1';
-folder = 'C:\Users\wajordan\Downloads\parabola_test_AR_1_4hp';
+folder = 'C:\Users\wajordan\Downloads\parabola_test_AR_1_BD_div_8';
 prefix='parab';
 out_folder = fullfile(folder,'\grids\');
 jobfmt  = ['_',prefix,'%0.4dx%0.4d'];
@@ -21,30 +21,54 @@ in.rLE     = 1.0;
 in.rho_inf = 1.0;
 in.p_inf   = 100000.0;
 in.v_inf   = 68.0;
-% in.stag_spacing=in.rLE/1000;
-in.stag_spacing=in.rLE/250;
+in.stag_spacing=in.rLE/1000;
 in.boundary_distance=500*in.rLE;
 in.AR = 1;
 in.imax=4097;
 in.jmax=2049;
+
+levels            = 1:6;
+n_levels          = length(levels);
+
+div  = 2^(levels(end)-1);
+
+imax_ = (in.imax-1)/div + 1;
+jmax_ = (in.jmax-1)/div + 1;
+
+ifrac = 1;
+%  [ 13, 18, 24, 29, 35, 41, 46, 52, 58, 64 ]
+jfrac = 46/64;
+
+i1 = (imax_-1)*(1-ifrac)/2 + 1;
+i2 = imax_ - (i1-1);
+j1 = 1;
+j2 = (jmax_-1)*jfrac + 1;
+
+i1 = (i1-1)*div + 1;
+i2 = (i2-1)*div + 1;
+j1 = (j1-1)*div + 1;
+j2 = (j2-1)*div + 1;
+
+
 p = parabolic_stagnation_flow( rLE=in.rLE, ...
                                rho_inf=in.rho_inf, ...
                                v_inf=in.v_inf,     ...
                                p_inf=in.p_inf );
 
-% GRID = p.extruded_grid( in.imax, ...
-%                         in.jmax, ...
-%                         in.stag_spacing, ...
-%                         in.boundary_distance, ...
-%                         in.AR );
-GRID = p.parabolic_grid( in.imax, ...
-                         in.jmax, ...
-                         in.stag_spacing, ...
-                         in.boundary_distance, ...
-                         in.AR );
 
-levels            = 1:6;
-n_levels          = length(levels);
+
+GRID = p.extruded_grid( in.imax, ...
+                        in.jmax, ...
+                        in.stag_spacing, ...
+                        in.boundary_distance, ...
+                        in.AR );
+% GRID = p.parabolic_grid( in.imax, ...
+%                          in.jmax, ...
+%                          in.stag_spacing, ...
+%                          in.boundary_distance, ...
+%                          in.AR );
+
+GRID = grid_subset_2D(GRID,{i1:i2,j1:j2});
 
 skip1 = 1;
 skip2 = 1;
