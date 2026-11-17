@@ -8,7 +8,8 @@ classdef compressible_vortex
         rho_inner(1,1)   double = 1.0
         p_inner(1,1)     double = 0.8611583247416177E+05
         M_inner(1,1)     double = 2.0
-        v_inner(1,1)     double = 1.0
+        a_inner(1,1)     double
+        u_inner(1,1)     double
         gamma(1,1)       double = 1.4
         gm1x2(1,1)       double = 0.2
         rho_ref(1,1)     double = 1.0
@@ -31,7 +32,7 @@ classdef compressible_vortex
             p.addOptional('p_inner',-999,validScalarPosNum)
             p.addOptional('gamma',1.4,validScalarPosNum)
             p.addOptional('rho_ref',1.0,validScalarPosNum)
-            p.addOptional('a_ref',340.0,validScalarPosNum)
+            p.addOptional('a_ref',374.165738677,validScalarPosNum)
             p.addOptional('l_ref',1.0,validScalarPosNum)
             p.addOptional('l_ref_grid',1.0,validScalarPosNum)
             parse(p,varargin{:});
@@ -54,9 +55,10 @@ classdef compressible_vortex
                 this.p_inner = p.Results.p_inner ...
                              / (this.rho_ref * this.a_ref^2);
             end
+            this.a_inner = sqrt( this.gamma * this.p_inner ...
+                                            / this.rho_inner );
             this.M_inner = p.Results.M_inner;
-            this.v_inner =  this.r_inner * this.M_inner ...
-                                         * this.rho_inner^this.gm1x2;
+            this.u_inner = this.M_inner * this.rho_inner^this.gm1x2;
         end
         function grid = make_grid(this,N_theta,N_r)
             grid = struct();
@@ -72,20 +74,52 @@ classdef compressible_vortex
         end
         function rho = density(this,x,y)
             r2 = x.^2 + y.^2;
-            rho = this.r_inner * ( 1 + this.gm1x2*this.M_inner^2 ...
-                                      *( 1 - (this.r_inner^2./r2) ) ...
+            rhos = ( 1 + this.gm1x2*this.M_inner^2 ...
+                                   *( 1 - (this.r_inner^2./r2) ) ...
                                       ).^(1/(this.gamma-1));
+            rho = rhos * this.rho_inner;
         end
         function u = x_velocity(this,x,y)
             r2 = x.^2 + y.^2;
-            u  = this.v_inner*y./r2;
+            us = this.u_inner * this.r_inner * y./r2;
+            u  = us * this.a_inner;
         end
         function v = y_velocity(this,x,y)
             r2 = x.^2 + y.^2;
-            v  =-this.v_inner*x./r2;
+            vs =-this.u_inner * this.r_inner * x./r2;
+            v  = vs * this.a_inner;
         end
         function p = pressure(this,x,y)
-            p = this.density(x,y).^(this.gamma)/this.gamma;
+            ps = (this.density(x,y).^(this.gamma))/this.gamma;
+            p = ps * this.rho_inner * this.a_inner^2;
+        end
+        function [Cx,Cy,Axial_jmin,Axial_jmax,Normal_jmin,Normal_jmax] = ...
+                   sensei_force_coefficents(this,vmag_ref)
+            if nargin<2
+                vmag_ref = this.u_inner * this.a_ref;
+            end
+            t0 = min(this.theta_0,this.theta_1);
+            t1 = max(this.theta_0,this.theta_1);
+            p_outer = this.pressure(0,this.r_outer);
+            Fx_inner = -this.p_inner*this.r_inner*(sin(t1)-sin(t0));
+            Fy_inner =  this.p_inner*this.r_inner*(cos(t1)-cos(t0));
+            Fx_outer =       p_outer*this.r_outer*(sin(t1)-sin(t0));
+            Fy_outer =      -p_outer*this.r_outer*(cos(t1)-cos(t0));
+
+            Fx = Fx_inner + Fx_outer;
+            Fy = Fy_inner + Fy_outer;
+            % dp = p_outer*this.r_outer - this.p_inner*this.r_inner;
+            % Fx2 =  dp*(sin(t1)-sin(t0));
+            % Fy2 = -dp*(cos(t1)-cos(t0));
+            factor1 = (this.rho_ref*this.a_ref^2)* ...
+                ( this.l_ref/this.l_ref_grid )^2;
+            factor2 = ( 0.5 * this.rho_ref * vmag_ref^2 * this.l_ref );
+            Cx = Fx * factor1/factor2;
+            Cy = Fy * factor1/factor2;
+            Axial_jmin  = Fx_inner * factor1/factor2;
+            Axial_jmax  = Fx_outer * factor1/factor2;
+            Normal_jmin = Fy_inner * factor1/factor2;
+            Normal_jmax = Fy_outer * factor1/factor2;
         end
     end
     methods (Static)

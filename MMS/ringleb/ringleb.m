@@ -6,7 +6,7 @@ classdef ringleb
         rho0(1,1)        double = 1.0
         p0(1,1)          double = 100000.0
         a0(1,1)          double = 340.0
-        gamma(1,1)       double = 1.4
+        gamma(1,1)       double = 1.4 % constant
         rho_ref(1,1)     double = 1.0
         a_ref(1,1)       double = 340.0
         l_ref(1,1)       double = 1.0
@@ -65,6 +65,48 @@ classdef ringleb
             grid.x = ringleb.x_value(psi,V);
             grid.y = ringleb.y_value(psi,V);
         end
+        function grid = make_grid2(this,N_i,N_j)
+            grid = struct();
+            grid.imax = N_i;
+            grid.jmax = N_j;
+            % v = sin(theta.')./this.psi_min;
+            % [THETA,V] = ndgrid(theta,v);
+            % PSI = sin(THETA)./V;
+            psi = linspace(this.psi_min,this.psi_max,N_j);
+            theta0 = asin(psi*this.v_min);
+            t     = linspace( 0,1,N_i).';
+            theta = theta0 + t.*(pi/2 - theta0);
+            PSI = repmat(psi,N_i,1);
+            V = sin(theta)./PSI;
+            
+            grid.x = ringleb.x_value(PSI,V);
+            grid.y = ringleb.y_value(PSI,V);
+
+            % grid1 = this.make_grid(N_i,N_j);
+            % grid.x = 0.5*(grid.x + grid1.x);
+            % grid.y = 0.5*(grid.y + grid1.y);
+        end
+        % function grid = make_grid3(this,N_i,N_j)
+        %     grid = struct();
+        %     grid.imax = N_i;
+        %     grid.jmax = N_j;
+        %     psi = linspace(this.psi_min,this.psi_max,N_j);
+        %     theta0 = asin(psi*this.v_min);
+        %     phi_max = ringleb.phi_value(theta0(1),this.v_min);
+        %     phi_min = 0;
+        %     phi = linspace(phi_min,phi_max,N_i);
+        %     k = ringleb.k_from_V_phi(phi,V);
+        %     theta0 = asin(psi*this.v_min);
+        %     phi = ringleb.phi_value(theta0,this.v_min);
+        %     t     = linspace( 0,1,N_i).';
+        %     theta = theta0 + t.*(pi/2 - theta0);
+        %     PSI = repmat(psi,N_i,1);
+        %     V = sin(theta)./PSI;
+        % 
+        %     grid.x = ringleb.x_value(PSI,V);
+        %     grid.y = ringleb.y_value(PSI,V);
+        % end
+
         function rho = density(this,x,y)
             [rho,~,~,~] = this.primitive_vars(x,y);
         end
@@ -81,6 +123,7 @@ classdef ringleb
             V   = ringleb.V_value(x,y,this.v_min,this.psi_min);
             psi = ringleb.psi_value(x,V);
         end
+
         function Vpsi = v_psi_from_z(this,z)
             V   = ringleb.V_value(real(z),imag(z),this.v_min,this.psi_min);
             psi = ringleb.psi_value(real(z),V);
@@ -88,9 +131,9 @@ classdef ringleb
         end
         function [rho,u,v,p] = primitive_vars(this,x,y)
             V   = ringleb.V_value(x,y,this.v_min,this.psi_min);
-            b   = ringleb.b_value(V);
-            rho = b.^5;
-            p   = b.^7;
+            b   = ringleb.b_value(V); % b = sqrt( 1 - (gamma-1)/2 * V^2 )
+            rho = b.^5;               % rho = b^(2/(gamma-1))
+            p   = b.^7 / 1.4;         % p = rho*b^2 / gamma
             L   = 1.0./b + 1.0./(3.0*b.^3) + 1.0./(5.0*b.^5) ...
                 - 0.5*log((1.0+b)./(1.0-b));
             psi   = sqrt(0.5./V.^2 - rho.*(x-0.5*L));
@@ -100,6 +143,11 @@ classdef ringleb
             theta = asin(arg);
             u   = -V*cos(theta);
             v   = -V*sin(theta);
+
+            rho = rho*this.rho0;
+            p   = p*this.p0;
+            u   = u*this.a0;
+            v   = v*this.a0;
         end
     end
     methods (Static)
@@ -134,6 +182,15 @@ classdef ringleb
             rho = ringleb.density_value(V);
             L   = ringleb.L_value(V);
             psi = sqrt(0.5./(V.^2) - rho.*(x-0.5*L));
+        end
+        function phi = phi_value(theta,V)
+            rho = ringleb.density_value(V);
+            phi = cos(theta)./(V.*rho);
+        end
+
+        function k = k_from_V_phi(phi,V)
+            rho = ringleb.density_value(V);
+            k = V./sqrt(1-phi.^2.*V.^2*rho.^2);
         end
         function theta = theta_value(psi,V)
             arg = psi.*V;
