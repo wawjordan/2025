@@ -86,26 +86,44 @@ classdef ringleb
             % grid.x = 0.5*(grid.x + grid1.x);
             % grid.y = 0.5*(grid.y + grid1.y);
         end
-        % function grid = make_grid3(this,N_i,N_j)
-        %     grid = struct();
-        %     grid.imax = N_i;
-        %     grid.jmax = N_j;
-        %     psi = linspace(this.psi_min,this.psi_max,N_j);
-        %     theta0 = asin(psi*this.v_min);
-        %     phi_max = ringleb.phi_value(theta0(1),this.v_min);
-        %     phi_min = 0;
-        %     phi = linspace(phi_min,phi_max,N_i);
-        %     k = ringleb.k_from_V_phi(phi,V);
-        %     theta0 = asin(psi*this.v_min);
-        %     phi = ringleb.phi_value(theta0,this.v_min);
-        %     t     = linspace( 0,1,N_i).';
-        %     theta = theta0 + t.*(pi/2 - theta0);
-        %     PSI = repmat(psi,N_i,1);
-        %     V = sin(theta)./PSI;
-        % 
-        %     grid.x = ringleb.x_value(PSI,V);
-        %     grid.y = ringleb.y_value(PSI,V);
-        % end
+        function grid = make_grid3(this,N_i,N_j)
+            grid = struct();
+            grid.imax = N_i;
+            grid.jmax = N_j;
+            % psi = 1./linspace(1./this.psi_min,1./this.psi_max,N_j);
+            psi = linspace(this.psi_min,this.psi_max,N_j);
+            theta0 = asin(psi*this.v_min);
+            phi_max = ringleb.phi_value(theta0(1),this.v_min);
+            phi_min = 0;
+            phi = linspace(phi_min,phi_max,N_i);
+            [PHI,PSI] = ndgrid(phi,psi);
+            Z = z_from_phi_psi(PHI,PSI);
+            grid.x = real(Z);
+            grid.y = imag(Z);
+            % function z = z_from_q_k(q,k)
+            %     b   = ringleb.b_value(q); % b = sqrt( 1 - (gamma-1)/2 * V^2 )
+            %     rho = b.^5;               % rho = b^(2/(gamma-1))
+            %     L   = 1.0./b + 1.0./(3.0*b.^3) + 1.0./(5.0*b.^5) ...
+            %         - 0.5*log((1.0+b)./(1.0-b));
+            %     x = 1.0./rho .* (0.5./(q.^2) - 1./k.^2) + 0.5*L;
+            %     y = 1./(k.*rho.*q) .* sqrt( 1.0 - (q./k).^2);
+            %     z = x + 1i*y;
+            % end
+            function z = z_from_phi_psi(phi,psi)
+                q0 = 1/psi(1);
+                q = arrayfun(@(psi,phi)fzero(@(q)obj_fun(q,1./psi,phi),q0),psi,phi);
+                b   = ringleb.b_value(q); % b = sqrt( 1 - (gamma-1)/2 * V^2 )
+                rho = b.^5;               % rho = b^(2/(gamma-1))
+                L   = 1.0./b + 1.0./(3.0*b.^3) + 1.0./(5.0*b.^5) ...
+                    - 0.5*log((1.0+b)./(1.0-b));
+                x = 1.0./rho .* (0.5./(q.^2) - psi.^2) + 0.5*L;
+                y = psi./(rho.*q) .* sqrt( 1.0 - (q.*psi).^2);
+                z = x + 1i*y;
+                function f = obj_fun(q,k,phi)
+                    f = q.^2 .* ( phi.^2 .*( 1- 0.2*q.^2).^5 + 1./k.^2) - 1;
+                end
+            end
+        end
 
         function rho = density(this,x,y)
             [rho,~,~,~] = this.primitive_vars(x,y);
