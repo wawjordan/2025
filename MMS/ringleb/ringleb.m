@@ -60,7 +60,7 @@ classdef ringleb
             this.q_min     = p.Results.q_min / this.a_ref;
             
         end
-        function grid = make_grid(this,N_i,N_j)
+        function grid = make_grid_phi_psi(this,N_i,N_j)
             grid = struct();
             grid.imax = N_i;
             grid.jmax = N_j;
@@ -71,6 +71,27 @@ classdef ringleb
             phi = linspace(phi_min,phi_max,N_i);
             [PHI,PSI] = ndgrid(phi,psi);
             [X,Y] = this.xy_from_phi_psi(PHI,PSI);
+            grid.x = X;
+            grid.y = Y;
+        end
+        function grid = make_grid_k_q(this,N_i,N_j)
+            grid = struct();
+            grid.imax = N_i;
+            grid.jmax = N_j;
+            psi_0 = 1./linspace(this.k_max,this.k_min,N_j);
+            Q = zeros(N_i,N_j);
+            PSI = zeros(N_i,N_j);
+            for i = 1:N_i
+                PSI(i,:) = psi_0;
+            end
+
+            for j = 1:N_j
+                theta_min = asin(psi_0(j)*this.q_min);
+                theta_max = pi - asin(psi_0(j)*this.q_min);
+                theta = linspace(theta_min,theta_max,N_i);
+                Q(:,j) = sin(theta)/psi_0(j);
+            end
+            [X,Y] = this.xy_from_q_psi(Q,PSI);
             grid.x = X;
             grid.y = Y;
         end
