@@ -4,6 +4,9 @@ classdef ringleb
         q_max(1,1)                    % max. velocity [m/s]
         k_min(1,1)       double = 0.6 % streamline parameter [nondim]
         k_max(1,1)       double = 1.5 % streamline parameter [nondim]
+        xk_min(1,1)      double =-1.0 % location on x-axis of k_min [m]
+        xk_max(1,1)      double = 0.0 % location on x-axis of k_max [m]
+        xq_min(1,1)      double = 1.0 % x-location of point for q_min,k_max
         rho0(1,1)        double = 1.0 % stagnation density [kg/m^3]
         p0(1,1)          double = 100000.0 % stagnation pressure [Pa]
         a0(1,1)                       % speed of sound at stagnation [m/s]
@@ -19,6 +22,9 @@ classdef ringleb
             q_min_default      = 68;
             k_min_default      = 0.6;
             k_max_default      = 1.25;
+            xk_min_default     = NaN;
+            xk_max_default     = NaN;
+            xq_min_default     = NaN;
             rho0_default       = 1.0;
             p0_default         = 100000.0;
             rho_ref_default    = 1.0;
@@ -31,6 +37,9 @@ classdef ringleb
             p.addOptional('q_min', q_min_default, validScalarPosNum);
             p.addOptional('k_min', k_min_default, validScalarPosNum);
             p.addOptional('k_max', k_max_default, validScalarPosNum);
+            p.addOptional('xk_min', xk_min_default, validScalarNum);
+            p.addOptional('xk_max', xk_max_default, validScalarNum);
+            p.addOptional('xq_min', xq_min_default, validScalarNum);
             p.addOptional('rho0',  rho0_default,  validScalarPosNum);
             p.addOptional('p0',    p0_default,    validScalarPosNum);
             p.addOptional('rho_ref', rho_ref_default, validScalarPosNum);
@@ -48,24 +57,60 @@ classdef ringleb
             % non-dimensional maximum possible velocity (limiting line)
             this.q_max     = (4/(this.gamma+1));
 
-            % already non-dimensional
-            this.k_min     = p.Results.k_min;
-            this.k_max     = p.Results.k_max;
-
             % non-dimensionalize inputs
             this.rho0        = p.Results.rho0 / this.rho_ref;
             this.p0          = p.Results.p0 ...
                              / (this.rho_ref * this.a_ref^2);
             this.a0        = sqrt( this.gamma * this.p0 / this.rho0 );
             this.q_min     = p.Results.q_min / this.a_ref;
+
+            % already non-dimensional
+            this.k_min     = p.Results.k_min;
+            this.k_max     = p.Results.k_max;
+
+            if ~isnan(p.Results.xk_min)
+                this.xk_min = p.Results.xk_min;
+                [this.k_min,~] = this.q_theta_from_x_y(p.Results.xk_min,0);
+            else
+                [this.xk_min,~] = this.xy_from_phi_psi(0.0,1./this.k_min);
+            end
+
+            if ~isnan(p.Results.xk_max)
+                this.xk_max = p.Results.xk_max;
+                [this.k_max,~] = this.q_theta_from_x_y(this.xk_max,0);
+            else
+                [this.xk_max,~] = this.xy_from_phi_psi(0.0,1./this.k_max);
+            end
+
+            if this.k_min >= this.k_max
+                error('k_min must be less than k_max');
+            end
+            if this.xk_min >= this.xk_max
+                error('xk_min must be less than xk_max');
+            end
+
+            psi = 1/this.k_max;
+            if ~isnan(p.Results.xq_min)
+                this.xq_min = p.Results.xq_min;
+                if this.xq_min <= this.xk_max
+                    error('xq_min must be greater than xk_max')
+                end
+                [this.q_min,~] = this.q_theta_from_x_psi(this.xq_min,psi);
+            else
+                if this.q_min >= this.k_min
+                    error('q_min must be less than k_min')
+                end
+                [this.xq_min,~] = this.xy_from_q_psi(this.q_min,psi);
+            end
             
         end
         function grid = make_grid_phi_psi(this,N_i,N_j)
             grid = struct();
             grid.imax = N_i;
             grid.jmax = N_j;
-            psi = linspace(1./this.k_max,1./this.k_min,N_j);
-            theta0 = asin(psi(end)*this.q_min);
+            % psi = linspace(1./this.k_max,1./this.k_min,N_j);
+            psi = 1./linspace(this.k_max,this.k_min,N_j);
+            theta0 = asin(psi(1)*this.q_min);
             phi_max = this.phi_from_q_theta(this.q_min,theta0);
             phi_min = 0;
             phi = linspace(phi_min,phi_max,N_i);
@@ -87,8 +132,9 @@ classdef ringleb
 
             for j = 1:N_j
                 theta_min = asin(psi_0(j)*this.q_min);
-                theta_max = pi - asin(psi_0(j)*this.q_min);
-                theta = linspace(theta_min,theta_max,N_i);
+                % theta_max = pi - asin(psi_0(j)*this.q_min);
+                theta_max = pi/2;
+                theta = linspace(theta_max,theta_min,N_i);
                 Q(:,j) = sin(theta)/psi_0(j);
             end
             [X,Y] = this.xy_from_q_psi(Q,PSI);
@@ -110,7 +156,45 @@ classdef ringleb
             x = 1.0./rho .* (0.5./(q.^2) - psi.^2) + 0.5*J;
             y = psi./(rho.*q) .* sqrt( max(1.0 - (q.*psi).^2,0.0));
         end
-
+        % function s = streamline_arc_length_check_1(this,psi,q0,q1,Nq)
+        %     if nargin < 5
+        %         Nq = 101;
+        %     end
+        %     q = linspace(q0,q1,Nq);
+        %     [x,y] = this.xy_from_q_psi(q,psi);
+        %     s = sum(sqrt(diff(x).^2+diff(y).^2));
+        % end
+        % function s = streamline_arc_length_check_2(this,psi,q0,q1)
+        %     s = integral(@(q)diff_streamline_arc_length(this,psi,q),...
+        %                  q0,q1,"AbsTol",1e-15,'RelTol',1e-14);
+        %     function ds = diff_streamline_arc_length(this,psi,q)
+        %         h = 1e-20;
+        %         [dx,dy] = this.xy_from_q_psi(q+1i*h,psi);
+        %         dx = imag(dx)/h;
+        %         dy = imag(dy)/h;
+        %         ds = sqrt(dx.^2+dy.^2);
+        %     end
+        % end
+        % function s = potential_line_arc_length_check_1(this,phi,k0,k1,Nk)
+        %     if nargin < 5
+        %         Nk = 101;
+        %     end
+        %     psi = 1./linspace(1/k0,1/k1,Nk);
+        %     [x,y] = this.xy_from_phi_psi(phi,psi);
+        %     s = sum(sqrt(diff(x).^2+diff(y).^2));
+        % end
+        % function s = potential_line_arc_length_check_2(this,phi,k0,k1)
+        %     s = integral(@(k)diff_potential_line_arc_length(this,phi,k),...
+        %         k0,k1,"AbsTol",1e-15,'RelTol',1e-14);
+        %     function ds = diff_potential_line_arc_length(this,phi,k)
+        %         h = 1e-20;
+        %         [dx,dy] = this.xy_from_phi_psi(phi,1./k+1i*h);
+        %         dx = imag(dx)/h;
+        %         dy = imag(dy)/h;
+        %         ds = sqrt(dx.^2+dy.^2);
+        %     end
+        % end
+        
         function rho = density(this,x,y)
             [rho,~,~,~] = this.primitive_vars_from_x_y(x,y);
         end
@@ -143,6 +227,23 @@ classdef ringleb
                 f = q-sqrt(1.0./f);
             end
         end
+        function [q,theta] = q_theta_from_x_psi(this,x,psi)
+            opts =  optimset('TolFun',1e-15,'TolX',1e-17);
+            q = arrayfun( @(x,k) fzero( @(q)obj_fun(this,x,psi,q),...
+                [1e-6,this.k_min],opts),x,psi);
+            psi = this.psi_from_x_q(x,q);
+            arg = psi.*q;
+            arg(arg<-1) = -1;
+            arg(arg>1)  =  1;
+            theta = asin(arg);
+            function f = obj_fun(this,x,psi,q)
+                J = this.J_value(q);
+                r = this.rho_value(q);
+                y = psi./(r.*q) .* sqrt( max(1.0 - (q.*psi).^2,0.0));
+                f = 2.0*r*sqrt((x-0.5*J).^2 + y.^2);
+                f = q-sqrt(1.0./f);
+            end
+        end
         function [rho,u,v,p] = primitive_vars_q_theta(this,q,theta)
             rho = this.rho_value(q)*this.rho0;
             p   = this.pressure_value(q)*this.p0;
@@ -167,7 +268,7 @@ classdef ringleb
             M = q./sqrt(this.gamma*p./rho);
         end
         function M = mach_number2(this,q)
-            M = sqrt(q.^2./(1-0.5*(this.gamma-1)*q.^2));
+            M = q.^2./(1-0.5*(this.gamma-1)*q.^2);
         end
         function p = pressure_value(this,q)
             c = this.c_value(q);
@@ -179,6 +280,11 @@ classdef ringleb
             psi = sqrt(0.5./(q.^2) - rho.*(x-0.5*J));
         end
         function phi = phi_from_q_theta(this,q,theta)
+            rho = this.rho_value(q);
+            phi = cos(theta)./(q.*rho);
+        end
+        function phi = phi_from_q_psi(this,q,psi)
+            theta = asin(psi.*q);
             rho = this.rho_value(q);
             phi = cos(theta)./(q.*rho);
         end
